@@ -1,0 +1,49 @@
+### Go build artifacts
+bin/
+build/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+### Go modules & dependencies
+vendor/
+
+### Logs & runtime files
+*.log
+*.pid
+*.seed
+*.coverprofile
+coverage.out
+
+### OS / editor files
+.DS_Store
+Thumbs.db
+
+### IDE / Tooling
+.vscode/
+.idea/
+*.iml
+.fleet/
+
+### Docker / Compose
+docker/*.env
+docker/.env
+.env
+.env.*
+
+### Migrations / DB
+*.db
+*.sqlite
+*.sqlite3
+
+### Cursor / history / temp
+.cursor/
+.history/
+transferring
+
+.history/
