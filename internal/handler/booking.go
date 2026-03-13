@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"magua-fly-golang/internal/domain"
@@ -27,10 +26,14 @@ func NewBookingHandler(bookingRepo repository.BookingRepository, planRepo reposi
 func (h *BookingHandler) ListPending(c *gin.Context) {
 	list, err := h.bookingRepo.ListPending(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": list})
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "ok",
+		"data": gin.H{"items": list},
+	})
 }
 
 // Create creates a new booking (student).
@@ -44,22 +47,22 @@ func (h *BookingHandler) Create(c *gin.Context) {
 		EndTime      string `json:"end_time" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
 	planDate, err := time.Parse("2006-01-02", body.PlanDate)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plan_date"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid plan_date", "data": nil})
 		return
 	}
 	startTime, err := time.Parse("15:04", body.StartTime)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_time"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid start_time", "data": nil})
 		return
 	}
 	endTime, err := time.Parse("15:04", body.EndTime)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid end_time"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid end_time", "data": nil})
 		return
 	}
 	b := &domain.Booking{
@@ -72,31 +75,30 @@ func (h *BookingHandler) Create(c *gin.Context) {
 		Status:       domain.BookingPending,
 	}
 	if err := h.bookingRepo.Create(c.Request.Context(), b); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
-	c.JSON(http.StatusCreated, b)
+	c.JSON(http.StatusCreated, gin.H{
+		"code": 200,
+		"msg":  "ok",
+		"data": b,
+	})
 }
 
 // Review approves or rejects a booking (staff).
 func (h *BookingHandler) Review(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
 	var body struct {
+		ID      int64  `json:"id" binding:"required"`
 		Approve bool   `json:"approve"`
 		Reason  string `json:"reason"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
 	claims := middleware.GetGinClaims(c)
 	if claims == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
 		return
 	}
 	status := domain.BookingApproved
@@ -104,12 +106,12 @@ func (h *BookingHandler) Review(c *gin.Context) {
 	if !body.Approve {
 		status = domain.BookingRejected
 	}
-	if err := h.bookingRepo.UpdateStatus(c.Request.Context(), id, status, reason, claims.UserID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if err := h.bookingRepo.UpdateStatus(c.Request.Context(), body.ID, status, reason, claims.UserID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
 	if status == domain.BookingApproved {
-		booking, _ := h.bookingRepo.GetByID(c.Request.Context(), id)
+		booking, _ := h.bookingRepo.GetByID(c.Request.Context(), body.ID)
 		if booking != nil {
 			plan := &domain.TrainingPlan{
 				StudentID:    booking.StudentID,
@@ -123,5 +125,9 @@ func (h *BookingHandler) Review(c *gin.Context) {
 			_ = h.planRepo.Create(c.Request.Context(), plan)
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"status": string(status)})
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "ok",
+		"data": gin.H{"status": string(status)},
+	})
 }

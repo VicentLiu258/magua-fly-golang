@@ -16,6 +16,7 @@ func Router(
 	instructor *InstructorHandler,
 	aircraft *AircraftHandler,
 	booking *BookingHandler,
+	schedule *ScheduleHandler,
 	jwtManager *jwt.Manager,
 ) *gin.Engine {
 	r := gin.Default()
@@ -30,12 +31,13 @@ func Router(
 	authGroup := r.Group("")
 	authGroup.Use(middleware.GinAuth(jwtManager))
 	{
-		authGroup.GET("/students", student.List)
-		authGroup.GET("/instructors", instructor.List)
-		authGroup.GET("/aircraft", aircraft.List)
-		authGroup.GET("/bookings/pending", booking.ListPending)
-		authGroup.POST("/bookings", booking.Create)
-		authGroup.POST("/bookings/:id/review", booking.Review)
+		authGroup.POST("/api/v1/students/list", student.List)
+		authGroup.POST("/api/v1/instructors/list", instructor.List)
+		authGroup.POST("/api/v1/aircraft/list", aircraft.List)
+		authGroup.POST("/api/v1/bookings", booking.Create)
+		authGroup.POST("/api/v1/bookings/pending", booking.ListPending)
+		authGroup.POST("/api/v1/bookings/review", booking.Review)
+		authGroup.POST("/api/v1/schedules/instructor-grid", schedule.InstructorGrid)
 	}
 
 	return r

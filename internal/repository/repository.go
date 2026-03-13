@@ -38,6 +38,18 @@ type AircraftRepository interface {
 	Create(ctx context.Context, a *domain.Aircraft) error
 }
 
+// InstructorScheduleRepository defines instructor schedule (duty) persistence.
+type InstructorScheduleRepository interface {
+	// ListByDate returns all schedules for a given date.
+	ListByDate(ctx context.Context, date time.Time) ([]*domain.InstructorSchedule, error)
+}
+
+// AircraftAvailabilityRepository defines aircraft availability persistence.
+type AircraftAvailabilityRepository interface {
+	// ListByDate returns all availability records for a given date.
+	ListByDate(ctx context.Context, date time.Time) ([]*domain.AircraftAvailability, error)
+}
+
 // BookingRepository defines booking persistence.
 type BookingRepository interface {
 	GetByID(ctx context.Context, id int64) (*domain.Booking, error)
@@ -45,6 +57,8 @@ type BookingRepository interface {
 	ListPending(ctx context.Context) ([]*domain.Booking, error)
 	Create(ctx context.Context, b *domain.Booking) error
 	UpdateStatus(ctx context.Context, id int64, status domain.BookingStatus, rejectReason string, reviewerID int64) error
+	// ListByDate returns all bookings on a specific plan date.
+	ListByDate(ctx context.Context, date time.Time) ([]*domain.Booking, error)
 }
 
 // TrainingPlanRepository defines training plan persistence.

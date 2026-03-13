@@ -24,12 +24,24 @@ func NewHealthHandler(pg *postgres.DB, m *mongodb.Client) *HealthHandler {
 func (h *HealthHandler) Check(c *gin.Context) {
 	ctx := c.Request.Context()
 	if err := h.pg.Health(ctx); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "postgres unhealthy", "detail": err.Error()})
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"code": 503,
+			"msg":  "postgres unhealthy",
+			"data": gin.H{"detail": err.Error()},
+		})
 		return
 	}
 	if err := h.m.Health(ctx); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "mongodb unhealthy", "detail": err.Error()})
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"code": 503,
+			"msg":  "mongodb unhealthy",
+			"data": gin.H{"detail": err.Error()},
+		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "ok",
+		"data": nil,
+	})
 }

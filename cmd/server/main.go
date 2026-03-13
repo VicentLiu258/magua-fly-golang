@@ -62,6 +62,8 @@ func main() {
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
 	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft())
 	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan())
+	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking())
+	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
 
 	router := handler.Router(
 		healthHandler,
@@ -71,6 +73,7 @@ func main() {
 		instructorHandler,
 		aircraftHandler,
 		bookingHandler,
+		scheduleHandler,
 		jwtManager,
 	)
 

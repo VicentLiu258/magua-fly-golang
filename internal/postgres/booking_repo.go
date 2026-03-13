@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"time"
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/repository"
@@ -94,3 +95,28 @@ func (r *BookingRepo) UpdateStatus(ctx context.Context, id int64, status domain.
 	)
 	return err
 }
+
+func (r *BookingRepo) ListByDate(ctx context.Context, date time.Time) ([]*domain.Booking, error) {
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT id, student_id, instructor_id, aircraft_id, plan_date, start_time, end_time,
+		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id, created_at, updated_at
+		FROM bookings
+		WHERE plan_date = $1
+		ORDER BY instructor_id, start_time`, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []*domain.Booking
+	for rows.Next() {
+		var b domain.Booking
+		if err := rows.Scan(&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime,
+			&b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, &b)
+	}
+	return list, rows.Err()
+}
+

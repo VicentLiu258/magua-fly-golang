@@ -28,8 +28,12 @@ func (h *StudentHandler) List(c *gin.Context) {
 	}
 	list, err := h.studentRepo.List(c.Request.Context(), limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": list})
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "ok",
+		"data": gin.H{"items": list},
+	})
 }

@@ -91,3 +91,43 @@ type Booking struct {
 	CreatedAt    time.Time     `json:"created_at"`
 	UpdatedAt    time.Time     `json:"updated_at"`
 }
+
+// SlotStatus represents the status of a single time slot in the schedule grid.
+type SlotStatus string
+
+const (
+	SlotOff                SlotStatus = "off"
+	SlotAvailable          SlotStatus = "available"
+	SlotBooked             SlotStatus = "booked"
+	SlotAircraftUnavailable SlotStatus = "aircraft_unavailable"
+)
+
+// TimeSlot is one half-hour block on the timeline.
+type TimeSlot struct {
+	Index      int        `json:"slotIndex"`
+	StartTime  string     `json:"startTime"`           // "09:00"
+	EndTime    string     `json:"endTime"`             // "09:30"
+	Status     SlotStatus `json:"status"`              // off/available/booked/aircraft_unavailable
+	BookingID  *int64     `json:"bookingId,omitempty"` // when booked
+	AircraftID *int64     `json:"aircraftId,omitempty"`
+	StudentID  *int64     `json:"studentId,omitempty"`
+}
+
+// InstructorTimeline is the per-instructor row in the grid.
+type InstructorTimeline struct {
+	ID       int64      `json:"id"`
+	Name     string     `json:"name"`
+	Color    string     `json:"displayColor,omitempty"`
+	Timeline []TimeSlot `json:"timeline"`
+}
+
+// InstructorGridResponse is used by /schedules/instructor-grid.
+type InstructorGridResponse struct {
+	Date        string               `json:"date"`
+	SlotMinutes int                  `json:"slotMinutes"`
+	DayStart    string               `json:"dayStart"`
+	DayEnd      string               `json:"dayEnd"`
+	Slots       []string             `json:"slots"`
+	Instructors []InstructorTimeline `json:"instructors"`
+}
+

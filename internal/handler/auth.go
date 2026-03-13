@@ -31,19 +31,23 @@ func NewAuthHandler(authUC *usecase.AuthUseCase) *AuthHandler {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req usecase.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
 	resp, err := h.authUC.Login(c.Request.Context(), req)
 	if err != nil {
 		if err == usecase.ErrInvalidCredentials {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "invalid credentials", "data": nil})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "ok",
+		"data": resp,
+	})
 }
 
 // Register godoc
@@ -58,17 +62,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req usecase.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
 	if req.Role != domain.RoleAdmin && req.Role != domain.RoleStaff && req.Role != domain.RoleInstructor && req.Role != domain.RoleStudent {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid role", "data": nil})
 		return
 	}
 	user, err := h.authUC.Register(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
-	c.JSON(http.StatusCreated, user)
+	c.JSON(http.StatusCreated, gin.H{
+		"code": 200,
+		"msg":  "ok",
+		"data": user,
+	})
 }
