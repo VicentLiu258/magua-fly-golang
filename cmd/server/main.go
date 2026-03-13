@@ -48,6 +48,8 @@ func main() {
 
 	authUC := usecase.NewAuthUseCase(
 		pgDB.User(),
+		pgDB.Student(),
+		pgDB.Instructor(),
 		pgDB.SmsVerification(),
 		jwtManager,
 		smsClient,

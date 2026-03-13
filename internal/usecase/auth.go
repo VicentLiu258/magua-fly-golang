@@ -16,10 +16,12 @@ import (
 
 // AuthUseCase handles login and token issuance.
 type AuthUseCase struct {
-	userRepo        repository.UserRepository
-	smsRepo         repository.SmsVerificationRepository
-	jwtManager      *jwt.Manager
-	smsClient       sms.Client
+	userRepo         repository.UserRepository
+	studentRepo      repository.StudentRepository
+	instructorRepo   repository.InstructorRepository
+	smsRepo          repository.SmsVerificationRepository
+	jwtManager       *jwt.Manager
+	smsClient        sms.Client
 	smsTemplateLogin   string
 	smsTemplateRegister string
 }
@@ -27,6 +29,8 @@ type AuthUseCase struct {
 // NewAuthUseCase creates an AuthUseCase.
 func NewAuthUseCase(
 	userRepo repository.UserRepository,
+	studentRepo repository.StudentRepository,
+	instructorRepo repository.InstructorRepository,
 	smsRepo repository.SmsVerificationRepository,
 	jwtManager *jwt.Manager,
 	smsClient sms.Client,
@@ -34,11 +38,13 @@ func NewAuthUseCase(
 	smsTemplateRegister string,
 ) *AuthUseCase {
 	return &AuthUseCase{
-		userRepo:           userRepo,
-		smsRepo:            smsRepo,
-		jwtManager:         jwtManager,
-		smsClient:          smsClient,
-		smsTemplateLogin:   smsTemplateLogin,
+		userRepo:            userRepo,
+		studentRepo:         studentRepo,
+		instructorRepo:      instructorRepo,
+		smsRepo:             smsRepo,
+		jwtManager:          jwtManager,
+		smsClient:           smsClient,
+		smsTemplateLogin:    smsTemplateLogin,
 		smsTemplateRegister: smsTemplateRegister,
 	}
 }
@@ -187,13 +193,16 @@ func (u *AuthUseCase) VerifySmsCode(ctx context.Context, req VerifySmsCodeReques
 			if req.Scene == SmsSceneRegister {
 				// Auto-register a basic student account if not exists.
 				user = &domain.User{
-					Username: req.Phone,
-					Phone:    req.Phone,
-					Role:     domain.RoleStudent,
+					Username:     req.Phone,
+					Phone:        req.Phone,
+					Role:         domain.RoleStudent,
+					PasswordHash: "",
 				}
-				// Empty password for sms-only accounts.
-				user.PasswordHash = ""
 				if err := u.userRepo.Create(ctx, user); err != nil {
+					return nil, err
+				}
+				// Auto-create linked student profile for SMS-registered students.
+				if err := u.ensureProfileForUser(ctx, user); err != nil {
 					return nil, err
 				}
 			} else {
@@ -233,6 +242,34 @@ func (u *AuthUseCase) Register(ctx context.Context, req RegisterRequest) (*domai
 	if err := u.userRepo.Create(ctx, user); err != nil {
 		return nil, err
 	}
+	// Create linked profile in students / instructors based on role.
+	if err := u.ensureProfileForUser(ctx, user); err != nil {
+		return nil, err
+	}
 	user.PasswordHash = ""
 	return user, nil
+}
+
+// ensureProfileForUser creates student/instructor profile rows linked to the given user when needed.
+func (u *AuthUseCase) ensureProfileForUser(ctx context.Context, user *domain.User) error {
+	switch user.Role {
+	case domain.RoleStudent:
+		// Generate a simple student_no based on user ID.
+		s := &domain.Student{
+			UserID:     &user.ID,
+			Name:       user.Username,
+			StudentNo:  fmt.Sprintf("S%06d", user.ID),
+			FlownMinutes: 0,
+		}
+		return u.studentRepo.Create(ctx, s)
+	case domain.RoleInstructor:
+		i := &domain.Instructor{
+			UserID:       user.ID,
+			Name:         user.Username,
+			DisplayColor: "",
+		}
+		return u.instructorRepo.Create(ctx, i)
+	default:
+		return nil
+	}
 }
