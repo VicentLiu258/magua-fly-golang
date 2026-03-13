@@ -25,6 +25,28 @@ type User struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
+// SmsScene represents the scenario for SMS verification codes.
+type SmsScene string
+
+const (
+	SmsSceneRegister SmsScene = "register"
+	SmsSceneLogin    SmsScene = "login"
+	SmsSceneResetPwd SmsScene = "reset_pwd"
+	SmsScene2FA      SmsScene = "2fa"
+)
+
+// SmsVerificationCode records a verification code sent to a phone for a given scene.
+type SmsVerificationCode struct {
+	ID        int64     `json:"id"`
+	Phone     string    `json:"phone"`
+	Scene     SmsScene  `json:"scene"`
+	Code      string    `json:"-"`
+	IP        string    `json:"ip,omitempty"`
+	ExpiredAt time.Time `json:"expired_at"`
+	UsedAt    *time.Time `json:"used_at,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // Student extends user profile for trainees.
 type Student struct {
 	ID                      int64     `json:"id"`

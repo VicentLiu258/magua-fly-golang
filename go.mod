@@ -9,6 +9,8 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/golang-migrate/migrate/v4 v4.17.0
 	github.com/jackc/pgx/v5 v5.5.1
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.55
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/sms v1.1.49
 	go.mongodb.org/mongo-driver v1.13.1
 	golang.org/x/crypto v0.17.0
 )

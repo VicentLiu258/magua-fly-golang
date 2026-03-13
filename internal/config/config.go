@@ -14,6 +14,11 @@ type Config struct {
 	JWTSecret    string
 	LogLevel     string
 	MigratePath  string
+	SmsSecretID  string
+	SmsSecretKey string
+	SmsSdkAppID  string
+	SmsSignName  string
+	SmsRegion    string
 }
 
 // Load reads configuration from environment.
@@ -27,6 +32,11 @@ func Load() *Config {
 		JWTSecret:    getEnv("JWT_SECRET", "change-me-in-production"),
 		LogLevel:     getEnv("LOG_LEVEL", "info"),
 		MigratePath:  getEnv("MIGRATE_PATH", "file://migrations"),
+		SmsSecretID:  getEnv("TENCENT_SMS_SECRET_ID", ""),
+		SmsSecretKey: getEnv("TENCENT_SMS_SECRET_KEY", ""),
+		SmsSdkAppID:  getEnv("TENCENT_SMS_SDK_APP_ID", ""),
+		SmsSignName:  getEnv("TENCENT_SMS_SIGN_NAME", ""),
+		SmsRegion:    getEnv("TENCENT_SMS_REGION", "ap-guangzhou"),
 	}
 }
 

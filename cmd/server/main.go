@@ -15,6 +15,7 @@ import (
 	"magua-fly-golang/internal/mongodb"
 	"magua-fly-golang/internal/postgres"
 	"magua-fly-golang/internal/pkg/jwt"
+	"magua-fly-golang/internal/pkg/sms"
 	"magua-fly-golang/internal/usecase"
 )
 
@@ -40,8 +41,23 @@ func main() {
 
 	jwtManager := jwt.NewManager(cfg.JWTSecret, 24*time.Hour)
 
+	smsClient, err := sms.NewTencentClient(cfg)
+	if err != nil {
+		log.Fatalf("sms client: %v", err)
+	}
+
+	authUC := usecase.NewAuthUseCase(
+		pgDB.User(),
+		pgDB.SmsVerification(),
+		jwtManager,
+		smsClient,
+		"", // TODO: set login template ID via config/env
+		"", // TODO: set register template ID via config/env
+	)
+
 	healthHandler := handler.NewHealthHandler(pgDB, mongoClient)
-	authHandler := handler.NewAuthHandler(usecase.NewAuthUseCase(pgDB.User(), jwtManager))
+	authHandler := handler.NewAuthHandler(authUC)
+	smsHandler := handler.NewSmsHandler(authUC)
 	studentHandler := handler.NewStudentHandler(pgDB.Student())
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
 	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft())
@@ -50,6 +66,7 @@ func main() {
 	router := handler.Router(
 		healthHandler,
 		authHandler,
+		smsHandler,
 		studentHandler,
 		instructorHandler,
 		aircraftHandler,

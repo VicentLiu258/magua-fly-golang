@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"magua-fly-golang/internal/domain"
 )
@@ -10,6 +11,7 @@ import (
 type UserRepository interface {
 	GetByID(ctx context.Context, id int64) (*domain.User, error)
 	GetByUsername(ctx context.Context, username string) (*domain.User, error)
+	GetByPhone(ctx context.Context, phone string) (*domain.User, error)
 	Create(ctx context.Context, u *domain.User) error
 }
 
@@ -87,4 +89,14 @@ type TheoryDocumentRepository interface {
 	GetByID(ctx context.Context, id int64) (*domain.TheoryDocument, error)
 	List(ctx context.Context) ([]*domain.TheoryDocument, error)
 	Create(ctx context.Context, d *domain.TheoryDocument) error
+}
+
+// SmsVerificationRepository defines SMS verification code persistence.
+type SmsVerificationRepository interface {
+	Create(ctx context.Context, v *domain.SmsVerificationCode) error
+	// FindLatestByPhoneScene returns the latest code (used or unused) for rate limiting checks.
+	FindLatestByPhoneScene(ctx context.Context, phone string, scene domain.SmsScene) (*domain.SmsVerificationCode, error)
+	// FindValidCode looks up a not-yet-used, not-expired code.
+	FindValidCode(ctx context.Context, phone string, scene domain.SmsScene, code string, now time.Time) (*domain.SmsVerificationCode, error)
+	MarkUsed(ctx context.Context, id int64, usedAt time.Time) error
 }

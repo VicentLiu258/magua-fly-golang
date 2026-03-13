@@ -11,6 +11,7 @@ import (
 func Router(
 	health *HealthHandler,
 	auth *AuthHandler,
+	smsHandler *SmsHandler,
 	student *StudentHandler,
 	instructor *InstructorHandler,
 	aircraft *AircraftHandler,
@@ -23,6 +24,8 @@ func Router(
 	r.GET("/health", health.Check)
 	r.POST("/auth/login", auth.Login)
 	r.POST("/auth/register", auth.Register)
+	r.POST("/auth/sms/send", smsHandler.SendCode)
+	r.POST("/auth/sms/verify", smsHandler.VerifyCode)
 
 	authGroup := r.Group("")
 	authGroup.Use(middleware.GinAuth(jwtManager))
