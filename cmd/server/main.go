@@ -62,7 +62,7 @@ func main() {
 	smsHandler := handler.NewSmsHandler(authUC)
 	studentHandler := handler.NewStudentHandler(pgDB.Student())
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
-	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft())
+	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability())
 	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan())
 	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking())
 	scheduleHandler := handler.NewScheduleHandler(scheduleUC)

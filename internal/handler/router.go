@@ -34,6 +34,8 @@ func Router(
 		authGroup.POST("/api/v1/students/list", student.List)
 		authGroup.POST("/api/v1/instructors/list", instructor.List)
 		authGroup.POST("/api/v1/aircraft/list", aircraft.List)
+		authGroup.POST("/api/v1/aircraft/create", aircraft.Create)
+		authGroup.POST("/api/v1/aircraft/availabilities/create", aircraft.CreateAvailability)
 		authGroup.POST("/api/v1/bookings", booking.Create)
 		authGroup.POST("/api/v1/bookings/pending", booking.ListPending)
 		authGroup.POST("/api/v1/bookings/review", booking.Review)

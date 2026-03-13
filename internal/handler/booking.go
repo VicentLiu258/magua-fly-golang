@@ -96,6 +96,14 @@ func (h *BookingHandler) Review(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
+
+	// Ensure booking exists before updating status.
+	booking, err := h.bookingRepo.GetByID(c.Request.Context(), body.ID)
+	if err != nil || booking == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "booking not found", "data": nil})
+		return
+	}
+
 	claims := middleware.GetGinClaims(c)
 	if claims == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
@@ -111,19 +119,16 @@ func (h *BookingHandler) Review(c *gin.Context) {
 		return
 	}
 	if status == domain.BookingApproved {
-		booking, _ := h.bookingRepo.GetByID(c.Request.Context(), body.ID)
-		if booking != nil {
-			plan := &domain.TrainingPlan{
-				StudentID:    booking.StudentID,
-				InstructorID: booking.InstructorID,
-				AircraftID:   booking.AircraftID,
-				PlanDate:     booking.PlanDate,
-				StartTime:    booking.StartTime,
-				EndTime:      booking.EndTime,
-				Source:       domain.PlanSourceBooking,
-			}
-			_ = h.planRepo.Create(c.Request.Context(), plan)
+		plan := &domain.TrainingPlan{
+			StudentID:    booking.StudentID,
+			InstructorID: booking.InstructorID,
+			AircraftID:   booking.AircraftID,
+			PlanDate:     booking.PlanDate,
+			StartTime:    booking.StartTime,
+			EndTime:      booking.EndTime,
+			Source:       domain.PlanSourceBooking,
 		}
+		_ = h.planRepo.Create(c.Request.Context(), plan)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,

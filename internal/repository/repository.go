@@ -48,6 +48,7 @@ type InstructorScheduleRepository interface {
 type AircraftAvailabilityRepository interface {
 	// ListByDate returns all availability records for a given date.
 	ListByDate(ctx context.Context, date time.Time) ([]*domain.AircraftAvailability, error)
+	Create(ctx context.Context, a *domain.AircraftAvailability) error
 }
 
 // BookingRepository defines booking persistence.

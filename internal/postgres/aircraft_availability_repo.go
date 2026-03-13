@@ -38,3 +38,13 @@ func (r *AircraftAvailabilityRepo) ListByDate(ctx context.Context, date time.Tim
 	return list, rows.Err()
 }
 
+func (r *AircraftAvailabilityRepo) Create(ctx context.Context, a *domain.AircraftAvailability) error {
+	return r.db.Pool.QueryRow(ctx, `
+		INSERT INTO aircraft_availability (aircraft_id, date, start_time, end_time, status)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_at, updated_at`,
+		a.AircraftID, a.Date, a.StartTime, a.EndTime, a.Status,
+	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
+}
+
+
