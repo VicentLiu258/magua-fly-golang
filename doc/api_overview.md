@@ -468,11 +468,31 @@ POST /api/v1/students/list?limit=20&offset=0
   "msg": "ok",
   "data": {
     "fields": [
-      { "key": "student_id", "label": "学员", "type": "select", "required": true },
-      { "key": "instructor_id", "label": "带飞教员", "type": "select", "required": true },
-      { "key": "training_date", "label": "训练日期", "type": "date", "required": true },
+      {
+        "key": "student_id",
+        "label": "学员",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "instructor_id",
+        "label": "带飞教员",
+        "type": "select",
+        "required": true
+      },
+      {
+        "key": "training_date",
+        "label": "训练日期",
+        "type": "date",
+        "required": true
+      },
       { "key": "engine_on_time", "label": "开车时间", "type": "time" },
-      { "key": "status", "label": "状态", "type": "select", "options": ["normal", "cancelled", "deleted", "expired"] }
+      {
+        "key": "status",
+        "label": "状态",
+        "type": "select",
+        "options": ["normal", "cancelled", "deleted", "expired"]
+      }
     ]
   }
 }
@@ -631,34 +651,365 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ### 7.6 训练档案
 
-- **学员档案列表** `POST /api/v1/students/training-archives/list`  
-  请求体：`{ "student_id": 1, "limit": 20, "offset": 0 }`。返回 `data.items` 档案列表（简洁信息）。
+#### 7.6.1 学员档案列表 `POST /api/v1/students/training-archives/list`
 
-- **档案详情** `POST /api/v1/training-archives/detail`  
-  请求体：`{ "id": 1 }`。返回完整档案（含讲评、自评、任务布置、签字状态等）。
+**请求体**：
 
-- **创建档案** `POST /api/v1/training-archives`  
-  请求体：`training_record_id`、`student_id`、`instructor_id`、`training_date` 等。返回创建的档案。
+```json
+{
+  "student_id": 1,
+  "limit": 20,
+  "offset": 0
+}
+```
 
-- **更新档案** `POST /api/v1/training-archives/update`  
-  请求体：含 `id` 及可编辑字段。返回更新后的档案。
+**成功响应**：
 
-- **签字** `POST /api/v1/training-archives/sign`  
-  请求体：`{ "id": 1, "role": "student" | "responsible_instructor" | "chief_instructor" }`。返回 `{ "status": "signed" }`。
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": 101,
+        "training_record_id": 201,
+        "student_id": 1,
+        "instructor_id": 1,
+        "training_date": "2026-03-15",
+        "stage": "初级训练",
+        "planned_duration_minutes": 90,
+        "total_experience_minutes": 2635,
+        "remaining_minutes": 1804,
+        "engine_on_time": "2026-03-15T10:00:00Z",
+        "engine_off_time": "2026-03-15T11:32:00Z",
+        "flight_duration_minutes": 92,
+        "progress_note": "",
+        "instructor_review": "",
+        "student_self_review": "",
+        "task_assignment": "",
+        "student_signed_at": null,
+        "responsible_instructor_signed_at": null,
+        "chief_instructor_signed_at": null,
+        "created_at": "2026-03-15T12:00:00Z",
+        "updated_at": "2026-03-15T12:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+#### 7.6.2 档案详情 `POST /api/v1/training-archives/detail`
+
+**请求体**：
+
+```json
+{
+  "id": 101
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": 101,
+    "training_record_id": 201,
+    "student_id": 1,
+    "instructor_id": 1,
+    "training_date": "2026-03-15",
+    "stage": "初级训练",
+    "planned_duration_minutes": 90,
+    "total_experience_minutes": 2635,
+    "remaining_minutes": 1804,
+    "engine_on_time": "2026-03-15T10:00:00Z",
+    "engine_off_time": "2026-03-15T11:32:00Z",
+    "flight_duration_minutes": 92,
+    "progress_note": "本课完成起落 5 次，航线保持良好。",
+    "instructor_review": "起飞姿态有进步，落地需注意收油门时机。",
+    "student_self_review": "对五边速度控制更有把握。",
+    "task_assignment": "下次重点练习短五边与侧风落地。",
+    "student_signed_at": "2026-03-15T14:00:00Z",
+    "responsible_instructor_signed_at": "2026-03-15T14:05:00Z",
+    "chief_instructor_signed_at": null,
+    "responsible_instructor_id": 1,
+    "chief_instructor_id": null,
+    "created_at": "2026-03-15T12:00:00Z",
+    "updated_at": "2026-03-15T14:05:00Z"
+  }
+}
+```
+
+#### 7.6.3 创建档案 `POST /api/v1/training-archives`
+
+**请求体**：
+
+```json
+{
+  "training_record_id": 201,
+  "student_id": 1,
+  "instructor_id": 1,
+  "training_date": "2026-03-15",
+  "stage": "初级训练",
+  "planned_duration_minutes": 90,
+  "total_experience_minutes": 2635,
+  "remaining_minutes": 1804,
+  "engine_on_time": "2026-03-15T10:00:00Z",
+  "engine_off_time": "2026-03-15T11:32:00Z",
+  "flight_duration_minutes": 92,
+  "progress_note": "",
+  "instructor_review": "",
+  "student_self_review": "",
+  "task_assignment": ""
+}
+```
+
+**成功响应**：`data` 为创建的档案对象（含 `id`、`created_at`、`updated_at`）。
+
+#### 7.6.4 更新档案 `POST /api/v1/training-archives/update`
+
+**请求体**：
+
+```json
+{
+  "id": 101,
+  "stage": "初级训练",
+  "progress_note": "本课完成起落 5 次。",
+  "instructor_review": "起飞姿态有进步，落地需注意收油门时机。",
+  "student_self_review": "对五边速度控制更有把握。",
+  "task_assignment": "下次重点练习短五边与侧风落地。",
+  "planned_duration_minutes": 90,
+  "total_experience_minutes": 2635,
+  "remaining_minutes": 1804
+}
+```
+
+**成功响应**：`data` 为更新后的完整档案对象。
+
+#### 7.6.5 签字 `POST /api/v1/training-archives/sign`
+
+**请求体**：
+
+```json
+{
+  "id": 101,
+  "role": "student"
+}
+```
+
+`role` 取值：`student`（学员签字）、`responsible_instructor`（责任教员签字）、`chief_instructor`（主任教员签字）。
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "status": "signed"
+  }
+}
+```
+
+---
 
 ### 7.7 训练科目
 
-- **大纲科目列表** `POST /api/v1/syllabus-subjects/list`  
-  请求体：可选 `{ "student_id": 1 }`（用于标记该学员已结业科目）。返回 `data.items`。
+#### 7.7.1 大纲科目列表 `POST /api/v1/syllabus-subjects/list`
 
-- **本课科目列表** `POST /api/v1/training-archives/subjects/list`  
-  请求体：`{ "training_archive_id": 1 }`。返回 `data.items`（含评价、结业标记等）。
+**请求体**（可选带学员 ID，用于标记该学员已结业科目）：
 
-- **设置本课科目** `POST /api/v1/training-archives/subjects/update`  
-  请求体：`{ "training_archive_id": 1, "subjects": [ { "syllabus_subject_id": 1, "evaluation_score": 9, "is_graduated": false, "subject_content": "", "type": "" } ] }`。
+```json
+{
+  "student_id": 1
+}
+```
 
-- **下次布置科目列表** `POST /api/v1/training-archives/next-subjects/list`  
-  请求体：`{ "training_archive_id": 1 }`。返回 `data.items`。
+或不传 `student_id`：
 
-- **布置下次科目** `POST /api/v1/training-archives/next-subjects/update`  
-  请求体：`{ "training_archive_id": 1, "syllabus_subject_ids": [ 1, 2, 3 ] }`。需登录，以当前用户为分配人。
+```json
+{}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": 1,
+        "code": "SUB-01",
+        "name": "起落",
+        "sort_order": 1,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "is_graduated": false
+      },
+      {
+        "id": 2,
+        "code": "SUB-02",
+        "name": "带飞",
+        "sort_order": 2,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "is_graduated": true
+      }
+    ]
+  }
+}
+```
+
+#### 7.7.2 本课科目列表 `POST /api/v1/training-archives/subjects/list`
+
+**请求体**：
+
+```json
+{
+  "training_archive_id": 101
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": 1001,
+        "training_archive_id": 101,
+        "syllabus_subject_id": 1,
+        "evaluation_score": 9,
+        "is_graduated": false,
+        "sort_order": 0,
+        "subject_content": "本场起落 5 次",
+        "type": "实践",
+        "created_at": "2026-03-15T12:00:00Z",
+        "updated_at": "2026-03-15T12:00:00Z"
+      },
+      {
+        "id": 1002,
+        "training_archive_id": 101,
+        "syllabus_subject_id": 2,
+        "evaluation_score": 8,
+        "is_graduated": false,
+        "sort_order": 1,
+        "subject_content": "带飞航线",
+        "type": "实践",
+        "created_at": "2026-03-15T12:00:00Z",
+        "updated_at": "2026-03-15T12:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+#### 7.7.3 设置本课科目 `POST /api/v1/training-archives/subjects/update`
+
+**请求体**：
+
+```json
+{
+  "training_archive_id": 101,
+  "subjects": [
+    {
+      "syllabus_subject_id": 1,
+      "evaluation_score": 9,
+      "is_graduated": false,
+      "subject_content": "本场起落 5 次",
+      "type": "实践",
+      "sort_order": 0
+    },
+    {
+      "syllabus_subject_id": 2,
+      "evaluation_score": 8,
+      "is_graduated": false,
+      "subject_content": "带飞航线",
+      "type": "实践",
+      "sort_order": 1
+    }
+  ]
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "status": "ok"
+  }
+}
+```
+
+#### 7.7.4 下次布置科目列表 `POST /api/v1/training-archives/next-subjects/list`
+
+**请求体**：
+
+```json
+{
+  "training_archive_id": 101
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": 501,
+        "training_archive_id": 101,
+        "syllabus_subject_id": 3,
+        "assigned_by": 10,
+        "created_at": "2026-03-15T14:00:00Z"
+      },
+      {
+        "id": 502,
+        "training_archive_id": 101,
+        "syllabus_subject_id": 4,
+        "assigned_by": 10,
+        "created_at": "2026-03-15T14:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+#### 7.7.5 布置下次科目 `POST /api/v1/training-archives/next-subjects/update`
+
+需登录，以当前用户为分配人（`assigned_by`）。
+
+**请求体**：
+
+```json
+{
+  "training_archive_id": 101,
+  "syllabus_subject_ids": [ 3, 4, 5 ]
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "status": "ok"
+  }
+}
+```
