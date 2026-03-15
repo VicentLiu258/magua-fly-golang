@@ -96,12 +96,12 @@ func (u *ScheduleUseCase) GetInstructorGrid(ctx context.Context, date time.Time)
 	}
 
 	// Index schedules and bookings by instructor.
-	schedByInstructor := make(map[int64][]*domain.InstructorSchedule)
+	schedByInstructor := make(map[string][]*domain.InstructorSchedule)
 	for _, s := range schedules {
 		schedByInstructor[s.InstructorID] = append(schedByInstructor[s.InstructorID], s)
 	}
 
-	bookingsByInstructor := make(map[int64][]*domain.Booking)
+	bookingsByInstructor := make(map[string][]*domain.Booking)
 	for _, b := range bookings {
 		bookingsByInstructor[b.InstructorID] = append(bookingsByInstructor[b.InstructorID], b)
 	}

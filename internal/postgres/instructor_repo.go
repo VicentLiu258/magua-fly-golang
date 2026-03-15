@@ -13,9 +13,9 @@ func (db *DB) Instructor() repository.InstructorRepository { return &InstructorR
 
 var _ repository.InstructorRepository = (*InstructorRepo)(nil)
 
-func (r *InstructorRepo) GetByID(ctx context.Context, id int64) (*domain.Instructor, error) {
+func (r *InstructorRepo) GetByID(ctx context.Context, id string) (*domain.Instructor, error) {
 	var i domain.Instructor
-	err := r.db.Pool.QueryRow(ctx, `SELECT id, user_id, name, COALESCE(display_color,''), created_at, updated_at FROM instructors WHERE id = $1`, id).Scan(
+	err := r.db.Pool.QueryRow(ctx, `SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at FROM instructors WHERE id = $1::uuid`, id).Scan(
 		&i.ID, &i.UserID, &i.Name, &i.DisplayColor, &i.CreatedAt, &i.UpdatedAt,
 	)
 	if err != nil {
@@ -25,7 +25,7 @@ func (r *InstructorRepo) GetByID(ctx context.Context, id int64) (*domain.Instruc
 }
 
 func (r *InstructorRepo) List(ctx context.Context) ([]*domain.Instructor, error) {
-	rows, err := r.db.Pool.Query(ctx, `SELECT id, user_id, name, COALESCE(display_color,''), created_at, updated_at FROM instructors ORDER BY id`)
+	rows, err := r.db.Pool.Query(ctx, `SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at FROM instructors ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (r *InstructorRepo) List(ctx context.Context) ([]*domain.Instructor, error)
 
 func (r *InstructorRepo) Create(ctx context.Context, i *domain.Instructor) error {
 	return r.db.Pool.QueryRow(ctx, `
-		INSERT INTO instructors (user_id, name, display_color) VALUES ($1, $2, $3)
-		RETURNING id, created_at, updated_at`, i.UserID, i.Name, i.DisplayColor,
+		INSERT INTO instructors (user_id, name, display_color) VALUES ($1::uuid, $2, $3)
+		RETURNING id::text, created_at, updated_at`, i.UserID, i.Name, i.DisplayColor,
 	).Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
 }

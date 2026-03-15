@@ -71,7 +71,7 @@ func (h *AircraftHandler) Create(c *gin.Context) {
 // CreateAvailability configures availability for an aircraft on a given date.
 func (h *AircraftHandler) CreateAvailability(c *gin.Context) {
 	var body struct {
-		AircraftID int64  `json:"aircraft_id" binding:"required"`
+		AircraftID string `json:"aircraft_id" binding:"required"`
 		Date       string `json:"date" binding:"required"`       // YYYY-MM-DD
 		StartTime  string `json:"start_time" binding:"required"` // HH:MM
 		EndTime    string `json:"end_time" binding:"required"`   // HH:MM

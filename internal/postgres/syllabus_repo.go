@@ -13,9 +13,9 @@ func (db *DB) SyllabusSubject() repository.SyllabusSubjectRepository { return &S
 
 var _ repository.SyllabusSubjectRepository = (*SyllabusSubjectRepo)(nil)
 
-func (r *SyllabusSubjectRepo) GetByID(ctx context.Context, id int64) (*domain.SyllabusSubject, error) {
+func (r *SyllabusSubjectRepo) GetByID(ctx context.Context, id string) (*domain.SyllabusSubject, error) {
 	var s domain.SyllabusSubject
-	err := r.db.Pool.QueryRow(ctx, `SELECT id, code, name, sort_order, created_at, updated_at FROM syllabus_subjects WHERE id = $1`, id).Scan(
+	err := r.db.Pool.QueryRow(ctx, `SELECT id::text, code, name, sort_order, created_at, updated_at FROM syllabus_subjects WHERE id = $1::uuid`, id).Scan(
 		&s.ID, &s.Code, &s.Name, &s.SortOrder, &s.CreatedAt, &s.UpdatedAt,
 	)
 	if err != nil {
@@ -25,7 +25,7 @@ func (r *SyllabusSubjectRepo) GetByID(ctx context.Context, id int64) (*domain.Sy
 }
 
 func (r *SyllabusSubjectRepo) List(ctx context.Context) ([]*domain.SyllabusSubject, error) {
-	rows, err := r.db.Pool.Query(ctx, `SELECT id, code, name, sort_order, created_at, updated_at FROM syllabus_subjects ORDER BY sort_order, id`)
+	rows, err := r.db.Pool.Query(ctx, `SELECT id::text, code, name, sort_order, created_at, updated_at FROM syllabus_subjects ORDER BY sort_order, id`)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +44,6 @@ func (r *SyllabusSubjectRepo) List(ctx context.Context) ([]*domain.SyllabusSubje
 func (r *SyllabusSubjectRepo) Create(ctx context.Context, s *domain.SyllabusSubject) error {
 	return r.db.Pool.QueryRow(ctx, `
 		INSERT INTO syllabus_subjects (code, name, sort_order) VALUES ($1, $2, $3)
-		RETURNING id, created_at, updated_at`, s.Code, s.Name, s.SortOrder,
+		RETURNING id::text, created_at, updated_at`, s.Code, s.Name, s.SortOrder,
 	).Scan(&s.ID, &s.CreatedAt, &s.UpdatedAt)
 }

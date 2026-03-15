@@ -254,11 +254,11 @@ func (u *AuthUseCase) Register(ctx context.Context, req RegisterRequest) (*domai
 func (u *AuthUseCase) ensureProfileForUser(ctx context.Context, user *domain.User) error {
 	switch user.Role {
 	case domain.RoleStudent:
-		// Generate a simple student_no based on user ID.
+		// Generate a simple student_no based on user ID (UUID).
 		s := &domain.Student{
-			UserID:     &user.ID,
-			Name:       user.Username,
-			StudentNo:  fmt.Sprintf("S%06d", user.ID),
+			UserID:       &user.ID,
+			Name:         user.Username,
+			StudentNo:    "S-" + user.ID,
 			FlownMinutes: 0,
 		}
 		return u.studentRepo.Create(ctx, s)

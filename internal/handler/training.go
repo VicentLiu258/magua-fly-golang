@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -34,9 +35,9 @@ func respErr(c *gin.Context, code int, msg string) {
 // CreateRecord POST /api/v1/training-records
 func (h *TrainingHandler) CreateRecord(c *gin.Context) {
 	var body struct {
-		StudentID              int64   `json:"student_id" binding:"required"`
-		InstructorID           int64   `json:"instructor_id" binding:"required"`
-		AircraftID             int64   `json:"aircraft_id" binding:"required"`
+		StudentID              string  `json:"student_id" binding:"required"`
+		InstructorID           string  `json:"instructor_id" binding:"required"`
+		AircraftID             string  `json:"aircraft_id" binding:"required"`
 		TrainingDate           string  `json:"training_date" binding:"required"`
 		EngineOnTime           *string `json:"engine_on_time"`
 		EngineOffTime          *string `json:"engine_off_time"`
@@ -100,7 +101,7 @@ func (h *TrainingHandler) CreateRecord(c *gin.Context) {
 // RecordDetail POST /api/v1/training-records/detail
 func (h *TrainingHandler) RecordDetail(c *gin.Context) {
 	var body struct {
-		ID int64 `json:"id" binding:"required"`
+		ID string `json:"id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
@@ -121,10 +122,10 @@ func (h *TrainingHandler) RecordDetail(c *gin.Context) {
 // UpdateRecord POST /api/v1/training-records/update
 func (h *TrainingHandler) UpdateRecord(c *gin.Context) {
 	var body struct {
-		ID                     int64   `json:"id" binding:"required"`
-		StudentID              *int64  `json:"student_id"`
-		InstructorID           *int64  `json:"instructor_id"`
-		AircraftID             *int64  `json:"aircraft_id"`
+		ID                     string  `json:"id" binding:"required"`
+		StudentID              *string `json:"student_id"`
+		InstructorID           *string `json:"instructor_id"`
+		AircraftID             *string `json:"aircraft_id"`
 		TrainingDate           *string `json:"training_date"`
 		EngineOnTime           *string `json:"engine_on_time"`
 		EngineOffTime          *string `json:"engine_off_time"`
@@ -185,7 +186,7 @@ func (h *TrainingHandler) UpdateRecord(c *gin.Context) {
 // DeleteRecord POST /api/v1/training-records/delete
 func (h *TrainingHandler) DeleteRecord(c *gin.Context) {
 	var body struct {
-		ID int64 `json:"id" binding:"required"`
+		ID string `json:"id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
@@ -201,9 +202,9 @@ func (h *TrainingHandler) DeleteRecord(c *gin.Context) {
 // ListRecords POST /api/v1/training-records/list
 func (h *TrainingHandler) ListRecords(c *gin.Context) {
 	var body struct {
-		ViewID   *int64  `json:"view_id"`
-		StudentID    *int64  `json:"student_id"`
-		InstructorID *int64  `json:"instructor_id"`
+		ViewID       *string `json:"view_id"`
+		StudentID    *string `json:"student_id"`
+		InstructorID *string `json:"instructor_id"`
 		DateFrom     *string `json:"date_from"`
 		DateTo       *string `json:"date_to"`
 		Status       *string `json:"status"`
@@ -306,10 +307,10 @@ func (h *TrainingHandler) ImportRecords(c *gin.Context) {
 // ClaimImport POST /api/v1/training-records/claim
 func (h *TrainingHandler) ClaimImport(c *gin.Context) {
 	var body struct {
-		RawImportID   int64   `json:"raw_import_id" binding:"required"`
-		StudentID     int64   `json:"student_id" binding:"required"`
-		InstructorID  int64   `json:"instructor_id" binding:"required"`
-		AircraftID    int64   `json:"aircraft_id" binding:"required"`
+		RawImportID   string  `json:"raw_import_id" binding:"required"`
+		StudentID     string  `json:"student_id" binding:"required"`
+		InstructorID  string  `json:"instructor_id" binding:"required"`
+		AircraftID    string  `json:"aircraft_id" binding:"required"`
 		TrainingDate  *string `json:"training_date"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -437,7 +438,7 @@ func (h *TrainingHandler) ListViews(c *gin.Context) {
 // UpdateView POST /api/v1/training-views/update
 func (h *TrainingHandler) UpdateView(c *gin.Context) {
 	var body struct {
-		ID         int64           `json:"id" binding:"required"`
+		ID         string          `json:"id" binding:"required"`
 		Name       string          `json:"name"`
 		FilterJSON json.RawMessage `json:"filter_json"`
 		SortJSON   json.RawMessage `json:"sort_json"`
@@ -474,7 +475,7 @@ func (h *TrainingHandler) UpdateView(c *gin.Context) {
 // DeleteView POST /api/v1/training-views/delete
 func (h *TrainingHandler) DeleteView(c *gin.Context) {
 	var body struct {
-		ID int64 `json:"id" binding:"required"`
+		ID string `json:"id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
@@ -490,9 +491,9 @@ func (h *TrainingHandler) DeleteView(c *gin.Context) {
 // ListArchivesByStudent POST /api/v1/students/training-archives/list
 func (h *TrainingHandler) ListArchivesByStudent(c *gin.Context) {
 	var body struct {
-		StudentID int64 `json:"student_id" binding:"required"`
-		Limit     int   `json:"limit"`
-		Offset    int   `json:"offset"`
+		StudentID string `json:"student_id" binding:"required"`
+		Limit     int    `json:"limit"`
+		Offset    int    `json:"offset"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
@@ -512,7 +513,7 @@ func (h *TrainingHandler) ListArchivesByStudent(c *gin.Context) {
 // ArchiveDetail POST /api/v1/training-archives/detail
 func (h *TrainingHandler) ArchiveDetail(c *gin.Context) {
 	var body struct {
-		ID int64 `json:"id" binding:"required"`
+		ID string `json:"id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
@@ -530,36 +531,180 @@ func (h *TrainingHandler) ArchiveDetail(c *gin.Context) {
 	respOK(c, a)
 }
 
+// createArchiveBody 用于接收 JSON，training_date 支持 "2006-01-02" 格式
+type createArchiveBody struct {
+	TrainingRecordID              string  `json:"training_record_id" binding:"required"`
+	StudentID                     string  `json:"student_id" binding:"required"`
+	InstructorID                  string  `json:"instructor_id" binding:"required"`
+	TrainingDate                  string  `json:"training_date" binding:"required"`
+	Stage                         string  `json:"stage"`
+	PlannedDurationMinutes        *int    `json:"planned_duration_minutes"`
+	TotalExperienceMinutes        *int    `json:"total_experience_minutes"`
+	RemainingMinutes              *int    `json:"remaining_minutes"`
+	EngineOnTime                  *string `json:"engine_on_time"`
+	EngineOffTime                 *string `json:"engine_off_time"`
+	FlightDurationMinutes         *int    `json:"flight_duration_minutes"`
+	ProgressNote                  string  `json:"progress_note"`
+	InstructorReview              string  `json:"instructor_review"`
+	StudentSelfReview             string  `json:"student_self_review"`
+	TaskAssignment                string  `json:"task_assignment"`
+}
+
+func parseArchiveBodyToDomain(b *createArchiveBody) (*domain.TrainingArchive, error) {
+	date, err := time.Parse("2006-01-02", b.TrainingDate)
+	if err != nil {
+		return nil, err
+	}
+	a := &domain.TrainingArchive{
+		TrainingRecordID:       b.TrainingRecordID,
+		StudentID:              b.StudentID,
+		InstructorID:           b.InstructorID,
+		TrainingDate:           date,
+		Stage:                  b.Stage,
+		PlannedDurationMinutes: b.PlannedDurationMinutes,
+		TotalExperienceMinutes: b.TotalExperienceMinutes,
+		RemainingMinutes:       b.RemainingMinutes,
+		FlightDurationMinutes:  b.FlightDurationMinutes,
+		ProgressNote:           b.ProgressNote,
+		InstructorReview:       b.InstructorReview,
+		StudentSelfReview:      b.StudentSelfReview,
+		TaskAssignment:         b.TaskAssignment,
+	}
+	if b.EngineOnTime != nil {
+		t, err := time.Parse(time.RFC3339, *b.EngineOnTime)
+		if err == nil {
+			a.EngineOnTime = &t
+		}
+	}
+	if b.EngineOffTime != nil {
+		t, err := time.Parse(time.RFC3339, *b.EngineOffTime)
+		if err == nil {
+			a.EngineOffTime = &t
+		}
+	}
+	return a, nil
+}
+
 // CreateArchive POST /api/v1/training-archives
 func (h *TrainingHandler) CreateArchive(c *gin.Context) {
-	var body domain.TrainingArchive
+	var body createArchiveBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := h.uc.CreateArchive(c.Request.Context(), &body); err != nil {
+	a, err := parseArchiveBodyToDomain(&body)
+	if err != nil {
+		respErr(c, http.StatusBadRequest, "invalid training_date, use YYYY-MM-DD")
+		return
+	}
+	if err := h.uc.CreateArchive(c.Request.Context(), a); err != nil {
+		if errors.Is(err, usecase.ErrTrainingRecordNotFound) {
+			respErr(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		respErr(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respOK(c, body)
+	respOK(c, a)
 }
 
 // UpdateArchive POST /api/v1/training-archives/update
 func (h *TrainingHandler) UpdateArchive(c *gin.Context) {
-	var body domain.TrainingArchive
+	var body struct {
+		ID                             string   `json:"id" binding:"required"`
+		TrainingRecordID               *string  `json:"training_record_id"`
+		StudentID                      *string  `json:"student_id"`
+		InstructorID                   *string  `json:"instructor_id"`
+		TrainingDate                   *string  `json:"training_date"`
+		Stage                          *string  `json:"stage"`
+		PlannedDurationMinutes         *int     `json:"planned_duration_minutes"`
+		TotalExperienceMinutes         *int     `json:"total_experience_minutes"`
+		RemainingMinutes               *int     `json:"remaining_minutes"`
+		EngineOnTime                   *string  `json:"engine_on_time"`
+		EngineOffTime                  *string  `json:"engine_off_time"`
+		FlightDurationMinutes         *int     `json:"flight_duration_minutes"`
+		ProgressNote                   *string  `json:"progress_note"`
+		InstructorReview               *string  `json:"instructor_review"`
+		StudentSelfReview             *string  `json:"student_self_review"`
+		TaskAssignment                 *string  `json:"task_assignment"`
+		StudentSignedAt                *string  `json:"student_signed_at"`
+		ResponsibleInstructorSignedAt  *string  `json:"responsible_instructor_signed_at"`
+		ChiefInstructorSignedAt        *string  `json:"chief_instructor_signed_at"`
+		ResponsibleInstructorID        *string  `json:"responsible_instructor_id"`
+		ChiefInstructorID              *string  `json:"chief_instructor_id"`
+	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	if body.ID == 0 {
-		respErr(c, http.StatusBadRequest, "id required")
+	a, err := h.uc.GetArchive(c.Request.Context(), body.ID)
+	if err != nil || a == nil {
+		respErr(c, http.StatusNotFound, "not found")
 		return
 	}
-	if err := h.uc.UpdateArchive(c.Request.Context(), &body); err != nil {
+	if body.TrainingRecordID != nil {
+		a.TrainingRecordID = *body.TrainingRecordID
+	}
+	if body.StudentID != nil {
+		a.StudentID = *body.StudentID
+	}
+	if body.InstructorID != nil {
+		a.InstructorID = *body.InstructorID
+	}
+	if body.TrainingDate != nil {
+		date, err := time.Parse("2006-01-02", *body.TrainingDate)
+		if err != nil {
+			respErr(c, http.StatusBadRequest, "invalid training_date, use YYYY-MM-DD")
+			return
+		}
+		a.TrainingDate = date
+	}
+	if body.Stage != nil {
+		a.Stage = *body.Stage
+	}
+	if body.PlannedDurationMinutes != nil {
+		a.PlannedDurationMinutes = body.PlannedDurationMinutes
+	}
+	if body.TotalExperienceMinutes != nil {
+		a.TotalExperienceMinutes = body.TotalExperienceMinutes
+	}
+	if body.RemainingMinutes != nil {
+		a.RemainingMinutes = body.RemainingMinutes
+	}
+	if body.EngineOnTime != nil {
+		t, _ := time.Parse(time.RFC3339, *body.EngineOnTime)
+		a.EngineOnTime = &t
+	}
+	if body.EngineOffTime != nil {
+		t, _ := time.Parse(time.RFC3339, *body.EngineOffTime)
+		a.EngineOffTime = &t
+	}
+	if body.FlightDurationMinutes != nil {
+		a.FlightDurationMinutes = body.FlightDurationMinutes
+	}
+	if body.ProgressNote != nil {
+		a.ProgressNote = *body.ProgressNote
+	}
+	if body.InstructorReview != nil {
+		a.InstructorReview = *body.InstructorReview
+	}
+	if body.StudentSelfReview != nil {
+		a.StudentSelfReview = *body.StudentSelfReview
+	}
+	if body.TaskAssignment != nil {
+		a.TaskAssignment = *body.TaskAssignment
+	}
+	if body.ResponsibleInstructorID != nil {
+		a.ResponsibleInstructorID = body.ResponsibleInstructorID
+	}
+	if body.ChiefInstructorID != nil {
+		a.ChiefInstructorID = body.ChiefInstructorID
+	}
+	if err := h.uc.UpdateArchive(c.Request.Context(), a); err != nil {
 		respErr(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-	respOK(c, body)
+	respOK(c, a)
 }
 
 // SignArchive POST /api/v1/training-archives/sign
@@ -570,7 +715,7 @@ func (h *TrainingHandler) SignArchive(c *gin.Context) {
 		return
 	}
 	var body struct {
-		ID   int64  `json:"id" binding:"required"`
+		ID   string `json:"id" binding:"required"`
 		Role string `json:"role" binding:"required"` // student | responsible_instructor | chief_instructor
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -588,7 +733,7 @@ func (h *TrainingHandler) SignArchive(c *gin.Context) {
 // ListSyllabusSubjects POST /api/v1/syllabus-subjects/list
 func (h *TrainingHandler) ListSyllabusSubjects(c *gin.Context) {
 	var body struct {
-		StudentID *int64 `json:"student_id"`
+		StudentID *string `json:"student_id"`
 	}
 	c.ShouldBindJSON(&body)
 	list, err := h.uc.ListSyllabusSubjects(c.Request.Context(), body.StudentID)
@@ -602,7 +747,7 @@ func (h *TrainingHandler) ListSyllabusSubjects(c *gin.Context) {
 // ListArchiveSubjects POST /api/v1/training-archives/subjects/list
 func (h *TrainingHandler) ListArchiveSubjects(c *gin.Context) {
 	var body struct {
-		TrainingArchiveID int64 `json:"training_archive_id" binding:"required"`
+		TrainingArchiveID string `json:"training_archive_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
@@ -619,7 +764,7 @@ func (h *TrainingHandler) ListArchiveSubjects(c *gin.Context) {
 // UpdateArchiveSubjects POST /api/v1/training-archives/subjects/update
 func (h *TrainingHandler) UpdateArchiveSubjects(c *gin.Context) {
 	var body struct {
-		TrainingArchiveID int64                            `json:"training_archive_id" binding:"required"`
+		TrainingArchiveID string                            `json:"training_archive_id" binding:"required"`
 		Subjects          []*domain.TrainingArchiveSubject `json:"subjects"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -636,7 +781,7 @@ func (h *TrainingHandler) UpdateArchiveSubjects(c *gin.Context) {
 // ListNextSubjects POST /api/v1/training-archives/next-subjects/list
 func (h *TrainingHandler) ListNextSubjects(c *gin.Context) {
 	var body struct {
-		TrainingArchiveID int64 `json:"training_archive_id" binding:"required"`
+		TrainingArchiveID string `json:"training_archive_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
@@ -658,8 +803,8 @@ func (h *TrainingHandler) UpdateNextSubjects(c *gin.Context) {
 		return
 	}
 	var body struct {
-		TrainingArchiveID  int64   `json:"training_archive_id" binding:"required"`
-		SyllabusSubjectIDs []int64 `json:"syllabus_subject_ids"`
+		TrainingArchiveID  string   `json:"training_archive_id" binding:"required"`
+		SyllabusSubjectIDs []string `json:"syllabus_subject_ids"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())

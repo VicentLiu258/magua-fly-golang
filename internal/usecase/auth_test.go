@@ -28,7 +28,7 @@ func (f *fakeSmsRepo) FindValidCode(ctx context.Context, phone string, scene dom
 	return nil, ErrInvalidCredentials
 }
 
-func (f *fakeSmsRepo) MarkUsed(ctx context.Context, id int64, usedAt time.Time) error {
+func (f *fakeSmsRepo) MarkUsed(ctx context.Context, id string, usedAt time.Time) error {
 	return nil
 }
 

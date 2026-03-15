@@ -3,12 +3,16 @@ package usecase
 import (
 	"context"
 	"encoding/json"
-	"strconv"
+	"errors"
+	"fmt"
 	"time"
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/repository"
 )
+
+// ErrTrainingRecordNotFound 表示指定的 training_record_id 不存在，创建档案前需先有对应训练记录。
+var ErrTrainingRecordNotFound = errors.New("training_record_id 不存在，请先创建训练记录或使用已有的记录 ID")
 
 // TrainingUseCase 训练记录、导入认领、视图、档案与科目
 type TrainingUseCase struct {
@@ -48,7 +52,7 @@ func (u *TrainingUseCase) CreateRecord(ctx context.Context, rec *domain.Training
 }
 
 // GetRecord 单条记录详情
-func (u *TrainingUseCase) GetRecord(ctx context.Context, id int64) (*domain.TrainingRecord, error) {
+func (u *TrainingUseCase) GetRecord(ctx context.Context, id string) (*domain.TrainingRecord, error) {
 	return u.recordRepo.GetByID(ctx, id)
 }
 
@@ -58,7 +62,7 @@ func (u *TrainingUseCase) UpdateRecord(ctx context.Context, rec *domain.Training
 }
 
 // DeleteRecord 软删记录
-func (u *TrainingUseCase) DeleteRecord(ctx context.Context, id int64) error {
+func (u *TrainingUseCase) DeleteRecord(ctx context.Context, id string) error {
 	return u.recordRepo.UpdateStatus(ctx, id, domain.RecordStatusDeleted)
 }
 
@@ -91,7 +95,7 @@ func (u *TrainingUseCase) ImportRaw(ctx context.Context, batchID string, rows []
 }
 
 // ClaimImport 认领一条导入记录，创建 training_record（及可选 archive）
-func (u *TrainingUseCase) ClaimImport(ctx context.Context, rawImportID int64, studentID, instructorID, aircraftID int64, trainingDate *time.Time) (*domain.TrainingRecord, error) {
+func (u *TrainingUseCase) ClaimImport(ctx context.Context, rawImportID string, studentID, instructorID, aircraftID string, trainingDate *time.Time) (*domain.TrainingRecord, error) {
 	raw, err := u.rawImportRepo.GetByID(ctx, rawImportID)
 	if err != nil {
 		return nil, err
@@ -104,7 +108,7 @@ func (u *TrainingUseCase) ClaimImport(ctx context.Context, rawImportID int64, st
 		InstructorID:          instructorID,
 		AircraftID:            aircraftID,
 		ImportSource:          domain.ImportImport,
-		RawImportID:           strconv.FormatInt(rawImportID, 10),
+		RawImportID:           rawImportID,
 		IsLocal:               raw.IsLocal,
 		EngineOnTime:          raw.EngineOnTime,
 		EngineOffTime:         raw.EngineOffTime,
@@ -194,12 +198,12 @@ func (u *TrainingUseCase) CreateView(ctx context.Context, v *domain.TrainingReco
 }
 
 // ListViews 当前用户视图列表
-func (u *TrainingUseCase) ListViews(ctx context.Context, userID int64) ([]*domain.TrainingRecordView, error) {
+func (u *TrainingUseCase) ListViews(ctx context.Context, userID string) ([]*domain.TrainingRecordView, error) {
 	return u.viewRepo.ListByUserID(ctx, userID)
 }
 
 // GetView 获取视图
-func (u *TrainingUseCase) GetView(ctx context.Context, id int64) (*domain.TrainingRecordView, error) {
+func (u *TrainingUseCase) GetView(ctx context.Context, id string) (*domain.TrainingRecordView, error) {
 	return u.viewRepo.GetByID(ctx, id)
 }
 
@@ -209,12 +213,12 @@ func (u *TrainingUseCase) UpdateView(ctx context.Context, v *domain.TrainingReco
 }
 
 // DeleteView 删除视图
-func (u *TrainingUseCase) DeleteView(ctx context.Context, id int64) error {
+func (u *TrainingUseCase) DeleteView(ctx context.Context, id string) error {
 	return u.viewRepo.Delete(ctx, id)
 }
 
 // ListArchivesByStudent 学员训练档案列表
-func (u *TrainingUseCase) ListArchivesByStudent(ctx context.Context, studentID int64, limit, offset int) ([]*domain.TrainingArchive, error) {
+func (u *TrainingUseCase) ListArchivesByStudent(ctx context.Context, studentID string, limit, offset int) ([]*domain.TrainingArchive, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -222,12 +226,16 @@ func (u *TrainingUseCase) ListArchivesByStudent(ctx context.Context, studentID i
 }
 
 // GetArchive 档案详情
-func (u *TrainingUseCase) GetArchive(ctx context.Context, id int64) (*domain.TrainingArchive, error) {
+func (u *TrainingUseCase) GetArchive(ctx context.Context, id string) (*domain.TrainingArchive, error) {
 	return u.archiveRepo.GetByID(ctx, id)
 }
 
-// CreateArchive 创建档案
+// CreateArchive 创建档案。若 training_record_id 不存在则返回 ErrTrainingRecordNotFound。
 func (u *TrainingUseCase) CreateArchive(ctx context.Context, a *domain.TrainingArchive) error {
+	_, err := u.recordRepo.GetByID(ctx, a.TrainingRecordID)
+	if err != nil {
+		return fmt.Errorf("%w (id=%s)", ErrTrainingRecordNotFound, a.TrainingRecordID)
+	}
 	return u.archiveRepo.Create(ctx, a)
 }
 
@@ -237,7 +245,7 @@ func (u *TrainingUseCase) UpdateArchive(ctx context.Context, a *domain.TrainingA
 }
 
 // SignArchive 签字
-func (u *TrainingUseCase) SignArchive(ctx context.Context, archiveID int64, role string, signerID int64) error {
+func (u *TrainingUseCase) SignArchive(ctx context.Context, archiveID string, role string, signerID string) error {
 	a, err := u.archiveRepo.GetByID(ctx, archiveID)
 	if err != nil {
 		return err
@@ -259,7 +267,7 @@ func (u *TrainingUseCase) SignArchive(ctx context.Context, archiveID int64, role
 }
 
 // ListSyllabusSubjects 全部大纲科目，可选带学员已结业标记
-func (u *TrainingUseCase) ListSyllabusSubjects(ctx context.Context, studentID *int64) ([]*domain.SyllabusSubjectWithGraduated, error) {
+func (u *TrainingUseCase) ListSyllabusSubjects(ctx context.Context, studentID *string) ([]*domain.SyllabusSubjectWithGraduated, error) {
 	list, err := u.syllabusRepo.List(ctx)
 	if err != nil {
 		return nil, err
@@ -276,22 +284,22 @@ func (u *TrainingUseCase) ListSyllabusSubjects(ctx context.Context, studentID *i
 }
 
 // ListArchiveSubjects 本课科目列表
-func (u *TrainingUseCase) ListArchiveSubjects(ctx context.Context, archiveID int64) ([]*domain.TrainingArchiveSubject, error) {
+func (u *TrainingUseCase) ListArchiveSubjects(ctx context.Context, archiveID string) ([]*domain.TrainingArchiveSubject, error) {
 	return u.archiveSubjRepo.ListByArchiveID(ctx, archiveID)
 }
 
 // UpdateArchiveSubjects 设置本课科目
-func (u *TrainingUseCase) UpdateArchiveSubjects(ctx context.Context, archiveID int64, subjects []*domain.TrainingArchiveSubject) error {
+func (u *TrainingUseCase) UpdateArchiveSubjects(ctx context.Context, archiveID string, subjects []*domain.TrainingArchiveSubject) error {
 	return u.archiveSubjRepo.ReplaceForArchive(ctx, archiveID, subjects)
 }
 
 // ListNextSubjects 下次布置科目
-func (u *TrainingUseCase) ListNextSubjects(ctx context.Context, archiveID int64) ([]*domain.NextTrainingSubject, error) {
+func (u *TrainingUseCase) ListNextSubjects(ctx context.Context, archiveID string) ([]*domain.NextTrainingSubject, error) {
 	return u.nextSubjRepo.ListByArchiveID(ctx, archiveID)
 }
 
 // UpdateNextSubjects 布置下次科目
-func (u *TrainingUseCase) UpdateNextSubjects(ctx context.Context, archiveID int64, assignedBy int64, syllabusSubjectIDs []int64) error {
+func (u *TrainingUseCase) UpdateNextSubjects(ctx context.Context, archiveID string, assignedBy string, syllabusSubjectIDs []string) error {
 	return u.nextSubjRepo.ReplaceForArchive(ctx, archiveID, assignedBy, syllabusSubjectIDs)
 }
 

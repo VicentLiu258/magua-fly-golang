@@ -13,7 +13,7 @@ var (
 
 // Claims holds JWT claims (user id and role).
 type Claims struct {
-	UserID int64  `json:"user_id"`
+	UserID string `json:"user_id"`
 	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -33,7 +33,7 @@ func NewManager(secret string, expiry time.Duration) *Manager {
 }
 
 // Issue creates a new token for the user.
-func (m *Manager) Issue(userID int64, role string) (string, error) {
+func (m *Manager) Issue(userID string, role string) (string, error) {
 	claims := Claims{
 		UserID: userID,
 		Role:   role,

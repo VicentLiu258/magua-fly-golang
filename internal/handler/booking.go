@@ -39,9 +39,9 @@ func (h *BookingHandler) ListPending(c *gin.Context) {
 // Create creates a new booking (student).
 func (h *BookingHandler) Create(c *gin.Context) {
 	var body struct {
-		StudentID    int64  `json:"student_id" binding:"required"`
-		InstructorID int64  `json:"instructor_id" binding:"required"`
-		AircraftID   int64  `json:"aircraft_id" binding:"required"`
+		StudentID    string `json:"student_id" binding:"required"`
+		InstructorID string `json:"instructor_id" binding:"required"`
+		AircraftID   string `json:"aircraft_id" binding:"required"`
 		PlanDate     string `json:"plan_date" binding:"required"`
 		StartTime    string `json:"start_time" binding:"required"`
 		EndTime      string `json:"end_time" binding:"required"`
@@ -88,7 +88,7 @@ func (h *BookingHandler) Create(c *gin.Context) {
 // Review approves or rejects a booking (staff).
 func (h *BookingHandler) Review(c *gin.Context) {
 	var body struct {
-		ID      int64  `json:"id" binding:"required"`
+		ID      string `json:"id" binding:"required"`
 		Approve bool   `json:"approve"`
 		Reason  string `json:"reason"`
 	}

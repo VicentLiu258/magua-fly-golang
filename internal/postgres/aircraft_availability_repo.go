@@ -18,7 +18,7 @@ var _ repository.AircraftAvailabilityRepository = (*AircraftAvailabilityRepo)(ni
 
 func (r *AircraftAvailabilityRepo) ListByDate(ctx context.Context, date time.Time) ([]*domain.AircraftAvailability, error) {
 	rows, err := r.db.Pool.Query(ctx, `
-		SELECT id, aircraft_id, date, start_time, end_time, status, created_at, updated_at
+		SELECT id::text, aircraft_id::text, date, start_time, end_time, status, created_at, updated_at
 		FROM aircraft_availability
 		WHERE date = $1
 		ORDER BY aircraft_id, start_time`, date)
@@ -41,8 +41,8 @@ func (r *AircraftAvailabilityRepo) ListByDate(ctx context.Context, date time.Tim
 func (r *AircraftAvailabilityRepo) Create(ctx context.Context, a *domain.AircraftAvailability) error {
 	return r.db.Pool.QueryRow(ctx, `
 		INSERT INTO aircraft_availability (aircraft_id, date, start_time, end_time, status)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at, updated_at`,
+		VALUES ($1::uuid, $2, $3, $4, $5)
+		RETURNING id::text, created_at, updated_at`,
 		a.AircraftID, a.Date, a.StartTime, a.EndTime, a.Status,
 	).Scan(&a.ID, &a.CreatedAt, &a.UpdatedAt)
 }

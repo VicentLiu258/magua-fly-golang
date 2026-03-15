@@ -4,7 +4,7 @@ import "time"
 
 // Aircraft represents an aircraft.
 type Aircraft struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	Code      string    `json:"code"`
 	Name      string    `json:"name,omitempty"`
 	Status    string    `json:"status"`
@@ -23,8 +23,8 @@ const (
 
 // AircraftAvailability is a time slot for one aircraft.
 type AircraftAvailability struct {
-	ID         int64              `json:"id"`
-	AircraftID int64              `json:"aircraft_id"`
+	ID         string             `json:"id"`
+	AircraftID string             `json:"aircraft_id"`
 	Date       time.Time          `json:"date"`
 	StartTime  time.Time          `json:"start_time"`
 	EndTime    time.Time          `json:"end_time"`
@@ -35,8 +35,8 @@ type AircraftAvailability struct {
 
 // InstructorSchedule is a duty slot for an instructor.
 type InstructorSchedule struct {
-	ID           int64     `json:"id"`
-	InstructorID int64     `json:"instructor_id"`
+	ID           string    `json:"id"`
+	InstructorID string    `json:"instructor_id"`
 	Date         time.Time `json:"date"`
 	StartTime    time.Time `json:"start_time"`
 	EndTime      time.Time `json:"end_time"`
@@ -54,10 +54,10 @@ const (
 
 // TrainingPlan is a confirmed training slot.
 type TrainingPlan struct {
-	ID           int64      `json:"id"`
-	StudentID    int64      `json:"student_id"`
-	InstructorID int64      `json:"instructor_id"`
-	AircraftID   int64      `json:"aircraft_id"`
+	ID           string     `json:"id"`
+	StudentID    string     `json:"student_id"`
+	InstructorID string     `json:"instructor_id"`
+	AircraftID   string     `json:"aircraft_id"`
 	PlanDate     time.Time  `json:"plan_date"`
 	StartTime    time.Time  `json:"start_time"`
 	EndTime      time.Time  `json:"end_time"`
@@ -77,17 +77,17 @@ const (
 
 // Booking is a student booking request.
 type Booking struct {
-	ID           int64         `json:"id"`
-	StudentID    int64         `json:"student_id"`
-	InstructorID int64         `json:"instructor_id"`
-	AircraftID   int64         `json:"aircraft_id"`
+	ID           string        `json:"id"`
+	StudentID    string        `json:"student_id"`
+	InstructorID string        `json:"instructor_id"`
+	AircraftID   string        `json:"aircraft_id"`
 	PlanDate     time.Time     `json:"plan_date"`
 	StartTime    time.Time     `json:"start_time"`
 	EndTime      time.Time     `json:"end_time"`
 	Status       BookingStatus `json:"status"`
 	RejectReason string        `json:"reject_reason,omitempty"`
 	ReviewedAt   *time.Time    `json:"reviewed_at,omitempty"`
-	ReviewerID   *int64        `json:"reviewer_id,omitempty"`
+	ReviewerID   *string       `json:"reviewer_id,omitempty"`
 	CreatedAt    time.Time     `json:"created_at"`
 	UpdatedAt    time.Time     `json:"updated_at"`
 }
@@ -104,18 +104,18 @@ const (
 
 // TimeSlot is one half-hour block on the timeline.
 type TimeSlot struct {
-	Index      int        `json:"slotIndex"`
-	StartTime  string     `json:"startTime"`           // "09:00"
-	EndTime    string     `json:"endTime"`             // "09:30"
-	Status     SlotStatus `json:"status"`              // off/available/booked/aircraft_unavailable
-	BookingID  *int64     `json:"bookingId,omitempty"` // when booked
-	AircraftID *int64     `json:"aircraftId,omitempty"`
-	StudentID  *int64     `json:"studentId,omitempty"`
+	Index      int     `json:"slotIndex"`
+	StartTime  string  `json:"startTime"`           // "09:00"
+	EndTime    string  `json:"endTime"`             // "09:30"
+	Status     SlotStatus `json:"status"`           // off/available/booked/aircraft_unavailable
+	BookingID  *string `json:"bookingId,omitempty"` // when booked
+	AircraftID *string `json:"aircraftId,omitempty"`
+	StudentID  *string `json:"studentId,omitempty"`
 }
 
 // InstructorTimeline is the per-instructor row in the grid.
 type InstructorTimeline struct {
-	ID       int64      `json:"id"`
+	ID       string   `json:"id"`
 	Name     string     `json:"name"`
 	Color    string     `json:"displayColor,omitempty"`
 	Timeline []TimeSlot `json:"timeline"`

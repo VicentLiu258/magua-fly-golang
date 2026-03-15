@@ -1,6 +1,6 @@
 erDiagram
 users {
-BIGSERIAL id PK
+UUID id PK
 VARCHAR username
 VARCHAR password_hash
 VARCHAR phone
@@ -12,22 +12,22 @@ TIMESTAMPTZ updated_at
 }
 
     students {
-        BIGSERIAL id PK
-        BIGINT user_id FK
+        UUID id PK
+        UUID user_id FK
         VARCHAR name
         VARCHAR student_no
         JSONB contract_info
         INT contract_duration_minutes
         INT flown_minutes
         TEXT training_progress
-        BIGINT responsible_instructor_id FK
+        UUID responsible_instructor_id FK
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     instructors {
-        BIGSERIAL id PK
-        BIGINT user_id FK
+        UUID id PK
+        UUID user_id FK
         VARCHAR name
         VARCHAR display_color
         TIMESTAMPTZ created_at
@@ -35,7 +35,7 @@ TIMESTAMPTZ updated_at
     }
 
     aircraft {
-        BIGSERIAL id PK
+        UUID id PK
         VARCHAR code
         VARCHAR name
         VARCHAR status
@@ -44,8 +44,8 @@ TIMESTAMPTZ updated_at
     }
 
     aircraft_availability {
-        BIGSERIAL id PK
-        BIGINT aircraft_id FK
+        UUID id PK
+        UUID aircraft_id FK
         DATE date
         TIME start_time
         TIME end_time
@@ -55,8 +55,8 @@ TIMESTAMPTZ updated_at
     }
 
     instructor_schedules {
-        BIGSERIAL id PK
-        BIGINT instructor_id FK
+        UUID id PK
+        UUID instructor_id FK
         DATE date
         TIME start_time
         TIME end_time
@@ -65,10 +65,10 @@ TIMESTAMPTZ updated_at
     }
 
     training_plans {
-        BIGSERIAL id PK
-        BIGINT student_id FK
-        BIGINT instructor_id FK
-        BIGINT aircraft_id FK
+        UUID id PK
+        UUID student_id FK
+        UUID instructor_id FK
+        UUID aircraft_id FK
         DATE plan_date
         TIME start_time
         TIME end_time
@@ -78,26 +78,26 @@ TIMESTAMPTZ updated_at
     }
 
     bookings {
-        BIGSERIAL id PK
-        BIGINT student_id FK
-        BIGINT instructor_id FK
-        BIGINT aircraft_id FK
+        UUID id PK
+        UUID student_id FK
+        UUID instructor_id FK
+        UUID aircraft_id FK
         DATE plan_date
         TIME start_time
         TIME end_time
         booking_status status
         TEXT reject_reason
         TIMESTAMPTZ reviewed_at
-        BIGINT reviewer_id FK
+        UUID reviewer_id FK
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }
 
     training_records {
-        BIGSERIAL id PK
-        BIGINT student_id FK
-        BIGINT instructor_id FK
-        BIGINT aircraft_id FK
+        UUID id PK
+        UUID student_id FK
+        UUID instructor_id FK
+        UUID aircraft_id FK
         DATE training_date
         TIMESTAMPTZ engine_on_time
         TIMESTAMPTZ engine_off_time
@@ -110,10 +110,10 @@ TIMESTAMPTZ updated_at
     }
 
     training_archives {
-        BIGSERIAL id PK
-        BIGINT training_record_id FK UNIQUE
-        BIGINT student_id FK
-        BIGINT instructor_id FK
+        UUID id PK
+        UUID training_record_id FK UNIQUE
+        UUID student_id FK
+        UUID instructor_id FK
         DATE training_date
         VARCHAR stage
         INT planned_duration_minutes
@@ -134,7 +134,7 @@ TIMESTAMPTZ updated_at
     }
 
     syllabus_subjects {
-        BIGSERIAL id PK
+        UUID id PK
         VARCHAR code
         VARCHAR name
         INT sort_order
@@ -143,9 +143,9 @@ TIMESTAMPTZ updated_at
     }
 
     training_archive_subjects {
-        BIGSERIAL id PK
-        BIGINT training_archive_id FK
-        BIGINT syllabus_subject_id FK
+        UUID id PK
+        UUID training_archive_id FK
+        UUID syllabus_subject_id FK
         INT evaluation_score
         BOOLEAN is_graduated
         INT sort_order
@@ -154,15 +154,15 @@ TIMESTAMPTZ updated_at
     }
 
     next_training_subjects {
-        BIGSERIAL id PK
-        BIGINT training_archive_id FK
-        BIGINT syllabus_subject_id FK
-        BIGINT assigned_by FK
+        UUID id PK
+        UUID training_archive_id FK
+        UUID syllabus_subject_id FK
+        UUID assigned_by FK
         TIMESTAMPTZ created_at
     }
 
     theory_documents {
-        BIGSERIAL id PK
+        UUID id PK
         VARCHAR title
         VARCHAR slug
         INT sort_order
@@ -173,8 +173,8 @@ TIMESTAMPTZ updated_at
     }
 
     theory_questions {
-        BIGSERIAL id PK
-        BIGINT theory_document_id FK
+        UUID id PK
+        UUID theory_document_id FK
         TEXT question_text
         JSONB options
         INT correct_index
@@ -184,17 +184,17 @@ TIMESTAMPTZ updated_at
     }
 
     theory_attempts {
-        BIGSERIAL id PK
-        BIGINT user_id FK
-        BIGINT theory_document_id FK
+        UUID id PK
+        UUID user_id FK
+        UUID theory_document_id FK
         JSONB answers
         INT score
         TIMESTAMPTZ submitted_at
     }
 
     subject_learning {
-        BIGSERIAL id PK
-        BIGINT syllabus_subject_id FK UNIQUE
+        UUID id PK
+        UUID syllabus_subject_id FK UNIQUE
         VARCHAR title
         VARCHAR content_ref
         VARCHAR video_url
@@ -203,8 +203,8 @@ TIMESTAMPTZ updated_at
     }
 
     subject_questions {
-        BIGSERIAL id PK
-        BIGINT subject_learning_id FK
+        UUID id PK
+        UUID subject_learning_id FK
         TEXT question_text
         JSONB options
         INT correct_index
@@ -214,20 +214,20 @@ TIMESTAMPTZ updated_at
     }
 
     subject_attempts {
-        BIGSERIAL id PK
-        BIGINT user_id FK
-        BIGINT subject_learning_id FK
+        UUID id PK
+        UUID user_id FK
+        UUID subject_learning_id FK
         JSONB answers
         INT score
         TIMESTAMPTZ submitted_at
     }
 
     tasks {
-        BIGSERIAL id PK
-        BIGINT student_id FK
-        BIGINT assigner_id FK
+        UUID id PK
+        UUID student_id FK
+        UUID assigner_id FK
         task_type type
-        BIGINT ref_id
+        UUID ref_id
         VARCHAR title
         TEXT description
         TIMESTAMPTZ due_at
@@ -237,11 +237,11 @@ TIMESTAMPTZ updated_at
     }
 
     comments {
-        BIGSERIAL id PK
+        UUID id PK
         comment_target_type target_type
-        BIGINT target_id
-        BIGINT user_id FK
-        BIGINT parent_id FK
+        UUID target_id
+        UUID user_id FK
+        UUID parent_id FK
         TEXT content
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at

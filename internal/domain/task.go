@@ -22,11 +22,11 @@ const (
 
 // Task is a student task.
 type Task struct {
-	ID          int64      `json:"id"`
-	StudentID   int64      `json:"student_id"`
-	AssignerID  int64      `json:"assigner_id"`
+	ID          string     `json:"id"`
+	StudentID   string     `json:"student_id"`
+	AssignerID  string     `json:"assigner_id"`
 	Type        TaskType   `json:"type"`
-	RefID       *int64     `json:"ref_id,omitempty"`
+	RefID       *string    `json:"ref_id,omitempty"`
 	Title       string     `json:"title"`
 	Description string     `json:"description,omitempty"`
 	DueAt       *time.Time `json:"due_at,omitempty"`

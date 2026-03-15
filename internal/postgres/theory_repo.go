@@ -13,11 +13,11 @@ func (db *DB) TheoryDocument() repository.TheoryDocumentRepository { return &The
 
 var _ repository.TheoryDocumentRepository = (*TheoryDocumentRepo)(nil)
 
-func (r *TheoryDocumentRepo) GetByID(ctx context.Context, id int64) (*domain.TheoryDocument, error) {
+func (r *TheoryDocumentRepo) GetByID(ctx context.Context, id string) (*domain.TheoryDocument, error) {
 	var d domain.TheoryDocument
 	err := r.db.Pool.QueryRow(ctx, `
-		SELECT id, title, COALESCE(slug,''), sort_order, COALESCE(content_ref,''), COALESCE(video_url,''), created_at, updated_at
-		FROM theory_documents WHERE id = $1`, id).Scan(
+		SELECT id::text, title, COALESCE(slug,''), sort_order, COALESCE(content_ref,''), COALESCE(video_url,''), created_at, updated_at
+		FROM theory_documents WHERE id = $1::uuid`, id).Scan(
 		&d.ID, &d.Title, &d.Slug, &d.SortOrder, &d.ContentRef, &d.VideoURL, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err != nil {
@@ -28,7 +28,7 @@ func (r *TheoryDocumentRepo) GetByID(ctx context.Context, id int64) (*domain.The
 
 func (r *TheoryDocumentRepo) List(ctx context.Context) ([]*domain.TheoryDocument, error) {
 	rows, err := r.db.Pool.Query(ctx, `
-		SELECT id, title, COALESCE(slug,''), sort_order, COALESCE(content_ref,''), COALESCE(video_url,''), created_at, updated_at
+		SELECT id::text, title, COALESCE(slug,''), sort_order, COALESCE(content_ref,''), COALESCE(video_url,''), created_at, updated_at
 		FROM theory_documents ORDER BY sort_order, id`)
 	if err != nil {
 		return nil, err
@@ -48,6 +48,6 @@ func (r *TheoryDocumentRepo) List(ctx context.Context) ([]*domain.TheoryDocument
 func (r *TheoryDocumentRepo) Create(ctx context.Context, d *domain.TheoryDocument) error {
 	return r.db.Pool.QueryRow(ctx, `
 		INSERT INTO theory_documents (title, slug, sort_order, content_ref, video_url) VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at, updated_at`, d.Title, d.Slug, d.SortOrder, d.ContentRef, d.VideoURL,
+		RETURNING id::text, created_at, updated_at`, d.Title, d.Slug, d.SortOrder, d.ContentRef, d.VideoURL,
 	).Scan(&d.ID, &d.CreatedAt, &d.UpdatedAt)
 }

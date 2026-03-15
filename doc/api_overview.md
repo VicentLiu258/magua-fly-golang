@@ -74,7 +74,7 @@
   "data": {
     "token": "jwt-token",
     "user": {
-      "id": 1,
+      "id": "550e8400-e29b-41d4-a716-446655440000",
       "username": "user1",
       "phone": "13800000000",
       "email": "u@example.com",
@@ -127,7 +127,7 @@
   "code": 200,
   "msg": "ok",
   "data": {
-    "id": 1,
+    "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "student1",
     "phone": "13800000000",
     "email": "s1@example.com",
@@ -213,8 +213,8 @@ POST /api/v1/students/list?limit=20&offset=0
   "data": {
     "items": [
       {
-        "id": 1,
-        "user_id": 1,
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "user_id": "550e8400-e29b-41d4-a716-446655440001",
         "name": "student1",
         "student_no": "S000001",
         "flown_minutes": 0,
@@ -238,8 +238,8 @@ POST /api/v1/students/list?limit=20&offset=0
   "data": {
     "items": [
       {
-        "id": 1,
-        "user_id": 2,
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "user_id": "550e8400-e29b-41d4-a716-446655440002",
         "name": "Instructor A",
         "display_color": "#ff0000",
         "created_at": "...",
@@ -261,7 +261,7 @@ POST /api/v1/students/list?limit=20&offset=0
   "data": {
     "items": [
       {
-        "id": 1,
+        "id": "550e8400-e29b-41d4-a716-446655440000",
         "code": "AC001",
         "name": "塞斯纳 172",
         "status": "active",
@@ -293,7 +293,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "aircraft_id": 1,
+  "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
   "date": "2026-03-15",
   "start_time": "09:00",
   "end_time": "21:00",
@@ -315,9 +315,9 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "student_id": 1,
-  "instructor_id": 1,
-  "aircraft_id": 1,
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
+  "instructor_id": "550e8400-e29b-41d4-a716-446655440002",
+  "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
   "plan_date": "2026-03-15",
   "start_time": "10:00",
   "end_time": "11:30"
@@ -342,7 +342,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "id": 1001,
+  "id": "550e8400-e29b-41d4-a716-446655440010",
   "approve": true,
   "reason": "可选说明"
 }
@@ -386,7 +386,7 @@ POST /api/v1/students/list?limit=20&offset=0
     "slots": ["09:00", "09:30", "..."],
     "instructors": [
       {
-        "id": 1,
+        "id": "550e8400-e29b-41d4-a716-446655440000",
         "name": "教员A",
         "displayColor": "#ff0000",
         "timeline": [
@@ -401,8 +401,8 @@ POST /api/v1/students/list?limit=20&offset=0
             "startTime": "09:30",
             "endTime": "10:00",
             "status": "booked",
-            "bookingId": 1001,
-            "aircraftId": 1,
+            "bookingId": "550e8400-e29b-41d4-a716-446655440010",
+            "aircraftId": "550e8400-e29b-41d4-a716-446655440003",
             "studentId": 1
           }
         ]
@@ -506,9 +506,9 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "student_id": 1,
-  "instructor_id": 1,
-  "aircraft_id": 1,
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
+  "instructor_id": "550e8400-e29b-41d4-a716-446655440002",
+  "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
   "training_date": "2026-03-15",
   "engine_on_time": "2026-03-15T10:00:00Z",
   "engine_off_time": "2026-03-15T11:30:00Z",
@@ -528,19 +528,19 @@ POST /api/v1/students/list?limit=20&offset=0
 
 #### 7.2.2 记录详情 `POST /api/v1/training-records/detail`
 
-**请求体**：`{ "id": 123 }`
+**请求体**：`{ "id": "550e8400-e29b-41d4-a716-446655440011" }`
 
 **成功响应**：`data` 为单条训练记录。
 
 #### 7.2.3 更新记录 `POST /api/v1/training-records/update`
 
-**请求体**：`{ "id": 123, "student_id": 1, "instructor_id": 1, ... }`（需传 `id`，其余为可选更新字段）。
+**请求体**：`{ "id": "550e8400-e29b-41d4-a716-446655440011", "student_id": "550e8400-e29b-41d4-a716-446655440001", "instructor_id": "550e8400-e29b-41d4-a716-446655440002", ... }`（需传 `id`，其余为可选更新字段）。
 
 **成功响应**：`data` 为更新后的记录。
 
 #### 7.2.4 删除记录（软删）`POST /api/v1/training-records/delete`
 
-**请求体**：`{ "id": 123 }`
+**请求体**：`{ "id": "550e8400-e29b-41d4-a716-446655440011" }`
 
 **成功响应**：`data`: `{ "status": "deleted" }`。
 
@@ -551,7 +551,7 @@ POST /api/v1/students/list?limit=20&offset=0
 ```json
 {
   "view_id": null,
-  "student_id": 1,
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
   "instructor_id": null,
   "date_from": "2026-01-01",
   "date_to": "2026-12-31",
@@ -571,7 +571,7 @@ POST /api/v1/students/list?limit=20&offset=0
   "code": 200,
   "msg": "ok",
   "data": {
-    "items": [ { "id": 1, "student_id": 1, "instructor_id": 1, "training_date": "2026-03-15", ... } ],
+    "items": [ { "id": "550e8400-e29b-41d4-a716-446655440000", "student_id": "550e8400-e29b-41d4-a716-446655440001", "instructor_id": "550e8400-e29b-41d4-a716-446655440002", "training_date": "2026-03-15", ... } ],
     "total": 100
   }
 }
@@ -597,7 +597,7 @@ POST /api/v1/students/list?limit=20&offset=0
 }
 ```
 
-**成功响应**：`data`: `{ "batch_id": "batch-001", "items": [ { "id": 1, "batch_id": "batch-001", ... } ] }`。
+**成功响应**：`data`: `{ "batch_id": "batch-001", "items": [ { "id": "550e8400-e29b-41d4-a716-446655440000", "batch_id": "batch-001", ... } ] }`。
 
 #### 7.3.2 认领导入记录 `POST /api/v1/training-records/claim`
 
@@ -605,10 +605,10 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "raw_import_id": 1,
-  "student_id": 1,
-  "instructor_id": 1,
-  "aircraft_id": 1,
+  "raw_import_id": "550e8400-e29b-41d4-a716-446655440020",
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
+  "instructor_id": "550e8400-e29b-41d4-a716-446655440002",
+  "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
   "training_date": "2026-03-15"
 }
 ```
@@ -644,10 +644,10 @@ POST /api/v1/students/list?limit=20&offset=0
   请求体：空。返回当前用户的 `items` 列表。
 
 - **更新视图** `POST /api/v1/training-views/update`  
-  请求体：`{ "id": 1, "name": "...", "filter_json": {}, "sort_json": {}, "group_by": "" }`。
+  请求体：`{ "id": "550e8400-e29b-41d4-a716-446655440000", "name": "...", "filter_json": {}, "sort_json": {}, "group_by": "" }`。
 
 - **删除视图** `POST /api/v1/training-views/delete`  
-  请求体：`{ "id": 1 }`。
+  请求体：`{ "id": "550e8400-e29b-41d4-a716-446655440012" }`。
 
 ### 7.6 训练档案
 
@@ -657,7 +657,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "student_id": 1,
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
   "limit": 20,
   "offset": 0
 }
@@ -672,10 +672,10 @@ POST /api/v1/students/list?limit=20&offset=0
   "data": {
     "items": [
       {
-        "id": 101,
-        "training_record_id": 201,
-        "student_id": 1,
-        "instructor_id": 1,
+        "id": "550e8400-e29b-41d4-a716-446655440101",
+        "training_record_id": "550e8400-e29b-41d4-a716-446655440201",
+        "student_id": "550e8400-e29b-41d4-a716-446655440001",
+        "instructor_id": "550e8400-e29b-41d4-a716-446655440002",
         "training_date": "2026-03-15",
         "stage": "初级训练",
         "planned_duration_minutes": 90,
@@ -705,7 +705,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "id": 101
+  "id": "550e8400-e29b-41d4-a716-446655440101"
 }
 ```
 
@@ -716,10 +716,10 @@ POST /api/v1/students/list?limit=20&offset=0
   "code": 200,
   "msg": "ok",
   "data": {
-    "id": 101,
-    "training_record_id": 201,
-    "student_id": 1,
-    "instructor_id": 1,
+    "id": "550e8400-e29b-41d4-a716-446655440101",
+    "training_record_id": "550e8400-e29b-41d4-a716-446655440201",
+    "student_id": "550e8400-e29b-41d4-a716-446655440001",
+    "instructor_id": "550e8400-e29b-41d4-a716-446655440002",
     "training_date": "2026-03-15",
     "stage": "初级训练",
     "planned_duration_minutes": 90,
@@ -735,7 +735,7 @@ POST /api/v1/students/list?limit=20&offset=0
     "student_signed_at": "2026-03-15T14:00:00Z",
     "responsible_instructor_signed_at": "2026-03-15T14:05:00Z",
     "chief_instructor_signed_at": null,
-    "responsible_instructor_id": 1,
+    "responsible_instructor_id": "550e8400-e29b-41d4-a716-446655440002",
     "chief_instructor_id": null,
     "created_at": "2026-03-15T12:00:00Z",
     "updated_at": "2026-03-15T14:05:00Z"
@@ -749,9 +749,9 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "training_record_id": 201,
-  "student_id": 1,
-  "instructor_id": 1,
+  "training_record_id": "550e8400-e29b-41d4-a716-446655440201",
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
+  "instructor_id": "550e8400-e29b-41d4-a716-446655440002",
   "training_date": "2026-03-15",
   "stage": "初级训练",
   "planned_duration_minutes": 90,
@@ -775,7 +775,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "id": 101,
+  "id": "550e8400-e29b-41d4-a716-446655440101",
   "stage": "初级训练",
   "progress_note": "本课完成起落 5 次。",
   "instructor_review": "起飞姿态有进步，落地需注意收油门时机。",
@@ -795,7 +795,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "id": 101,
+  "id": "550e8400-e29b-41d4-a716-446655440101",
   "role": "student"
 }
 ```
@@ -824,7 +824,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "student_id": 1
+  "student_id": "550e8400-e29b-41d4-a716-446655440001"
 }
 ```
 
@@ -843,7 +843,7 @@ POST /api/v1/students/list?limit=20&offset=0
   "data": {
     "items": [
       {
-        "id": 1,
+        "id": "550e8400-e29b-41d4-a716-446655440000",
         "code": "SUB-01",
         "name": "起落",
         "sort_order": 1,
@@ -852,7 +852,7 @@ POST /api/v1/students/list?limit=20&offset=0
         "is_graduated": false
       },
       {
-        "id": 2,
+        "id": "550e8400-e29b-41d4-a716-446655440002",
         "code": "SUB-02",
         "name": "带飞",
         "sort_order": 2,
@@ -871,7 +871,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "training_archive_id": 101
+  "training_archive_id": "550e8400-e29b-41d4-a716-446655440101"
 }
 ```
 
@@ -884,9 +884,9 @@ POST /api/v1/students/list?limit=20&offset=0
   "data": {
     "items": [
       {
-        "id": 1001,
-        "training_archive_id": 101,
-        "syllabus_subject_id": 1,
+        "id": "550e8400-e29b-41d4-a716-446655440010",
+        "training_archive_id": "550e8400-e29b-41d4-a716-446655440101",
+        "syllabus_subject_id": "550e8400-e29b-41d4-a716-446655440300",
         "evaluation_score": 9,
         "is_graduated": false,
         "sort_order": 0,
@@ -896,9 +896,9 @@ POST /api/v1/students/list?limit=20&offset=0
         "updated_at": "2026-03-15T12:00:00Z"
       },
       {
-        "id": 1002,
-        "training_archive_id": 101,
-        "syllabus_subject_id": 2,
+        "id": "550e8400-e29b-41d4-a716-446655440102",
+        "training_archive_id": "550e8400-e29b-41d4-a716-446655440101",
+        "syllabus_subject_id": "550e8400-e29b-41d4-a716-446655440301",
         "evaluation_score": 8,
         "is_graduated": false,
         "sort_order": 1,
@@ -918,10 +918,10 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "training_archive_id": 101,
+  "training_archive_id": "550e8400-e29b-41d4-a716-446655440101",
   "subjects": [
     {
-      "syllabus_subject_id": 1,
+      "syllabus_subject_id": "550e8400-e29b-41d4-a716-446655440300",
       "evaluation_score": 9,
       "is_graduated": false,
       "subject_content": "本场起落 5 次",
@@ -929,7 +929,7 @@ POST /api/v1/students/list?limit=20&offset=0
       "sort_order": 0
     },
     {
-      "syllabus_subject_id": 2,
+      "syllabus_subject_id": "550e8400-e29b-41d4-a716-446655440301",
       "evaluation_score": 8,
       "is_graduated": false,
       "subject_content": "带飞航线",
@@ -958,7 +958,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "training_archive_id": 101
+  "training_archive_id": "550e8400-e29b-41d4-a716-446655440101"
 }
 ```
 
@@ -971,17 +971,17 @@ POST /api/v1/students/list?limit=20&offset=0
   "data": {
     "items": [
       {
-        "id": 501,
-        "training_archive_id": 101,
-        "syllabus_subject_id": 3,
-        "assigned_by": 10,
+        "id": "550e8400-e29b-41d4-a716-446655440501",
+        "training_archive_id": "550e8400-e29b-41d4-a716-446655440101",
+        "syllabus_subject_id": "550e8400-e29b-41d4-a716-446655440302",
+        "assigned_by": "550e8400-e29b-41d4-a716-446655440002",
         "created_at": "2026-03-15T14:00:00Z"
       },
       {
-        "id": 502,
-        "training_archive_id": 101,
-        "syllabus_subject_id": 4,
-        "assigned_by": 10,
+        "id": "550e8400-e29b-41d4-a716-446655440502",
+        "training_archive_id": "550e8400-e29b-41d4-a716-446655440101",
+        "syllabus_subject_id": "550e8400-e29b-41d4-a716-446655440303",
+        "assigned_by": "550e8400-e29b-41d4-a716-446655440002",
         "created_at": "2026-03-15T14:00:00Z"
       }
     ]
@@ -997,7 +997,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "training_archive_id": 101,
+  "training_archive_id": "550e8400-e29b-41d4-a716-446655440101",
   "syllabus_subject_ids": [ 3, 4, 5 ]
 }
 ```

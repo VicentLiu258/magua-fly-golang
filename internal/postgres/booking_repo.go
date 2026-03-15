@@ -14,12 +14,12 @@ func (db *DB) Booking() repository.BookingRepository { return &BookingRepo{db: d
 
 var _ repository.BookingRepository = (*BookingRepo)(nil)
 
-func (r *BookingRepo) GetByID(ctx context.Context, id int64) (*domain.Booking, error) {
+func (r *BookingRepo) GetByID(ctx context.Context, id string) (*domain.Booking, error) {
 	var b domain.Booking
 	err := r.db.Pool.QueryRow(ctx, `
-		SELECT id, student_id, instructor_id, aircraft_id, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id, created_at, updated_at
-		FROM bookings WHERE id = $1`, id).Scan(
+		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
+		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
+		FROM bookings WHERE id = $1::uuid`, id).Scan(
 		&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime,
 		&b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt,
 	)
@@ -29,11 +29,11 @@ func (r *BookingRepo) GetByID(ctx context.Context, id int64) (*domain.Booking, e
 	return &b, nil
 }
 
-func (r *BookingRepo) ListByStudent(ctx context.Context, studentID int64, status *domain.BookingStatus) ([]*domain.Booking, error) {
+func (r *BookingRepo) ListByStudent(ctx context.Context, studentID string, status *domain.BookingStatus) ([]*domain.Booking, error) {
 	query := `
-		SELECT id, student_id, instructor_id, aircraft_id, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id, created_at, updated_at
-		FROM bookings WHERE student_id = $1`
+		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
+		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
+		FROM bookings WHERE student_id = $1::uuid`
 	args := []interface{}{studentID}
 	if status != nil {
 		query += ` AND status = $2 ORDER BY plan_date DESC, start_time`
@@ -60,8 +60,8 @@ func (r *BookingRepo) ListByStudent(ctx context.Context, studentID int64, status
 
 func (r *BookingRepo) ListPending(ctx context.Context) ([]*domain.Booking, error) {
 	rows, err := r.db.Pool.Query(ctx, `
-		SELECT id, student_id, instructor_id, aircraft_id, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id, created_at, updated_at
+		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
+		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
 		FROM bookings WHERE status = 'pending' ORDER BY created_at`)
 	if err != nil {
 		return nil, err
@@ -82,15 +82,15 @@ func (r *BookingRepo) ListPending(ctx context.Context) ([]*domain.Booking, error
 func (r *BookingRepo) Create(ctx context.Context, b *domain.Booking) error {
 	return r.db.Pool.QueryRow(ctx, `
 		INSERT INTO bookings (student_id, instructor_id, aircraft_id, plan_date, start_time, end_time, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, created_at, updated_at`,
+		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7)
+		RETURNING id::text, created_at, updated_at`,
 		b.StudentID, b.InstructorID, b.AircraftID, b.PlanDate, b.StartTime, b.EndTime, b.Status,
 	).Scan(&b.ID, &b.CreatedAt, &b.UpdatedAt)
 }
 
-func (r *BookingRepo) UpdateStatus(ctx context.Context, id int64, status domain.BookingStatus, rejectReason string, reviewerID int64) error {
+func (r *BookingRepo) UpdateStatus(ctx context.Context, id string, status domain.BookingStatus, rejectReason string, reviewerID string) error {
 	_, err := r.db.Pool.Exec(ctx, `
-		UPDATE bookings SET status=$2, reject_reason=$3, reviewed_at=NOW(), reviewer_id=$4, updated_at=NOW() WHERE id=$1`,
+		UPDATE bookings SET status=$2, reject_reason=$3, reviewed_at=NOW(), reviewer_id=$4::uuid, updated_at=NOW() WHERE id=$1::uuid`,
 		id, status, rejectReason, reviewerID,
 	)
 	return err
@@ -98,8 +98,8 @@ func (r *BookingRepo) UpdateStatus(ctx context.Context, id int64, status domain.
 
 func (r *BookingRepo) ListByDate(ctx context.Context, date time.Time) ([]*domain.Booking, error) {
 	rows, err := r.db.Pool.Query(ctx, `
-		SELECT id, student_id, instructor_id, aircraft_id, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id, created_at, updated_at
+		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
+		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
 		FROM bookings
 		WHERE plan_date = $1
 		ORDER BY instructor_id, start_time`, date)

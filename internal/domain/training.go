@@ -22,10 +22,10 @@ const (
 
 // TrainingRecord is one flight training record.
 type TrainingRecord struct {
-	ID                     int64                 `json:"id"`
-	StudentID              int64                 `json:"student_id"`
-	InstructorID           int64                 `json:"instructor_id"`
-	AircraftID             int64                 `json:"aircraft_id"`
+	ID                     string                `json:"id"`
+	StudentID              string                `json:"student_id"`
+	InstructorID           string                `json:"instructor_id"`
+	AircraftID             string                `json:"aircraft_id"`
 	TrainingDate           time.Time             `json:"training_date"`
 	EngineOnTime           *time.Time            `json:"engine_on_time,omitempty"`
 	EngineOffTime          *time.Time            `json:"engine_off_time,omitempty"`
@@ -50,8 +50,8 @@ type TrainingRecord struct {
 
 // TrainingRecordListFilter 列表筛选条件
 type TrainingRecordListFilter struct {
-	StudentID    *int64     `json:"student_id,omitempty"`
-	InstructorID *int64     `json:"instructor_id,omitempty"`
+	StudentID    *string    `json:"student_id,omitempty"`
+	InstructorID *string    `json:"instructor_id,omitempty"`
 	DateFrom     *time.Time `json:"date_from,omitempty"`
 	DateTo       *time.Time `json:"date_to,omitempty"`
 	Status       *TrainingRecordStatus `json:"status,omitempty"`
@@ -73,10 +73,10 @@ type TrainingRecordListResult struct {
 
 // TrainingArchive is the detailed archive for one training record.
 type TrainingArchive struct {
-	ID                            int64      `json:"id"`
-	TrainingRecordID              int64      `json:"training_record_id"`
-	StudentID                     int64      `json:"student_id"`
-	InstructorID                  int64      `json:"instructor_id"`
+	ID                            string     `json:"id"`
+	TrainingRecordID              string     `json:"training_record_id"`
+	StudentID                     string     `json:"student_id"`
+	InstructorID                  string     `json:"instructor_id"`
 	TrainingDate                  time.Time  `json:"training_date"`
 	Stage                         string     `json:"stage,omitempty"`
 	PlannedDurationMinutes        *int       `json:"planned_duration_minutes,omitempty"`
@@ -92,15 +92,15 @@ type TrainingArchive struct {
 	StudentSignedAt               *time.Time `json:"student_signed_at,omitempty"`
 	ResponsibleInstructorSignedAt *time.Time `json:"responsible_instructor_signed_at,omitempty"`
 	ChiefInstructorSignedAt       *time.Time `json:"chief_instructor_signed_at,omitempty"`
-	ResponsibleInstructorID       *int64     `json:"responsible_instructor_id,omitempty"`
-	ChiefInstructorID             *int64     `json:"chief_instructor_id,omitempty"`
+	ResponsibleInstructorID       *string    `json:"responsible_instructor_id,omitempty"`
+	ChiefInstructorID             *string    `json:"chief_instructor_id,omitempty"`
 	CreatedAt                     time.Time  `json:"created_at"`
 	UpdatedAt                     time.Time  `json:"updated_at"`
 }
 
 // SyllabusSubject is a subject in the training outline.
 type SyllabusSubject struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	Code      string    `json:"code"`
 	Name      string    `json:"name"`
 	SortOrder int       `json:"sort_order"`
@@ -110,9 +110,9 @@ type SyllabusSubject struct {
 
 // TrainingArchiveSubject links an archive to subjects with evaluation.
 type TrainingArchiveSubject struct {
-	ID                int64     `json:"id"`
-	TrainingArchiveID int64     `json:"training_archive_id"`
-	SyllabusSubjectID int64     `json:"syllabus_subject_id"`
+	ID                string    `json:"id"`
+	TrainingArchiveID string    `json:"training_archive_id"`
+	SyllabusSubjectID string    `json:"syllabus_subject_id"`
 	EvaluationScore   *int      `json:"evaluation_score,omitempty"`
 	IsGraduated       bool      `json:"is_graduated"`
 	SortOrder         int       `json:"sort_order"`
@@ -124,30 +124,30 @@ type TrainingArchiveSubject struct {
 
 // NextTrainingSubject is assigned by instructor for next session.
 type NextTrainingSubject struct {
-	ID                int64     `json:"id"`
-	TrainingArchiveID int64     `json:"training_archive_id"`
-	SyllabusSubjectID int64     `json:"syllabus_subject_id"`
-	AssignedBy        int64     `json:"assigned_by"`
+	ID                string    `json:"id"`
+	TrainingArchiveID string    `json:"training_archive_id"`
+	SyllabusSubjectID string    `json:"syllabus_subject_id"`
+	AssignedBy        string    `json:"assigned_by"`
 	CreatedAt         time.Time `json:"created_at"`
 }
 
 // RawFlightImport 飞行数据导入待认领
 type RawFlightImport struct {
-	ID                    int64      `json:"id"`
+	ID                    string     `json:"id"`
 	BatchID               string     `json:"batch_id"`
 	EngineOnTime          *time.Time `json:"engine_on_time,omitempty"`
-	EngineOffTime        *time.Time `json:"engine_off_time,omitempty"`
+	EngineOffTime         *time.Time `json:"engine_off_time,omitempty"`
 	FlightDurationMinutes *int       `json:"flight_duration_minutes,omitempty"`
-	IsLocal               bool      `json:"is_local"`
+	IsLocal               bool       `json:"is_local"`
 	RawData               []byte     `json:"raw_data,omitempty"`
-	TrainingRecordID      *int64     `json:"training_record_id,omitempty"`
+	TrainingRecordID      *string    `json:"training_record_id,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
 }
 
 // TrainingRecordView 自定义视图
 type TrainingRecordView struct {
-	ID         int64     `json:"id"`
-	UserID     int64     `json:"user_id"`
+	ID         string    `json:"id"`
+	UserID     string    `json:"user_id"`
 	Name       string    `json:"name"`
 	FilterJSON []byte    `json:"filter_json,omitempty"`
 	SortJSON   []byte    `json:"sort_json,omitempty"`

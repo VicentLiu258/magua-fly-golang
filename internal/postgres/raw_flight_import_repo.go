@@ -19,14 +19,14 @@ func (r *RawFlightImportRepo) Create(ctx context.Context, row *domain.RawFlightI
 	return r.db.Pool.QueryRow(ctx, `
 		INSERT INTO raw_flight_imports (batch_id, engine_on_time, engine_off_time, flight_duration_minutes, is_local, raw_data)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, created_at`,
+		RETURNING id::text, created_at`,
 		row.BatchID, row.EngineOnTime, row.EngineOffTime, row.FlightDurationMinutes, row.IsLocal, row.RawData,
 	).Scan(&row.ID, &row.CreatedAt)
 }
 
 func (r *RawFlightImportRepo) ListPending(ctx context.Context, limit, offset int) ([]*domain.RawFlightImport, error) {
 	rows, err := r.db.Pool.Query(ctx, `
-		SELECT id, batch_id, engine_on_time, engine_off_time, flight_duration_minutes, is_local, raw_data, training_record_id, created_at
+		SELECT id::text, batch_id, engine_on_time, engine_off_time, flight_duration_minutes, is_local, raw_data, training_record_id::text, created_at
 		FROM raw_flight_imports WHERE training_record_id IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
@@ -43,11 +43,11 @@ func (r *RawFlightImportRepo) ListPending(ctx context.Context, limit, offset int
 	return list, rows.Err()
 }
 
-func (r *RawFlightImportRepo) GetByID(ctx context.Context, id int64) (*domain.RawFlightImport, error) {
+func (r *RawFlightImportRepo) GetByID(ctx context.Context, id string) (*domain.RawFlightImport, error) {
 	var row domain.RawFlightImport
 	err := r.db.Pool.QueryRow(ctx, `
-		SELECT id, batch_id, engine_on_time, engine_off_time, flight_duration_minutes, is_local, raw_data, training_record_id, created_at
-		FROM raw_flight_imports WHERE id = $1`, id).Scan(
+		SELECT id::text, batch_id, engine_on_time, engine_off_time, flight_duration_minutes, is_local, raw_data, training_record_id::text, created_at
+		FROM raw_flight_imports WHERE id = $1::uuid`, id).Scan(
 		&row.ID, &row.BatchID, &row.EngineOnTime, &row.EngineOffTime, &row.FlightDurationMinutes, &row.IsLocal, &row.RawData, &row.TrainingRecordID, &row.CreatedAt,
 	)
 	if err != nil {
@@ -56,7 +56,7 @@ func (r *RawFlightImportRepo) GetByID(ctx context.Context, id int64) (*domain.Ra
 	return &row, nil
 }
 
-func (r *RawFlightImportRepo) SetTrainingRecordID(ctx context.Context, id int64, recordID int64) error {
-	_, err := r.db.Pool.Exec(ctx, `UPDATE raw_flight_imports SET training_record_id = $2 WHERE id = $1`, id, recordID)
+func (r *RawFlightImportRepo) SetTrainingRecordID(ctx context.Context, id string, recordID string) error {
+	_, err := r.db.Pool.Exec(ctx, `UPDATE raw_flight_imports SET training_record_id = $2::uuid WHERE id = $1::uuid`, id, recordID)
 	return err
 }

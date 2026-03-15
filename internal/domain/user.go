@@ -14,7 +14,7 @@ const (
 
 // User is the account entity.
 type User struct {
-	ID           int64     `json:"id"`
+	ID           string    `json:"id"`
 	Username     string    `json:"username"`
 	PasswordHash string    `json:"-"`
 	Phone        string    `json:"phone,omitempty"`
@@ -37,7 +37,7 @@ const (
 
 // SmsVerificationCode records a verification code sent to a phone for a given scene.
 type SmsVerificationCode struct {
-	ID        int64     `json:"id"`
+	ID        string    `json:"id"`
 	Phone     string    `json:"phone"`
 	Scene     SmsScene  `json:"scene"`
 	Code      string    `json:"-"`
@@ -49,23 +49,23 @@ type SmsVerificationCode struct {
 
 // Student extends user profile for trainees.
 type Student struct {
-	ID                      int64     `json:"id"`
-	UserID                  *int64    `json:"user_id,omitempty"`
+	ID                      string    `json:"id"`
+	UserID                  *string   `json:"user_id,omitempty"`
 	Name                    string    `json:"name"`
 	StudentNo               string    `json:"student_no"`
 	ContractInfo            []byte    `json:"contract_info,omitempty"`
 	ContractDurationMinutes *int      `json:"contract_duration_minutes,omitempty"`
 	FlownMinutes            int       `json:"flown_minutes"`
 	TrainingProgress        string    `json:"training_progress,omitempty"`
-	ResponsibleInstructorID *int64    `json:"responsible_instructor_id,omitempty"`
+	ResponsibleInstructorID *string   `json:"responsible_instructor_id,omitempty"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 // Instructor extends user for instructors.
 type Instructor struct {
-	ID           int64     `json:"id"`
-	UserID       int64     `json:"user_id"`
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
 	Name         string    `json:"name"`
 	DisplayColor string    `json:"display_color,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
