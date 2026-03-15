@@ -72,14 +72,17 @@ type TrainingPlanRepository interface {
 type TrainingRecordRepository interface {
 	GetByID(ctx context.Context, id int64) (*domain.TrainingRecord, error)
 	ListByStudent(ctx context.Context, studentID int64, limit, offset int) ([]*domain.TrainingRecord, error)
+	List(ctx context.Context, filter *domain.TrainingRecordListFilter, sort *domain.TrainingRecordListSort, limit, offset int) ([]*domain.TrainingRecord, int, error)
 	Create(ctx context.Context, r *domain.TrainingRecord) error
 	Update(ctx context.Context, r *domain.TrainingRecord) error
+	UpdateStatus(ctx context.Context, id int64, status domain.TrainingRecordStatus) error
 }
 
 // TrainingArchiveRepository defines training archive persistence.
 type TrainingArchiveRepository interface {
 	GetByID(ctx context.Context, id int64) (*domain.TrainingArchive, error)
 	GetByTrainingRecordID(ctx context.Context, recordID int64) (*domain.TrainingArchive, error)
+	ListByStudent(ctx context.Context, studentID int64, limit, offset int) ([]*domain.TrainingArchive, error)
 	Create(ctx context.Context, a *domain.TrainingArchive) error
 	Update(ctx context.Context, a *domain.TrainingArchive) error
 }
@@ -89,6 +92,35 @@ type SyllabusSubjectRepository interface {
 	GetByID(ctx context.Context, id int64) (*domain.SyllabusSubject, error)
 	List(ctx context.Context) ([]*domain.SyllabusSubject, error)
 	Create(ctx context.Context, s *domain.SyllabusSubject) error
+}
+
+// RawFlightImportRepository defines raw flight import persistence.
+type RawFlightImportRepository interface {
+	Create(ctx context.Context, r *domain.RawFlightImport) error
+	ListPending(ctx context.Context, limit, offset int) ([]*domain.RawFlightImport, error)
+	GetByID(ctx context.Context, id int64) (*domain.RawFlightImport, error)
+	SetTrainingRecordID(ctx context.Context, id int64, recordID int64) error
+}
+
+// TrainingRecordViewRepository defines training record view persistence.
+type TrainingRecordViewRepository interface {
+	Create(ctx context.Context, v *domain.TrainingRecordView) error
+	ListByUserID(ctx context.Context, userID int64) ([]*domain.TrainingRecordView, error)
+	GetByID(ctx context.Context, id int64) (*domain.TrainingRecordView, error)
+	Update(ctx context.Context, v *domain.TrainingRecordView) error
+	Delete(ctx context.Context, id int64) error
+}
+
+// TrainingArchiveSubjectRepository defines training archive subject persistence.
+type TrainingArchiveSubjectRepository interface {
+	ListByArchiveID(ctx context.Context, archiveID int64) ([]*domain.TrainingArchiveSubject, error)
+	ReplaceForArchive(ctx context.Context, archiveID int64, subjects []*domain.TrainingArchiveSubject) error
+}
+
+// NextTrainingSubjectRepository defines next training subject persistence.
+type NextTrainingSubjectRepository interface {
+	ListByArchiveID(ctx context.Context, archiveID int64) ([]*domain.NextTrainingSubject, error)
+	ReplaceForArchive(ctx context.Context, archiveID int64, assignedBy int64, syllabusSubjectIDs []int64) error
 }
 
 // TaskRepository defines task persistence.

@@ -17,6 +17,7 @@ func Router(
 	aircraft *AircraftHandler,
 	booking *BookingHandler,
 	schedule *ScheduleHandler,
+	training *TrainingHandler,
 	jwtManager *jwt.Manager,
 ) *gin.Engine {
 	r := gin.Default()
@@ -40,6 +41,33 @@ func Router(
 		authGroup.POST("/api/v1/bookings/pending", booking.ListPending)
 		authGroup.POST("/api/v1/bookings/review", booking.Review)
 		authGroup.POST("/api/v1/schedules/instructor-grid", schedule.InstructorGrid)
+
+		// 训练数据录入与管理（均为 POST）
+		authGroup.POST("/api/v1/config/training-record-fields", training.ConfigTrainingRecordFields)
+		authGroup.POST("/api/v1/training-records", training.CreateRecord)
+		authGroup.POST("/api/v1/training-records/detail", training.RecordDetail)
+		authGroup.POST("/api/v1/training-records/update", training.UpdateRecord)
+		authGroup.POST("/api/v1/training-records/delete", training.DeleteRecord)
+		authGroup.POST("/api/v1/training-records/list", training.ListRecords)
+		authGroup.POST("/api/v1/training-records/import", training.ImportRecords)
+		authGroup.POST("/api/v1/training-records/claim", training.ClaimImport)
+		authGroup.POST("/api/v1/training-records/import/pending", training.ListPendingImports)
+		authGroup.POST("/api/v1/training-records/stats", training.RecordStats)
+		authGroup.POST("/api/v1/dashboard/summary", training.DashboardSummary)
+		authGroup.POST("/api/v1/training-views", training.CreateView)
+		authGroup.POST("/api/v1/training-views/list", training.ListViews)
+		authGroup.POST("/api/v1/training-views/update", training.UpdateView)
+		authGroup.POST("/api/v1/training-views/delete", training.DeleteView)
+		authGroup.POST("/api/v1/students/training-archives/list", training.ListArchivesByStudent)
+		authGroup.POST("/api/v1/training-archives/detail", training.ArchiveDetail)
+		authGroup.POST("/api/v1/training-archives", training.CreateArchive)
+		authGroup.POST("/api/v1/training-archives/update", training.UpdateArchive)
+		authGroup.POST("/api/v1/training-archives/sign", training.SignArchive)
+		authGroup.POST("/api/v1/syllabus-subjects/list", training.ListSyllabusSubjects)
+		authGroup.POST("/api/v1/training-archives/subjects/list", training.ListArchiveSubjects)
+		authGroup.POST("/api/v1/training-archives/subjects/update", training.UpdateArchiveSubjects)
+		authGroup.POST("/api/v1/training-archives/next-subjects/list", training.ListNextSubjects)
+		authGroup.POST("/api/v1/training-archives/next-subjects/update", training.UpdateNextSubjects)
 	}
 
 	return r

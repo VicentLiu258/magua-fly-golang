@@ -447,3 +447,218 @@ POST /api/v1/students/list?limit=20&offset=0
 ```
 
 一般表示请求中的 ID 未在对应主表中存在，需要先通过创建接口或 SQL 插入基础数据。
+
+---
+
+## 7. 训练数据录入与管理
+
+本模块接口**均为 POST**，需 `Authorization: Bearer <JWT>`，请求体 `Content-Type: application/json`，返回结构同上。
+
+### 7.1 录入配置
+
+#### 7.1.1 训练记录字段配置 `POST /api/v1/config/training-record-fields`
+
+**请求体**：空 `{}` 或省略。
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "fields": [
+      { "key": "student_id", "label": "学员", "type": "select", "required": true },
+      { "key": "instructor_id", "label": "带飞教员", "type": "select", "required": true },
+      { "key": "training_date", "label": "训练日期", "type": "date", "required": true },
+      { "key": "engine_on_time", "label": "开车时间", "type": "time" },
+      { "key": "status", "label": "状态", "type": "select", "options": ["normal", "cancelled", "deleted", "expired"] }
+    ]
+  }
+}
+```
+
+### 7.2 训练记录 CRUD 与列表
+
+#### 7.2.1 创建记录 `POST /api/v1/training-records`
+
+**请求体**：
+
+```json
+{
+  "student_id": 1,
+  "instructor_id": 1,
+  "aircraft_id": 1,
+  "training_date": "2026-03-15",
+  "engine_on_time": "2026-03-15T10:00:00Z",
+  "engine_off_time": "2026-03-15T11:30:00Z",
+  "flight_duration_minutes": 90,
+  "is_local": true,
+  "planned_duration_minutes": 90,
+  "theory_duration_minutes": 0,
+  "sim_duration_minutes": 0,
+  "landings": 5,
+  "syllabus_outline": "1#",
+  "archive_display_no": "1#672",
+  "status": "normal"
+}
+```
+
+**成功响应**：`data` 为完整训练记录（含 `id`、`created_at`、`updated_at`）。
+
+#### 7.2.2 记录详情 `POST /api/v1/training-records/detail`
+
+**请求体**：`{ "id": 123 }`
+
+**成功响应**：`data` 为单条训练记录。
+
+#### 7.2.3 更新记录 `POST /api/v1/training-records/update`
+
+**请求体**：`{ "id": 123, "student_id": 1, "instructor_id": 1, ... }`（需传 `id`，其余为可选更新字段）。
+
+**成功响应**：`data` 为更新后的记录。
+
+#### 7.2.4 删除记录（软删）`POST /api/v1/training-records/delete`
+
+**请求体**：`{ "id": 123 }`
+
+**成功响应**：`data`: `{ "status": "deleted" }`。
+
+#### 7.2.5 记录列表（多维筛选）`POST /api/v1/training-records/list`
+
+**请求体**：
+
+```json
+{
+  "view_id": null,
+  "student_id": 1,
+  "instructor_id": null,
+  "date_from": "2026-01-01",
+  "date_to": "2026-12-31",
+  "status": "normal",
+  "import_source": null,
+  "sort_field": "training_date",
+  "sort_asc": false,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [ { "id": 1, "student_id": 1, "instructor_id": 1, "training_date": "2026-03-15", ... } ],
+    "total": 100
+  }
+}
+```
+
+### 7.3 飞行数据导入与认领
+
+#### 7.3.1 批量导入 `POST /api/v1/training-records/import`
+
+**请求体**：
+
+```json
+{
+  "batch_id": "batch-001",
+  "rows": [
+    {
+      "engine_on_time": "2026-03-15T10:00:00Z",
+      "engine_off_time": "2026-03-15T10:54:00Z",
+      "flight_duration_minutes": 54,
+      "is_local": true
+    }
+  ]
+}
+```
+
+**成功响应**：`data`: `{ "batch_id": "batch-001", "items": [ { "id": 1, "batch_id": "batch-001", ... } ] }`。
+
+#### 7.3.2 认领导入记录 `POST /api/v1/training-records/claim`
+
+**请求体**：
+
+```json
+{
+  "raw_import_id": 1,
+  "student_id": 1,
+  "instructor_id": 1,
+  "aircraft_id": 1,
+  "training_date": "2026-03-15"
+}
+```
+
+**成功响应**：`data` 为创建的 `training_record`（及关联档案）。
+
+#### 7.3.3 待认领列表 `POST /api/v1/training-records/import/pending`
+
+**请求体**：`{ "limit": 50, "offset": 0 }` 或空。
+
+**成功响应**：`data`: `{ "items": [ ... ] }`。
+
+### 7.4 统计与仪表盘
+
+#### 7.4.1 记录统计 `POST /api/v1/training-records/stats`
+
+**请求体**：`{ "date_from": "2026-01-01", "date_to": "2026-12-31", "dimensions": [] }`
+
+**成功响应**：`data`: `{ "count": 100, "total_flight_minutes": 9000 }` 等聚合结果。
+
+#### 7.4.2 仪表盘概览 `POST /api/v1/dashboard/summary`
+
+**请求体**：空或 `{}`。
+
+**成功响应**：`data` 含今日/总计等概览字段。
+
+### 7.5 自定义视图
+
+- **保存视图** `POST /api/v1/training-views`  
+  请求体：`{ "name": "我的视图", "filter_json": {}, "sort_json": {}, "group_by": "" }`。返回创建的视图。
+
+- **视图列表** `POST /api/v1/training-views/list`  
+  请求体：空。返回当前用户的 `items` 列表。
+
+- **更新视图** `POST /api/v1/training-views/update`  
+  请求体：`{ "id": 1, "name": "...", "filter_json": {}, "sort_json": {}, "group_by": "" }`。
+
+- **删除视图** `POST /api/v1/training-views/delete`  
+  请求体：`{ "id": 1 }`。
+
+### 7.6 训练档案
+
+- **学员档案列表** `POST /api/v1/students/training-archives/list`  
+  请求体：`{ "student_id": 1, "limit": 20, "offset": 0 }`。返回 `data.items` 档案列表（简洁信息）。
+
+- **档案详情** `POST /api/v1/training-archives/detail`  
+  请求体：`{ "id": 1 }`。返回完整档案（含讲评、自评、任务布置、签字状态等）。
+
+- **创建档案** `POST /api/v1/training-archives`  
+  请求体：`training_record_id`、`student_id`、`instructor_id`、`training_date` 等。返回创建的档案。
+
+- **更新档案** `POST /api/v1/training-archives/update`  
+  请求体：含 `id` 及可编辑字段。返回更新后的档案。
+
+- **签字** `POST /api/v1/training-archives/sign`  
+  请求体：`{ "id": 1, "role": "student" | "responsible_instructor" | "chief_instructor" }`。返回 `{ "status": "signed" }`。
+
+### 7.7 训练科目
+
+- **大纲科目列表** `POST /api/v1/syllabus-subjects/list`  
+  请求体：可选 `{ "student_id": 1 }`（用于标记该学员已结业科目）。返回 `data.items`。
+
+- **本课科目列表** `POST /api/v1/training-archives/subjects/list`  
+  请求体：`{ "training_archive_id": 1 }`。返回 `data.items`（含评价、结业标记等）。
+
+- **设置本课科目** `POST /api/v1/training-archives/subjects/update`  
+  请求体：`{ "training_archive_id": 1, "subjects": [ { "syllabus_subject_id": 1, "evaluation_score": 9, "is_graduated": false, "subject_content": "", "type": "" } ] }`。
+
+- **下次布置科目列表** `POST /api/v1/training-archives/next-subjects/list`  
+  请求体：`{ "training_archive_id": 1 }`。返回 `data.items`。
+
+- **布置下次科目** `POST /api/v1/training-archives/next-subjects/update`  
+  请求体：`{ "training_archive_id": 1, "syllabus_subject_ids": [ 1, 2, 3 ] }`。需登录，以当前用户为分配人。

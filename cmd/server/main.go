@@ -67,6 +67,17 @@ func main() {
 	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking())
 	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
 
+	trainingUC := usecase.NewTrainingUseCase(
+		pgDB.TrainingRecord(),
+		pgDB.TrainingArchive(),
+		pgDB.RawFlightImport(),
+		pgDB.TrainingRecordView(),
+		pgDB.SyllabusSubject(),
+		pgDB.TrainingArchiveSubject(),
+		pgDB.NextTrainingSubject(),
+	)
+	trainingHandler := handler.NewTrainingHandler(trainingUC)
+
 	router := handler.Router(
 		healthHandler,
 		authHandler,
@@ -76,6 +87,7 @@ func main() {
 		aircraftHandler,
 		bookingHandler,
 		scheduleHandler,
+		trainingHandler,
 		jwtManager,
 	)
 
