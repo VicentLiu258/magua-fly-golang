@@ -84,6 +84,8 @@ func main() {
 		mongoClient.TheoryContent(),
 		mongoClient.TheoryQuestionSet(),
 		mongoClient.TheoryAttemptDetail(),
+		pgDB.TheoryPaper(),
+		pgDB.TheoryPaperQuestion(),
 	)
 	theoryHandler := handler.NewTheoryHandler(theoryUC)
 

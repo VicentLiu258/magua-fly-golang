@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"magua-fly-golang/internal/middleware"
+	"magua-fly-golang/internal/repository"
 	"magua-fly-golang/internal/usecase"
 
 	"github.com/gin-gonic/gin"
@@ -86,6 +87,7 @@ func (h *TheoryHandler) DocumentDetail(c *gin.Context) {
 
 type startQuestionsRequest struct {
 	DocumentID string `json:"document_id" binding:"required"`
+	PaperID    string `json:"paper_id"`
 }
 
 func (h *TheoryHandler) StartQuestions(c *gin.Context) {
@@ -95,7 +97,7 @@ func (h *TheoryHandler) StartQuestions(c *gin.Context) {
 		return
 	}
 	userID := getUserIDFromContext(c)
-	resp, err := h.uc.StartQuestions(c.Request.Context(), userID, req.DocumentID)
+	resp, err := h.uc.StartQuestions(c.Request.Context(), userID, req.DocumentID, req.PaperID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
@@ -140,5 +142,148 @@ func (h *TheoryHandler) ListMyAttempts(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, okResponse(resp))
+}
+
+// ----- Admin question management -----
+
+func (h *TheoryHandler) AdminListQuestions(c *gin.Context) {
+	var req usecase.AdminListQuestionsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	resp, err := h.uc.AdminListQuestions(c.Request.Context(), &req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(resp))
+}
+
+type adminQuestionBody struct {
+	DocumentID string                         `json:"document_id" binding:"required"`
+	Question   repository.TheoryQuestionItem `json:"question" binding:"required"`
+}
+
+func (h *TheoryHandler) AdminCreateQuestion(c *gin.Context) {
+	var body adminQuestionBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	if err := h.uc.AdminCreateQuestion(c.Request.Context(), body.DocumentID, body.Question); err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(gin.H{"status": "ok"}))
+}
+
+func (h *TheoryHandler) AdminUpdateQuestion(c *gin.Context) {
+	var body adminQuestionBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	if err := h.uc.AdminUpdateQuestion(c.Request.Context(), body.DocumentID, body.Question); err != nil {
+		if err == usecase.ErrQuestionNotFound {
+			c.JSON(http.StatusBadRequest, errorMessage("question not found"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(gin.H{"status": "ok"}))
+}
+
+type adminDeleteQuestionBody struct {
+	DocumentID string `json:"document_id" binding:"required"`
+	QuestionID string `json:"question_id" binding:"required"`
+}
+
+func (h *TheoryHandler) AdminDeleteQuestion(c *gin.Context) {
+	var body adminDeleteQuestionBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	if err := h.uc.AdminDeleteQuestion(c.Request.Context(), body.DocumentID, body.QuestionID); err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(gin.H{"status": "ok"}))
+}
+
+// ----- Paper management -----
+
+type listPapersRequest struct {
+	DocumentID string `json:"document_id" binding:"required"`
+	Page       int    `json:"page"`
+	PageSize   int    `json:"page_size"`
+}
+
+func (h *TheoryHandler) ListPapers(c *gin.Context) {
+	var req listPapersRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	resp, err := h.uc.ListPapers(c.Request.Context(), &usecase.ListPapersRequest{
+		DocumentID: req.DocumentID,
+		Page:       req.Page,
+		PageSize:   req.PageSize,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(resp))
+}
+
+type savePaperBody struct {
+	ID               *string                    `json:"id"`
+	TheoryDocumentID string                     `json:"theory_document_id" binding:"required"`
+	Name             string                     `json:"name" binding:"required"`
+	Description      string                     `json:"description"`
+	Enabled          bool                       `json:"enabled"`
+	Questions        []usecase.SavePaperQuestion `json:"questions"`
+}
+
+func (h *TheoryHandler) SavePaper(c *gin.Context) {
+	var body savePaperBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	userID := getUserIDFromContext(c)
+	paper, err := h.uc.SavePaper(c.Request.Context(), userID, &usecase.SavePaperRequest{
+		ID:               body.ID,
+		TheoryDocumentID: body.TheoryDocumentID,
+		Name:             body.Name,
+		Description:      body.Description,
+		Enabled:          body.Enabled,
+		Questions:        body.Questions,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(paper))
+}
+
+type deletePaperBody struct {
+	PaperID string `json:"paper_id" binding:"required"`
+}
+
+func (h *TheoryHandler) DeletePaper(c *gin.Context) {
+	var body deletePaperBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	if err := h.uc.DeletePaper(c.Request.Context(), body.PaperID); err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(gin.H{"status": "ok"}))
 }
 

@@ -1287,3 +1287,256 @@ POST /api/v1/students/list?limit=20&offset=0
 }
 ```
 
+---
+
+### 10. 题库管理 API
+
+#### 10.1 列出题目（后台）`POST /api/v1/theory/questions/admin/list`
+
+- **说明**：教员/管理员查看某理论文档下的全部题目，用于后台题库维护。
+
+**请求体**：
+
+```json
+{
+  "document_id": "<UUID>",
+  "page": 1,
+  "page_size": 50,
+  "keyword": "",
+  "tags": [],
+  "type": ""
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "q1",
+        "type": "single",
+        "stem": "下面哪一项与失速最直接相关？",
+        "options": [
+          { "id": "A", "text": "飞机重量" },
+          { "id": "B", "text": "迎角" }
+        ],
+        "tags": ["基础"],
+        "score": 2
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+#### 10.2 创建题目 `POST /api/v1/theory/questions/admin/create`
+
+**请求体**：
+
+```json
+{
+  "document_id": "<UUID>",
+  "question": {
+    "id": "",                      // 可留空，由后端生成
+    "type": "single",              // single | multi
+    "stem": "下面哪一项与失速最直接相关？",
+    "options": [
+      { "id": "A", "text": "飞机重量" },
+      { "id": "B", "text": "迎角" },
+      { "id": "C", "text": "油量" }
+    ],
+    "correct_option_ids": ["B"],
+    "explanation": "失速本质上是迎角过大导致升力丧失。",
+    "tags": ["基础"],
+    "score": 2
+  }
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": { "status": "ok" }
+}
+```
+
+#### 10.3 更新题目 `POST /api/v1/theory/questions/admin/update`
+
+**请求体**：
+
+```json
+{
+  "document_id": "<UUID>",
+  "question": {
+    "id": "q1",
+    "type": "single",
+    "stem": "修改后的题干...",
+    "options": [
+      { "id": "A", "text": "修改后的选项A" },
+      { "id": "B", "text": "修改后的选项B(正确)" }
+    ],
+    "correct_option_ids": ["B"],
+    "explanation": "修改后的解析...",
+    "tags": ["进阶"],
+    "score": 3
+  }
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": { "status": "ok" }
+}
+```
+
+#### 10.4 删除题目 `POST /api/v1/theory/questions/admin/delete`
+
+**请求体**：
+
+```json
+{
+  "document_id": "<UUID>",
+  "question_id": "q1"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": { "status": "ok" }
+}
+```
+
+---
+
+### 11. 试卷管理 API
+
+#### 11.1 列出试卷 `POST /api/v1/theory/papers/list`
+
+- **说明**：查看某理论文档下已配置的试卷列表，用于后台维护和前端出卷选择。
+
+**请求体**：
+
+```json
+{
+  "document_id": "<UUID>",
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "paper-uuid-1",
+        "theory_document_id": "<UUID>",
+        "name": "阶段测验 1",
+        "description": "用于阶段性考核",
+        "total_score": 100,
+        "enabled": true,
+        "created_by": "<user_id>",
+        "created_at": "2026-03-16T00:00:00Z",
+        "updated_at": "2026-03-16T00:00:00Z"
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+#### 11.2 创建/更新试卷 `POST /api/v1/theory/papers/save`
+
+**请求体**：
+
+```json
+{
+  "id": null,                        // 为空表示创建；非空表示更新
+  "theory_document_id": "<UUID>",
+  "name": "阶段测验 1",
+  "description": "用于阶段性考核",
+  "enabled": true,
+  "questions": [
+    { "question_id": "q1", "score": 2, "sort_order": 1 },
+    { "question_id": "q2", "score": 3, "sort_order": 2 }
+  ]
+}
+```
+
+**成功响应**（返回试卷基本信息）：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": "paper-uuid-1",
+    "theory_document_id": "<UUID>",
+    "name": "阶段测验 1",
+    "description": "用于阶段性考核",
+    "total_score": 100,
+    "enabled": true,
+    "created_by": "<user_id>",
+    "created_at": "2026-03-16T00:00:00Z",
+    "updated_at": "2026-03-16T00:00:00Z"
+  }
+}
+```
+
+#### 11.3 删除试卷 `POST /api/v1/theory/papers/delete`
+
+**请求体**：
+
+```json
+{
+  "paper_id": "<UUID>"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": { "status": "ok" }
+}
+```
+
+#### 11.4 使用试卷出题：扩展 `/api/v1/theory/questions/start`
+
+- **说明**：在原有 `document_id` 的基础上，增加可选字段 `paper_id`；若提供，则按照试卷配置出题。
+
+**请求体**：
+
+```json
+{
+  "document_id": "<UUID>",
+  "paper_id": "paper-uuid-1"
+}
+```
+
+**行为差异**：
+
+- 若携带 `paper_id`：\n  - 从 `theory_paper_questions` 中按 `sort_order` 取出该卷的题目 ID 和分值。\n  - 在 Mongo 题库 `theory_question_sets` 中按 `question_id` 拉取题干与选项，并将 `score` 覆盖为试卷中配置的分值。\n- 若不携带 `paper_id`：\n  - 保持原有行为，直接使用该文档下的全部题目作为一套卷。
+
+

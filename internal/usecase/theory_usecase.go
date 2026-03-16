@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
 	"magua-fly-golang/internal/domain"
@@ -16,6 +18,8 @@ type TheoryUseCase struct {
 	contentRepo    repository.TheoryContentRepository
 	questionRepo   repository.TheoryQuestionSetRepository
 	attemptDetail  repository.TheoryAttemptDetailRepository
+	paperRepo      repository.TheoryPaperRepository
+	paperQuestionRepo repository.TheoryPaperQuestionRepository
 }
 
 func NewTheoryUseCase(
@@ -24,6 +28,8 @@ func NewTheoryUseCase(
 	contentRepo repository.TheoryContentRepository,
 	questionRepo repository.TheoryQuestionSetRepository,
 	attemptDetail repository.TheoryAttemptDetailRepository,
+	paperRepo repository.TheoryPaperRepository,
+	paperQuestionRepo repository.TheoryPaperQuestionRepository,
 ) *TheoryUseCase {
 	return &TheoryUseCase{
 		docRepo:       docRepo,
@@ -31,6 +37,8 @@ func NewTheoryUseCase(
 		contentRepo:   contentRepo,
 		questionRepo:  questionRepo,
 		attemptDetail: attemptDetail,
+		paperRepo:     paperRepo,
+		paperQuestionRepo: paperQuestionRepo,
 	}
 }
 
@@ -106,12 +114,15 @@ func (uc *TheoryUseCase) GetDocumentDetail(ctx context.Context, documentID strin
 
 // StartQuestionsResponse bundles attempt id and questions for client.
 type StartQuestionsResponse struct {
-	AttemptID        string                              `json:"attempt_id"`
-	TimeLimitSeconds int                                 `json:"time_limit_seconds"`
-	Questions        []repository.TheoryQuestionItem     `json:"questions"`
+	AttemptID        string                          `json:"attempt_id"`
+	TimeLimitSeconds int                             `json:"time_limit_seconds"`
+	Questions        []repository.TheoryQuestionItem `json:"questions"`
 }
 
-func (uc *TheoryUseCase) StartQuestions(ctx context.Context, userID, documentID string) (*StartQuestionsResponse, error) {
+// StartQuestions can optionally take a paperID; when paperID is non-empty, questions
+// will be drawn according to the paper configuration, otherwise all questions
+// under the document will be used.
+func (uc *TheoryUseCase) StartQuestions(ctx context.Context, userID, documentID, paperID string) (*StartQuestionsResponse, error) {
 	// For now we re-use a single row to represent the attempt "shell".
 	// The detailed answers and grading will be saved on submit.
 	now := time.Now()
@@ -129,11 +140,33 @@ func (uc *TheoryUseCase) StartQuestions(ctx context.Context, userID, documentID 
 	if err != nil {
 		return nil, err
 	}
-
+	questions := qs.Questions
+	// If a paper is specified, slice and reorder questions by paper config.
+	if paperID != "" {
+		paperQuestions, err := uc.paperQuestionRepo.ListByPaperID(ctx, paperID)
+		if err != nil {
+			return nil, err
+		}
+		// index question set by ID
+		index := make(map[string]repository.TheoryQuestionItem, len(questions))
+		for _, q := range questions {
+			index[q.ID] = q
+		}
+		var selected []repository.TheoryQuestionItem
+		for _, pq := range paperQuestions {
+			q, ok := index[pq.QuestionID]
+			if !ok {
+				continue
+			}
+			q.Score = pq.Score
+			selected = append(selected, q)
+		}
+		questions = selected
+	}
 	return &StartQuestionsResponse{
 		AttemptID:        attempt.ID,
 		TimeLimitSeconds: 1800,
-		Questions:        qs.Questions,
+		Questions:        questions,
 	}, nil
 }
 
@@ -278,5 +311,222 @@ func isSameStringSet(a, b []string) bool {
 	}
 	return len(m) == 0
 }
+
+// ErrQuestionNotFound is returned when updating a non-existing question.
+var ErrQuestionNotFound = errors.New("question not found")
+
+// generateQuestionID returns a simple unique ID for new questions.
+func generateQuestionID() string {
+	return fmt.Sprintf("q_%d", time.Now().UnixNano())
+}
+
+// ----- Admin question management -----
+
+// AdminListQuestionsRequest is the filter for listing questions under a document.
+type AdminListQuestionsRequest struct {
+	DocumentID string   `json:"document_id"`
+	Page       int      `json:"page"`
+	PageSize   int      `json:"page_size"`
+	Keyword    string   `json:"keyword"`
+	Tags       []string `json:"tags"`
+	Type       string   `json:"type"`
+}
+
+type AdminListQuestionsResponse struct {
+	Items []repository.TheoryQuestionItem `json:"items"`
+	Total int                             `json:"total"`
+}
+
+// AdminListQuestions reads question set from Mongo and returns basic list; filter/分页可以后续细化。
+func (uc *TheoryUseCase) AdminListQuestions(ctx context.Context, req *AdminListQuestionsRequest) (*AdminListQuestionsResponse, error) {
+	qs, err := uc.questionRepo.GetByDocumentID(ctx, req.DocumentID)
+	if err != nil {
+		return nil, err
+	}
+	items := qs.Questions
+	// 简单忽略分页与过滤，后续可按需要在内存中过滤或在结构上扩展。
+	return &AdminListQuestionsResponse{
+		Items: items,
+		Total: len(items),
+	}, nil
+}
+
+// AdminCreateQuestion appends a question into question set for a document.
+func (uc *TheoryUseCase) AdminCreateQuestion(ctx context.Context, documentID string, q repository.TheoryQuestionItem) error {
+	set, err := uc.questionRepo.GetByDocumentID(ctx, documentID)
+	if err != nil {
+		// 如果文档不存在，可初始化一个新的集合
+		set = &repository.TheoryQuestionSetDoc{
+			DocumentID: documentID,
+			Questions:  []repository.TheoryQuestionItem{},
+		}
+	}
+	if q.ID == "" {
+		q.ID = generateQuestionID()
+	}
+	set.Questions = append(set.Questions, q)
+	return uc.questionRepo.Upsert(ctx, set)
+}
+
+// AdminUpdateQuestion replaces an existing question identified by ID.
+func (uc *TheoryUseCase) AdminUpdateQuestion(ctx context.Context, documentID string, q repository.TheoryQuestionItem) error {
+	set, err := uc.questionRepo.GetByDocumentID(ctx, documentID)
+	if err != nil {
+		return err
+	}
+	for i := range set.Questions {
+		if set.Questions[i].ID == q.ID {
+			set.Questions[i] = q
+			return uc.questionRepo.Upsert(ctx, set)
+		}
+	}
+	// 未找到时视为错误
+	return ErrQuestionNotFound
+}
+
+// AdminDeleteQuestion removes a question from the set.
+func (uc *TheoryUseCase) AdminDeleteQuestion(ctx context.Context, documentID, questionID string) error {
+	set, err := uc.questionRepo.GetByDocumentID(ctx, documentID)
+	if err != nil {
+		return err
+	}
+	out := make([]repository.TheoryQuestionItem, 0, len(set.Questions))
+	for _, q := range set.Questions {
+		if q.ID == questionID {
+			continue
+		}
+		out = append(out, q)
+	}
+	set.Questions = out
+	return uc.questionRepo.Upsert(ctx, set)
+}
+
+// ----- Paper management -----
+
+type ListPapersRequest struct {
+	DocumentID string `json:"document_id"`
+	Page       int    `json:"page"`
+	PageSize   int    `json:"page_size"`
+}
+
+type ListPapersItem struct {
+	ID               string    `json:"id"`
+	TheoryDocumentID string    `json:"theory_document_id"`
+	Name             string    `json:"name"`
+	Description      string    `json:"description,omitempty"`
+	TotalScore       int       `json:"total_score"`
+	Enabled          bool      `json:"enabled"`
+	CreatedBy        string    `json:"created_by"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type ListPapersResponse struct {
+	Items []ListPapersItem `json:"items"`
+	Total int              `json:"total"`
+}
+
+func (uc *TheoryUseCase) ListPapers(ctx context.Context, req *ListPapersRequest) (*ListPapersResponse, error) {
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 || req.PageSize > 100 {
+		req.PageSize = 20
+	}
+	offset := (req.Page - 1) * req.PageSize
+	papers, total, err := uc.paperRepo.ListByDocumentID(ctx, req.DocumentID, req.PageSize, offset)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]ListPapersItem, 0, len(papers))
+	for _, p := range papers {
+		items = append(items, ListPapersItem{
+			ID:               p.ID,
+			TheoryDocumentID: p.TheoryDocumentID,
+			Name:             p.Name,
+			Description:      p.Description,
+			TotalScore:       p.TotalScore,
+			Enabled:          p.Enabled,
+			CreatedBy:        p.CreatedBy,
+			CreatedAt:        p.CreatedAt,
+			UpdatedAt:        p.UpdatedAt,
+		})
+	}
+	return &ListPapersResponse{
+		Items: items,
+		Total: total,
+	}, nil
+}
+
+type SavePaperQuestion struct {
+	QuestionID string `json:"question_id"`
+	Score      int    `json:"score"`
+	SortOrder  int    `json:"sort_order"`
+}
+
+type SavePaperRequest struct {
+	ID               *string            `json:"id"`
+	TheoryDocumentID string             `json:"theory_document_id" binding:"required"`
+	Name             string             `json:"name" binding:"required"`
+	Description      string             `json:"description"`
+	Enabled          bool               `json:"enabled"`
+	Questions        []SavePaperQuestion `json:"questions"`
+}
+
+func (uc *TheoryUseCase) SavePaper(ctx context.Context, userID string, req *SavePaperRequest) (*domain.TheoryPaper, error) {
+	var totalScore int
+	pq := make([]*domain.TheoryPaperQuestion, 0, len(req.Questions))
+	for _, q := range req.Questions {
+		totalScore += q.Score
+		pq = append(pq, &domain.TheoryPaperQuestion{
+			QuestionID: q.QuestionID,
+			Score:      q.Score,
+			SortOrder:  q.SortOrder,
+		})
+	}
+
+	var paper *domain.TheoryPaper
+	var err error
+	if req.ID == nil || *req.ID == "" {
+		// create
+		p := &domain.TheoryPaper{
+			TheoryDocumentID: req.TheoryDocumentID,
+			Name:             req.Name,
+			Description:      req.Description,
+			TotalScore:       totalScore,
+			Enabled:          req.Enabled,
+			CreatedBy:        userID,
+		}
+		if err = uc.paperRepo.Create(ctx, p); err != nil {
+			return nil, err
+		}
+		paper = p
+	} else {
+		// update
+		p, err2 := uc.paperRepo.GetByID(ctx, *req.ID)
+		if err2 != nil {
+			return nil, err2
+		}
+		p.Name = req.Name
+		p.Description = req.Description
+		p.TotalScore = totalScore
+		p.Enabled = req.Enabled
+		if err = uc.paperRepo.Update(ctx, p); err != nil {
+			return nil, err
+		}
+		paper = p
+	}
+
+	// replace questions for this paper
+	if err := uc.paperQuestionRepo.ReplaceForPaper(ctx, paper.ID, pq); err != nil {
+		return nil, err
+	}
+	return paper, nil
+}
+
+func (uc *TheoryUseCase) DeletePaper(ctx context.Context, paperID string) error {
+	return uc.paperRepo.Delete(ctx, paperID)
+}
+
 
 

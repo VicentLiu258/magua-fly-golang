@@ -76,6 +76,17 @@ func Router(
 			authGroup.POST("/api/v1/theory/questions/start", theory.StartQuestions)
 			authGroup.POST("/api/v1/theory/questions/submit", theory.SubmitAnswers)
 			authGroup.POST("/api/v1/theory/attempts/my-list", theory.ListMyAttempts)
+
+			// 理论题库管理（教员/管理员使用）
+			authGroup.POST("/api/v1/theory/questions/admin/list", theory.AdminListQuestions)
+			authGroup.POST("/api/v1/theory/questions/admin/create", theory.AdminCreateQuestion)
+			authGroup.POST("/api/v1/theory/questions/admin/update", theory.AdminUpdateQuestion)
+			authGroup.POST("/api/v1/theory/questions/admin/delete", theory.AdminDeleteQuestion)
+
+			// 理论试卷管理
+			authGroup.POST("/api/v1/theory/papers/list", theory.ListPapers)
+			authGroup.POST("/api/v1/theory/papers/save", theory.SavePaper)
+			authGroup.POST("/api/v1/theory/papers/delete", theory.DeletePaper)
 	}
 
 	return r

@@ -54,3 +54,25 @@ type SubjectLearning struct {
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
 }
+
+// TheoryPaper represents an exam paper under a theory document.
+type TheoryPaper struct {
+	ID               string    `json:"id"`
+	TheoryDocumentID string    `json:"theory_document_id"`
+	Name             string    `json:"name"`
+	Description      string    `json:"description,omitempty"`
+	TotalScore       int       `json:"total_score"`
+	Enabled          bool      `json:"enabled"`
+	CreatedBy        string    `json:"created_by"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// TheoryPaperQuestion links a paper to one question in the question set.
+type TheoryPaperQuestion struct {
+	ID        string `json:"id"`
+	PaperID   string `json:"paper_id"`
+	QuestionID string `json:"question_id"`
+	Score     int    `json:"score"`
+	SortOrder int    `json:"sort_order"`
+}

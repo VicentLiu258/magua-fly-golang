@@ -145,6 +145,21 @@ type TheoryAttemptRepository interface {
 	ListByUserAndDocument(ctx context.Context, userID, documentID string, limit, offset int) ([]*domain.TheoryAttempt, error)
 }
 
+// TheoryPaperRepository defines theory paper (exam) persistence.
+type TheoryPaperRepository interface {
+	Create(ctx context.Context, p *domain.TheoryPaper) error
+	Update(ctx context.Context, p *domain.TheoryPaper) error
+	Delete(ctx context.Context, id string) error
+	GetByID(ctx context.Context, id string) (*domain.TheoryPaper, error)
+	ListByDocumentID(ctx context.Context, documentID string, limit, offset int) ([]*domain.TheoryPaper, int, error)
+}
+
+// TheoryPaperQuestionRepository defines theory paper-question link persistence.
+type TheoryPaperQuestionRepository interface {
+	ReplaceForPaper(ctx context.Context, paperID string, questions []*domain.TheoryPaperQuestion) error
+	ListByPaperID(ctx context.Context, paperID string) ([]*domain.TheoryPaperQuestion, error)
+}
+
 // SmsVerificationRepository defines SMS verification code persistence.
 type SmsVerificationRepository interface {
 	Create(ctx context.Context, v *domain.SmsVerificationCode) error
