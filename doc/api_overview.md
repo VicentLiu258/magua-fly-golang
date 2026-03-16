@@ -1013,3 +1013,277 @@ POST /api/v1/students/list?limit=20&offset=0
   }
 }
 ```
+
+---
+
+### 8. 理论学习模块 API
+
+#### 8.1 理论文档列表 `POST /api/v1/theory/documents/list`
+
+- **说明**：返回当前系统内可用的理论文档列表，可按关键字、分类筛选。
+
+**请求体**：
+
+```json
+{
+  "keyword": "",
+  "category": "",
+  "status": "published",
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440201",
+        "title": "失速与尾旋理论",
+        "category": "空气动力学",
+        "sort_order": 10,
+        "status": "published",
+        "has_questions": true,
+        "has_video": true,
+        "my_latest_score": 86,
+        "my_attempt_count": 3
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+#### 8.2 理论文档详情 `POST /api/v1/theory/documents/detail`
+
+- **说明**：返回单个理论文档的元数据与内容块（图文 + 视频占位），不包含题目。
+
+**请求体**：
+
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440201"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "document": {
+      "id": "550e8400-e29b-41d4-a716-446655440201",
+      "title": "失速与尾旋理论",
+      "category": "空气动力学",
+      "status": "published",
+      "created_by": "550e8400-e29b-41d4-a716-446655440002",
+      "created_at": "2026-03-16T00:00:00Z"
+    },
+    "content": [
+      {
+        "type": "text",
+        "content": "富文本内容..."
+      },
+      {
+        "type": "image",
+        "url": "https://cdn.example.com/images/stall.png",
+        "caption": "失速示意图"
+      },
+      {
+        "type": "video_embed",
+        "video_id": "550e8400-e29b-41d4-a716-446655440901",
+        "position": 0
+      }
+    ]
+  }
+}
+```
+
+#### 8.3 开始答题 `POST /api/v1/theory/questions/start`
+
+- **说明**：点击“答题”后调用，初始化一次答题尝试并返回题目列表。
+
+**请求体**：
+
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440201"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "attempt_id": "550e8400-e29b-41d4-a716-446655441001",
+    "time_limit_seconds": 1800,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "single",
+        "stem": "下列关于失速的说法，正确的是？",
+        "options": [
+          { "id": "A", "text": "与迎角无关" },
+          { "id": "B", "text": "与迎角有关" }
+        ],
+        "score": 2
+      }
+    ]
+  }
+}
+```
+
+#### 8.4 交卷并评分 `POST /api/v1/theory/questions/submit`
+
+- **说明**：提交本次答题的所有题目选项，系统自动评分。
+
+**请求体**：
+
+```json
+{
+  "attempt_id": "550e8400-e29b-41d4-a716-446655441001",
+  "answers": [
+    {
+      "question_id": "q1",
+      "selected_option_ids": ["B"]
+    }
+  ]
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "score": 86,
+    "max_score": 100,
+    "correct_count": 43,
+    "total_count": 50,
+    "passed": true
+  }
+}
+```
+
+#### 8.5 历史成绩列表 `POST /api/v1/theory/attempts/my-list`
+
+- **说明**：返回当前登录学员在某理论文档下的历史答题记录。
+
+**请求体**：
+
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440201",
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655441001",
+        "user_id": "550e8400-e29b-41d4-a716-446655440003",
+        "theory_document_id": "550e8400-e29b-41d4-a716-446655440201",
+        "score": 86,
+        "submitted_at": "2026-03-16T10:00:00Z",
+        "duration_seconds": 900,
+        "max_score": 100,
+        "correct_count": 43,
+        "total_count": 50,
+        "passed": true
+      }
+    ],
+    "total": 3
+  }
+}
+```
+
+---
+
+### 9. 学员任务模块 API
+
+#### 9.1 我的任务列表 `POST /api/v1/tasks/my-list`
+
+- **说明**：学员在“我的任务”界面查看自己的所有任务（理论、科目、其他）。
+
+**请求体**：
+
+```json
+{
+  "status": "pending",
+  "page": 1,
+  "page_size": 50
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655442001",
+        "type": "theory",
+        "ref_id": "550e8400-e29b-41d4-a716-446655440201",
+        "title": "失速与尾旋理论学习",
+        "description": "阅读文档并完成随堂测试。",
+        "due_at": "2026-03-20T00:00:00Z",
+        "status": "pending",
+        "related_entity": {
+          "kind": "theory_doc",
+          "display_title": "失速与尾旋理论"
+        }
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+#### 9.2 更新任务状态 `POST /api/v1/tasks/update-status`
+
+- **说明**：学员执行任务后将状态标记为进行中/已完成，也可由系统在完成答题后自动调用。
+
+**请求体**：
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655442001",
+  "status": "done"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "status": "ok"
+  }
+}
+```
+

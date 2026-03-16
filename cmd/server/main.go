@@ -78,6 +78,15 @@ func main() {
 	)
 	trainingHandler := handler.NewTrainingHandler(trainingUC)
 
+	theoryUC := usecase.NewTheoryUseCase(
+		pgDB.TheoryDocument(),
+		pgDB.TheoryAttempt(),
+		mongoClient.TheoryContent(),
+		mongoClient.TheoryQuestionSet(),
+		mongoClient.TheoryAttemptDetail(),
+	)
+	theoryHandler := handler.NewTheoryHandler(theoryUC)
+
 	router := handler.Router(
 		healthHandler,
 		authHandler,
@@ -88,6 +97,7 @@ func main() {
 		bookingHandler,
 		scheduleHandler,
 		trainingHandler,
+		theoryHandler,
 		jwtManager,
 	)
 

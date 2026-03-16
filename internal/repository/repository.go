@@ -138,6 +138,13 @@ type TheoryDocumentRepository interface {
 	Create(ctx context.Context, d *domain.TheoryDocument) error
 }
 
+// TheoryAttemptRepository defines theory attempt persistence.
+type TheoryAttemptRepository interface {
+	Create(ctx context.Context, a *domain.TheoryAttempt) error
+	UpdateOnSubmit(ctx context.Context, a *domain.TheoryAttempt) error
+	ListByUserAndDocument(ctx context.Context, userID, documentID string, limit, offset int) ([]*domain.TheoryAttempt, error)
+}
+
 // SmsVerificationRepository defines SMS verification code persistence.
 type SmsVerificationRepository interface {
 	Create(ctx context.Context, v *domain.SmsVerificationCode) error

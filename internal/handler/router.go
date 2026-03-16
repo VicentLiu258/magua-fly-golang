@@ -18,6 +18,7 @@ func Router(
 	booking *BookingHandler,
 	schedule *ScheduleHandler,
 	training *TrainingHandler,
+	theory *TheoryHandler,
 	jwtManager *jwt.Manager,
 ) *gin.Engine {
 	r := gin.Default()
@@ -68,6 +69,13 @@ func Router(
 		authGroup.POST("/api/v1/training-archives/subjects/update", training.UpdateArchiveSubjects)
 		authGroup.POST("/api/v1/training-archives/next-subjects/list", training.ListNextSubjects)
 		authGroup.POST("/api/v1/training-archives/next-subjects/update", training.UpdateNextSubjects)
+
+			// 理论学习模块
+			authGroup.POST("/api/v1/theory/documents/list", theory.ListDocuments)
+			authGroup.POST("/api/v1/theory/documents/detail", theory.DocumentDetail)
+			authGroup.POST("/api/v1/theory/questions/start", theory.StartQuestions)
+			authGroup.POST("/api/v1/theory/questions/submit", theory.SubmitAnswers)
+			authGroup.POST("/api/v1/theory/attempts/my-list", theory.ListMyAttempts)
 	}
 
 	return r

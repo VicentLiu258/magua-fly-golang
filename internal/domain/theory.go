@@ -26,14 +26,22 @@ type TheoryQuestion struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// TheoryAttempt is a user's quiz attempt.
+// TheoryAttempt is a user's quiz attempt summary (answers are stored in MongoDB).
 type TheoryAttempt struct {
 	ID               string    `json:"id"`
 	UserID           string    `json:"user_id"`
 	TheoryDocumentID string    `json:"theory_document_id"`
-	Answers          []int     `json:"answers"`
-	Score            int       `json:"score"`
-	SubmittedAt      time.Time `json:"submitted_at"`
+	// AnswersJSON stores the raw JSONB payload persisted in PostgreSQL; detailed
+	// per-question grading is stored separately in MongoDB.
+	AnswersJSON string    `json:"-"`
+	Score       int       `json:"score"`
+	SubmittedAt time.Time `json:"submitted_at"`
+
+	DurationSeconds int  `json:"duration_seconds,omitempty"`
+	MaxScore        int  `json:"max_score,omitempty"`
+	CorrectCount    int  `json:"correct_count,omitempty"`
+	TotalCount      int  `json:"total_count,omitempty"`
+	Passed          bool `json:"passed,omitempty"`
 }
 
 // SubjectLearning is metadata for subject learning (1:1 with syllabus subject).

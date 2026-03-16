@@ -53,9 +53,11 @@ func (c *Client) Health(ctx context.Context) error {
 
 // Collection names used by the app.
 const (
-	CollTheoryContent   = "theory_content"
-	CollSubjectContent  = "subject_content"
-	CollComments        = "comments"
-	CollFlightImportRaw = "flight_import_raw"
-	CollDashboardSnap   = "dashboard_snapshots"
+	CollTheoryContent        = "theory_content"
+	CollSubjectContent       = "subject_content"
+	CollComments             = "comments"
+	CollFlightImportRaw      = "flight_import_raw"
+	CollDashboardSnap        = "dashboard_snapshots"
+	CollTheoryQuestionSets   = "theory_question_sets"
+	CollTheoryAttemptDetails = "theory_attempt_details"
 )
