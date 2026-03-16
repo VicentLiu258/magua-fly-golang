@@ -744,6 +744,83 @@ func (h *TrainingHandler) ListSyllabusSubjects(c *gin.Context) {
 	respOK(c, gin.H{"items": list})
 }
 
+// AdminCreateSyllabusSubject POST /api/v1/syllabus-subjects/admin/create
+// 用于后台或教员创建新的大纲科目。
+func (h *TrainingHandler) AdminCreateSyllabusSubject(c *gin.Context) {
+	var body struct {
+		Code      string `json:"code" binding:"required"`
+		Name      string `json:"name" binding:"required"`
+		SortOrder int    `json:"sort_order"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.SortOrder == 0 {
+		body.SortOrder = 0
+	}
+	s := &domain.SyllabusSubject{
+		Code:      body.Code,
+		Name:      body.Name,
+		SortOrder: body.SortOrder,
+	}
+	if err := h.uc.CreateSyllabusSubject(c.Request.Context(), s); err != nil {
+		respErr(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respOK(c, s)
+}
+
+// AdminUpdateSyllabusSubject POST /api/v1/syllabus-subjects/admin/update
+func (h *TrainingHandler) AdminUpdateSyllabusSubject(c *gin.Context) {
+	var body struct {
+		ID        string `json:"id" binding:"required"`
+		Code      string `json:"code"`
+		Name      string `json:"name"`
+		SortOrder *int   `json:"sort_order"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	// 先读取现有科目
+	existing, err := h.uc.GetSyllabusSubject(c.Request.Context(), body.ID)
+	if err != nil || existing == nil {
+		respErr(c, http.StatusNotFound, "not found")
+		return
+	}
+	if body.Code != "" {
+		existing.Code = body.Code
+	}
+	if body.Name != "" {
+		existing.Name = body.Name
+	}
+	if body.SortOrder != nil {
+		existing.SortOrder = *body.SortOrder
+	}
+	if err := h.uc.UpdateSyllabusSubject(c.Request.Context(), existing); err != nil {
+		respErr(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respOK(c, existing)
+}
+
+// AdminDeleteSyllabusSubject POST /api/v1/syllabus-subjects/admin/delete
+func (h *TrainingHandler) AdminDeleteSyllabusSubject(c *gin.Context) {
+	var body struct {
+		ID string `json:"id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.uc.DeleteSyllabusSubject(c.Request.Context(), body.ID); err != nil {
+		respErr(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respOK(c, gin.H{"status": "deleted"})
+}
+
 // ListArchiveSubjects POST /api/v1/training-archives/subjects/list
 func (h *TrainingHandler) ListArchiveSubjects(c *gin.Context) {
 	var body struct {

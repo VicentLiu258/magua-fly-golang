@@ -159,5 +159,6 @@ type TrainingRecordView struct {
 // SyllabusSubjectWithGraduated 带已结业标记的科目（用于科目选择界面）
 type SyllabusSubjectWithGraduated struct {
 	SyllabusSubject
-	IsGraduated bool `json:"is_graduated"`
+	IsGraduated bool   `json:"is_graduated"`
+	Status      string `json:"status,omitempty"`
 }

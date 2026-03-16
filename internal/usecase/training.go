@@ -250,6 +250,16 @@ func (u *TrainingUseCase) SignArchive(ctx context.Context, archiveID string, rol
 	if err != nil {
 		return err
 	}
+	// 业务约束：责任教员 / 主任教员签字前，必须先布置下次训练科目
+	if role == "responsible_instructor" || role == "chief_instructor" {
+		nextSubjects, err := u.nextSubjRepo.ListByArchiveID(ctx, archiveID)
+		if err != nil {
+			return err
+		}
+		if len(nextSubjects) == 0 {
+			return fmt.Errorf("请先布置下次训练科目")
+		}
+	}
 	now := time.Now()
 	switch role {
 	case "student":
@@ -275,12 +285,76 @@ func (u *TrainingUseCase) ListSyllabusSubjects(ctx context.Context, studentID *s
 	out := make([]*domain.SyllabusSubjectWithGraduated, len(list))
 	for i := range list {
 		out[i] = &domain.SyllabusSubjectWithGraduated{SyllabusSubject: *list[i]}
-		if studentID != nil {
-			// 简化：未实现按学员查已结业科目，可后续在 repo 层加 SQL
-			_ = studentID
+	}
+	// 若未传学员 ID，则仅返回基础科目信息
+	if studentID == nil {
+		return out, nil
+	}
+
+	// 按学员聚合其历史档案中的科目信息，以推导科目状态：
+	// completed | in_progress | not_started
+	archives, err := u.archiveRepo.ListByStudent(ctx, *studentID, 1000, 0)
+	if err != nil {
+		return nil, err
+	}
+	type subjStat struct {
+		hasAny      bool
+		hasGraduate bool
+	}
+	stats := make(map[string]*subjStat)
+	for _, a := range archives {
+		subjects, err := u.archiveSubjRepo.ListByArchiveID(ctx, a.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, s := range subjects {
+			st, ok := stats[s.SyllabusSubjectID]
+			if !ok {
+				st = &subjStat{}
+				stats[s.SyllabusSubjectID] = st
+			}
+			st.hasAny = true
+			if s.IsGraduated {
+				st.hasGraduate = true
+			}
 		}
 	}
+
+	for _, item := range out {
+		if st, ok := stats[item.ID]; ok {
+			item.IsGraduated = st.hasGraduate
+			if st.hasGraduate {
+				item.Status = "completed"
+			} else {
+				item.Status = "in_progress"
+			}
+		} else {
+			item.IsGraduated = false
+			item.Status = "not_started"
+		}
+	}
+
 	return out, nil
+}
+
+// CreateSyllabusSubject 创建大纲科目（后台/教员使用）
+func (u *TrainingUseCase) CreateSyllabusSubject(ctx context.Context, s *domain.SyllabusSubject) error {
+	return u.syllabusRepo.Create(ctx, s)
+}
+
+// GetSyllabusSubject 获取单个大纲科目
+func (u *TrainingUseCase) GetSyllabusSubject(ctx context.Context, id string) (*domain.SyllabusSubject, error) {
+	return u.syllabusRepo.GetByID(ctx, id)
+}
+
+// UpdateSyllabusSubject 更新大纲科目
+func (u *TrainingUseCase) UpdateSyllabusSubject(ctx context.Context, s *domain.SyllabusSubject) error {
+	return u.syllabusRepo.Update(ctx, s)
+}
+
+// DeleteSyllabusSubject 删除大纲科目
+func (u *TrainingUseCase) DeleteSyllabusSubject(ctx context.Context, id string) error {
+	return u.syllabusRepo.Delete(ctx, id)
 }
 
 // ListArchiveSubjects 本课科目列表

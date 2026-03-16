@@ -998,7 +998,7 @@ POST /api/v1/students/list?limit=20&offset=0
 ```json
 {
   "training_archive_id": "550e8400-e29b-41d4-a716-446655440101",
-  "syllabus_subject_ids": [ 3, 4, 5 ]
+  "syllabus_subject_ids": [3, 4, 5]
 }
 ```
 
@@ -1010,6 +1010,77 @@ POST /api/v1/students/list?limit=20&offset=0
   "msg": "ok",
   "data": {
     "status": "ok"
+  }
+}
+```
+
+#### 7.7.6 创建大纲科目（后台）`POST /api/v1/syllabus-subjects/admin/create`
+
+- **说明**：用于后台或教员创建新的训练大纲科目。
+
+**请求体**：
+
+```json
+{
+  "code": "SUB-01",
+  "name": "起落",
+  "sort_order": 1
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "code": "SUB-01",
+    "name": "起落",
+    "sort_order": 1,
+    "created_at": "2026-03-16T00:00:00Z",
+    "updated_at": "2026-03-16T00:00:00Z"
+  }
+}
+```
+
+#### 7.7.7 更新大纲科目（后台）`POST /api/v1/syllabus-subjects/admin/update`
+
+**请求体**：
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "code": "SUB-01",
+  "name": "起落（更新后）",
+  "sort_order": 2
+}
+```
+
+- `id`：必填，待更新科目的 UUID。
+- 其他字段可选，未提供的字段保持原值。
+
+**成功响应**：返回更新后的完整科目对象，结构同创建接口。
+
+#### 7.7.8 删除大纲科目（后台）`POST /api/v1/syllabus-subjects/admin/delete`
+
+**请求体**：
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "status": "deleted"
   }
 }
 ```
@@ -1440,8 +1511,8 @@ POST /api/v1/students/list?limit=20&offset=0
 {
   "document_id": "<UUID>",
   "question": {
-    "id": "",                      // 可留空，由后端生成
-    "type": "single",              // single | multi
+    "id": "", // 可留空，由后端生成
+    "type": "single", // single | multi
     "stem": "下面哪一项与失速最直接相关？",
     "options": [
       { "id": "A", "text": "飞机重量" },
@@ -1569,7 +1640,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ```json
 {
-  "id": null,                        // 为空表示创建；非空表示更新
+  "id": null, // 为空表示创建；非空表示更新
   "theory_document_id": "<UUID>",
   "name": "阶段测验 1",
   "description": "用于阶段性考核",
@@ -1636,6 +1707,328 @@ POST /api/v1/students/list?limit=20&offset=0
 
 **行为差异**：
 
-- 若携带 `paper_id`：\n  - 从 `theory_paper_questions` 中按 `sort_order` 取出该卷的题目 ID 和分值。\n  - 在 Mongo 题库 `theory_question_sets` 中按 `question_id` 拉取题干与选项，并将 `score` 覆盖为试卷中配置的分值。\n- 若不携带 `paper_id`：\n  - 保持原有行为，直接使用该文档下的全部题目作为一套卷。
+- 若携带 `paper_id`：
+  - 从 `theory_paper_questions` 中按 `sort_order` 取出该卷的题目 ID 和分值。
+  - 在 Mongo 题库 `theory_question_sets` 中按 `question_id` 拉取题干与选项，并将 `score` 覆盖为试卷中配置的分值。
+- 若不携带 `paper_id`：
+  - 保持原有行为，直接使用该文档下的全部题目作为一套卷。
 
+---
 
+### 12. 教员任务发布与管理 API
+
+本节描述教员在“训练档案 + 科目 + 下次任务”一体化界面下需要使用的接口。所有接口均需登录，且通常要求当前用户角色为 `instructor`。
+
+#### 12.1 本课科目状态视图（扩展）`POST /api/v1/syllabus-subjects/list`
+
+- **说明**：在原有返回 `is_graduated` 的基础上，当请求体中携带 `student_id` 时，后端会为每个科目计算并返回一个派生字段 `status`，用于前端科目管理视角展示。
+
+**请求体**：
+
+```json
+{
+  "student_id": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+**成功响应**（在原有基础上增加 `status` 字段，仅当传入 `student_id` 时计算）：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "code": "SUB-01",
+        "name": "起落",
+        "sort_order": 1,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "is_graduated": true,
+        "status": "completed"
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "code": "SUB-02",
+        "name": "带飞",
+        "sort_order": 2,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "is_graduated": false,
+        "status": "in_progress"
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440003",
+        "code": "SUB-03",
+        "name": "仪表飞行",
+        "sort_order": 3,
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "is_graduated": false,
+        "status": "not_started"
+      }
+    ]
+  }
+}
+```
+
+- **状态计算规则**（基于当前学员的所有 `training_archives` 与 `training_archive_subjects` 记录）：
+  - `completed`：该科目在任意一条档案中出现，且至少有一条记录 `is_graduated = true`。
+  - `in_progress`：该科目在档案中出现过，但所有记录均为 `is_graduated = false`。
+  - `not_started`：该科目从未在任何档案中出现。
+
+#### 12.2 布置下次训练科目（已有）`POST /api/v1/training-archives/next-subjects/update`
+
+- **说明**：教员在当前训练档案页面中勾选若干大纲科目作为“下次训练任务”，前端将所选科目的 `syllabus_subject_ids` 作为数组提交。后端会用新集合替换原有数据（幂等），并记录当前登录用户为 `assigned_by`。
+
+**请求体**：
+
+```json
+{
+  "training_archive_id": "550e8400-e29b-41d4-a716-446655440101",
+  "syllabus_subject_ids": [
+    "550e8400-e29b-41d4-a716-446655440302",
+    "550e8400-e29b-41d4-a716-446655440303"
+  ]
+}
+```
+
+**成功响应**同 7.7.5。
+
+#### 12.3 教员签字前的业务约束（扩展）`POST /api/v1/training-archives/sign`
+
+- **说明**：在已有签字逻辑基础上，增加**责任教员 / 主任教员签字前必须先布置下次科目**的校验。
+
+**请求体**（保持不变）：
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440101",
+  "role": "responsible_instructor"
+}
+```
+
+**新增行为说明**：
+
+- 当 `role` 为 `responsible_instructor` 或 `chief_instructor` 时，后端会在签字前检查当前档案在 `next_training_subjects` 表中是否存在至少一条记录：
+  - 若不存在下次训练科目，则返回 `400` 错误，示例：
+
+```json
+{
+  "code": 400,
+  "msg": "请先布置下次训练科目",
+  "data": null
+}
+```
+
+- 学员签字（`role = "student"`）不受该约束影响。
+
+> 通过该约束实现“每次训练结束前必须先安排下次训练任务”的业务规则。
+
+---
+
+### 13. 学员信息管理（后台）API（设计稿）
+
+> 说明：本节为基于当前数据库结构的后台“学员信息管理”接口设计，实际落地时可按本规范实现到对应 Handler 中。
+
+#### 13.1 学员列表（后台）`POST /api/v1/admin/students/list`
+
+- **认证**：需要，推荐仅 `admin` / `staff` 角色可访问。
+- **说明**：用于后台表格展示所有学员的基础信息与训练/合同摘要。
+
+**请求体**：
+
+```json
+{
+  "keyword": "",
+  "responsible_instructor_id": "",
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**成功响应（示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "student_id": "550e8400-e29b-41d4-a716-446655440001",
+        "name": "张三",
+        "student_no": "S000001",
+        "username": "student1",
+        "phone": "13800000000",
+        "email": "s1@example.com",
+        "contract_duration_minutes": 3600,
+        "flown_minutes": 1200,
+        "remaining_minutes": 2400,
+        "training_progress": "已完成单飞阶段",
+        "responsible_instructor": {
+          "id": "550e8400-e29b-41d4-a716-446655440002",
+          "name": "教员A"
+        }
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+#### 13.2 学员详情（后台）`POST /api/v1/admin/students/detail`
+
+**请求体**：
+
+```json
+{
+  "student_id": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+**成功响应（示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "basic": {
+      "student_id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "张三",
+      "student_no": "S000001",
+      "contract_duration_minutes": 3600,
+      "flown_minutes": 1200,
+      "remaining_minutes": 2400,
+      "training_progress": "已完成单飞阶段"
+    },
+    "account": {
+      "username": "student1",
+      "phone": "13800000000",
+      "email": "s1@example.com",
+      "role": "student"
+    },
+    "responsible_instructor": {
+      "id": "550e8400-e29b-41d4-a716-446655440002",
+      "name": "教员A"
+    },
+    "latest_archive": {
+      "id": "550e8400-e29b-41d4-a716-446655440101",
+      "training_date": "2026-03-15",
+      "stage": "初级训练",
+      "flight_duration_minutes": 92
+    },
+    "pending_task_count": 3
+  }
+}
+```
+
+#### 13.3 新建 / 更新学员（后台）`POST /api/v1/admin/students/save`
+
+- **说明**：用于后台创建或编辑学员信息，同时维护 `users` 与 `students` 两张表的字段。
+
+**请求体（示例）**：
+
+```json
+{
+  "student_id": null,
+  "name": "张三",
+  "student_no": "S000001",
+  "username": "student1",
+  "phone": "13800000000",
+  "email": "s1@example.com",
+  "password": "secret",
+  "contract_duration_minutes": 3600,
+  "flown_minutes": 0,
+  "training_progress": "",
+  "responsible_instructor_id": "550e8400-e29b-41d4-a716-446655440002"
+}
+```
+
+- 当 `student_id = null` 时，后端将：
+  - 在 `users` 表中创建一条 `role = "student"` 的账号记录；
+  - 在 `students` 表中创建一条记录并关联 `user_id`；
+  - 返回新建的学员主键与账号信息。
+- 当 `student_id` 非空时，仅更新已存在学员的基础信息与账号（密码可选字段 `new_password` 单独处理）。
+
+---
+
+### 14. 学员“我的主页”聚合 API（设计稿）
+
+#### 14.1 学员主页 `POST /api/v1/students/my-home`
+
+- **认证**：需要，当前登录用户 `role = "student"`。
+- **说明**：为学员端“我的主页”提供一个聚合接口，汇总学员档案、任务、训练计划与理论学习进度等多源信息。
+
+**请求体**：
+
+```json
+{}
+```
+
+**成功响应（结构示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "profile": {
+      "student_id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "张三",
+      "student_no": "S000001",
+      "contract_duration_minutes": 3600,
+      "flown_minutes": 1200,
+      "remaining_minutes": 2400,
+      "training_progress": "已完成单飞阶段"
+    },
+    "tasks": {
+      "items": [
+        {
+          "id": "550e8400-e29b-41d4-a716-446655442001",
+          "type": "theory",
+          "title": "失速与尾旋理论学习",
+          "due_at": "2026-03-20T00:00:00Z",
+          "status": "pending"
+        }
+      ],
+      "total": 3
+    },
+    "upcoming_training": [
+      {
+        "training_date": "2026-03-20",
+        "start_time": "10:00",
+        "end_time": "11:30",
+        "instructor_name": "教员A",
+        "aircraft_name": "塞斯纳 172"
+      }
+    ],
+    "last_training_archive": {
+      "id": "550e8400-e29b-41d4-a716-446655440101",
+      "training_date": "2026-03-15",
+      "stage": "初级训练",
+      "flight_duration_minutes": 92
+    },
+    "theory_summary": {
+      "completed_documents": 5,
+      "avg_score": 86,
+      "last_attempt_at": "2026-03-16T10:00:00Z"
+    },
+    "subject_progress": {
+      "completed": 10,
+      "total": 20
+    }
+  }
+}
+```
+
+- **实现建议**：后端在实现时可复用以下现有能力：
+  - `students` / `users`：查询学员基本信息与账号；
+  - `POST /api/v1/tasks/my-list`：获取当前学员任务列表，取前若干条作为预览；
+  - `training_plans`：按未来一段时间（如 7 天）查询训练计划；
+  - `POST /api/v1/students/training-archives/list`：获取最近一条训练档案；
+  - `theory_attempts` 与理论模块接口：统计理论学习进度；
+  - `POST /api/v1/syllabus-subjects/list`（带 `student_id`）：统计科目完成数量。

@@ -93,6 +93,8 @@ type SyllabusSubjectRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.SyllabusSubject, error)
 	List(ctx context.Context) ([]*domain.SyllabusSubject, error)
 	Create(ctx context.Context, s *domain.SyllabusSubject) error
+	Update(ctx context.Context, s *domain.SyllabusSubject) error
+	Delete(ctx context.Context, id string) error
 }
 
 // RawFlightImportRepository defines raw flight import persistence.

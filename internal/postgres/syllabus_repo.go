@@ -47,3 +47,18 @@ func (r *SyllabusSubjectRepo) Create(ctx context.Context, s *domain.SyllabusSubj
 		RETURNING id::text, created_at, updated_at`, s.Code, s.Name, s.SortOrder,
 	).Scan(&s.ID, &s.CreatedAt, &s.UpdatedAt)
 }
+
+func (r *SyllabusSubjectRepo) Update(ctx context.Context, s *domain.SyllabusSubject) error {
+	_, err := r.db.Pool.Exec(ctx, `
+		UPDATE syllabus_subjects
+		SET code = $2, name = $3, sort_order = $4, updated_at = NOW()
+		WHERE id = $1::uuid`,
+		s.ID, s.Code, s.Name, s.SortOrder,
+	)
+	return err
+}
+
+func (r *SyllabusSubjectRepo) Delete(ctx context.Context, id string) error {
+	_, err := r.db.Pool.Exec(ctx, `DELETE FROM syllabus_subjects WHERE id = $1::uuid`, id)
+	return err
+}
