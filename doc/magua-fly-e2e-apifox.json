@@ -1,0 +1,775 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Magua Fly 训练全流程 E2E 测试接口",
+    "version": "1.0.0",
+    "description": "教员创建任务 → 学员查看执行 → 录入训练记录 → 生成档案 → 布置下次任务 → 学员再次查看任务 的完整接口流程，用于 Apifox 测试。"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "本地开发环境"
+    },
+    {
+      "url": "https://your-dev-domain",
+      "description": "远程测试环境"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "BaseResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer" },
+          "msg": { "type": "string" },
+          "data": {}
+        }
+      },
+      "LoginReq": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        },
+        "required": ["username", "password"]
+      },
+      "LoginData": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string" },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "username": { "type": "string" },
+              "phone": { "type": "string" },
+              "email": { "type": "string" },
+              "role": { "type": "string" }
+            }
+          }
+        }
+      },
+      "StudentsListResp": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "user_id": { "type": "string" },
+                "name": { "type": "string" },
+                "student_no": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "InstructorsListResp": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "user_id": { "type": "string" },
+                "name": { "type": "string" },
+                "display_color": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "AircraftListResp": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "code": { "type": "string" },
+                "name": { "type": "string" },
+                "status": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "InstructorGridReq": {
+        "type": "object",
+        "properties": {
+          "date": { "type": "string", "format": "date" }
+        },
+        "required": ["date"]
+      },
+      "BookingCreateReq": {
+        "type": "object",
+        "properties": {
+          "student_id": { "type": "string" },
+          "instructor_id": { "type": "string" },
+          "aircraft_id": { "type": "string" },
+          "plan_date": { "type": "string", "format": "date" },
+          "start_time": { "type": "string" },
+          "end_time": { "type": "string" }
+        },
+        "required": [
+          "student_id",
+          "instructor_id",
+          "aircraft_id",
+          "plan_date",
+          "start_time",
+          "end_time"
+        ]
+      },
+      "BookingReviewReq": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "approve": { "type": "boolean" },
+          "reason": { "type": "string" }
+        },
+        "required": ["id", "approve"]
+      },
+      "TrainingRecordCreateReq": {
+        "type": "object",
+        "properties": {
+          "student_id": { "type": "string" },
+          "instructor_id": { "type": "string" },
+          "aircraft_id": { "type": "string" },
+          "training_date": { "type": "string", "format": "date" },
+          "engine_on_time": { "type": "string", "format": "date-time" },
+          "engine_off_time": { "type": "string", "format": "date-time" },
+          "flight_duration_minutes": { "type": "integer" },
+          "is_local": { "type": "boolean" },
+          "planned_duration_minutes": { "type": "integer" },
+          "theory_duration_minutes": { "type": "integer" },
+          "sim_duration_minutes": { "type": "integer" },
+          "landings": { "type": "integer" },
+          "syllabus_outline": { "type": "string" },
+          "archive_display_no": { "type": "string" },
+          "status": { "type": "string" }
+        },
+        "required": [
+          "student_id",
+          "instructor_id",
+          "aircraft_id",
+          "training_date",
+          "flight_duration_minutes"
+        ]
+      },
+      "TrainingArchiveCreateReq": {
+        "type": "object",
+        "properties": {
+          "training_record_id": { "type": "string" },
+          "student_id": { "type": "string" },
+          "instructor_id": { "type": "string" },
+          "training_date": { "type": "string", "format": "date" },
+          "stage": { "type": "string" },
+          "planned_duration_minutes": { "type": "integer" },
+          "total_experience_minutes": { "type": "integer" },
+          "remaining_minutes": { "type": "integer" },
+          "engine_on_time": { "type": "string", "format": "date-time" },
+          "engine_off_time": { "type": "string", "format": "date-time" },
+          "flight_duration_minutes": { "type": "integer" },
+          "progress_note": { "type": "string" },
+          "instructor_review": { "type": "string" },
+          "student_self_review": { "type": "string" },
+          "task_assignment": { "type": "string" }
+        },
+        "required": [
+          "training_record_id",
+          "student_id",
+          "instructor_id",
+          "training_date"
+        ]
+      },
+      "TrainingArchiveUpdateReq": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "stage": { "type": "string" },
+          "progress_note": { "type": "string" },
+          "instructor_review": { "type": "string" },
+          "student_self_review": { "type": "string" },
+          "task_assignment": { "type": "string" },
+          "planned_duration_minutes": { "type": "integer" },
+          "total_experience_minutes": { "type": "integer" },
+          "remaining_minutes": { "type": "integer" }
+        },
+        "required": ["id"]
+      },
+      "ArchiveSignReq": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "role": {
+            "type": "string",
+            "enum": ["student", "responsible_instructor", "chief_instructor"]
+          }
+        },
+        "required": ["id", "role"]
+      },
+      "SyllabusSubjectsListReq": {
+        "type": "object",
+        "properties": {
+          "student_id": { "type": "string" }
+        }
+      },
+      "ArchiveSubjectsUpdateReq": {
+        "type": "object",
+        "properties": {
+          "training_archive_id": { "type": "string" },
+          "subjects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "syllabus_subject_id": { "type": "string" },
+                "evaluation_score": { "type": "integer" },
+                "is_graduated": { "type": "boolean" },
+                "subject_content": { "type": "string" },
+                "type": { "type": "string" },
+                "sort_order": { "type": "integer" }
+              },
+              "required": ["syllabus_subject_id"]
+            }
+          }
+        },
+        "required": ["training_archive_id", "subjects"]
+      },
+      "NextSubjectsUpdateReq": {
+        "type": "object",
+        "properties": {
+          "training_archive_id": { "type": "string" },
+          "syllabus_subject_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["training_archive_id", "syllabus_subject_ids"]
+      },
+      "NextSubjectsListReq": {
+        "type": "object",
+        "properties": {
+          "training_archive_id": { "type": "string" }
+        },
+        "required": ["training_archive_id"]
+      },
+      "TasksMyListReq": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "page": { "type": "integer" },
+          "page_size": { "type": "integer" }
+        }
+      },
+      "TaskUpdateStatusReq": {
+        "type": "object",
+        "properties": {
+          "task_id": { "type": "string" },
+          "status": { "type": "string" }
+        },
+        "required": ["task_id", "status"]
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "summary": "登录（教员/学员通用）",
+        "tags": ["01-认证"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginReq" },
+              "example": {
+                "username": "instructor1",
+                "password": "secret"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功，返回 token 与用户信息",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BaseResp" },
+                "example": {
+                  "code": 200,
+                  "msg": "ok",
+                  "data": {
+                    "token": "jwt-token",
+                    "user": {
+                      "id": "550e8400-e29b-41d4-a716-446655440000",
+                      "username": "instructor1",
+                      "role": "instructor"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+
+    "/api/v1/students/list": {
+      "post": {
+        "summary": "学员列表",
+        "tags": ["02-基础信息"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 20 }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "学员列表",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BaseResp" },
+                "example": {
+                  "code": 200,
+                  "msg": "ok",
+                  "data": {
+                    "items": [
+                      {
+                        "id": "550e8400-e29b-41d4-a716-446655440001",
+                        "user_id": "550e8400-e29b-41d4-a716-446655440002",
+                        "name": "student1",
+                        "student_no": "S000001"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/v1/instructors/list": {
+      "post": {
+        "summary": "教员列表",
+        "tags": ["02-基础信息"],
+        "responses": {
+          "200": {
+            "description": "教员列表",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BaseResp" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/v1/aircraft/list": {
+      "post": {
+        "summary": "飞机列表",
+        "tags": ["02-基础信息"],
+        "responses": {
+          "200": {
+            "description": "飞机列表",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BaseResp" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/v1/schedules/instructor-grid": {
+      "post": {
+        "summary": "教员×时间排期网格",
+        "tags": ["03-排期与预约"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/InstructorGridReq" },
+              "example": {
+                "date": "2026-03-20"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "排期网格",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BaseResp" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/v1/bookings": {
+      "post": {
+        "summary": "创建预约（教员为学员布置一次训练计划）",
+        "tags": ["03-排期与预约"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BookingCreateReq" },
+              "example": {
+                "student_id": "550e8400-e29b-41d4-a716-446655440001",
+                "instructor_id": "550e8400-e29b-41d4-a716-446655440002",
+                "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
+                "plan_date": "2026-03-20",
+                "start_time": "10:00",
+                "end_time": "11:30"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功，返回 booking 记录（含 id）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BaseResp" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/v1/bookings/pending": {
+      "post": {
+        "summary": "待审核预约列表",
+        "tags": ["03-排期与预约"],
+        "responses": {
+          "200": {
+            "description": "待审核列表"
+          }
+        }
+      }
+    },
+
+    "/api/v1/bookings/review": {
+      "post": {
+        "summary": "审核预约（通过后生成 training_plans）",
+        "tags": ["03-排期与预约"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BookingReviewReq" },
+              "example": {
+                "id": 1001,
+                "approve": true,
+                "reason": "E2E 测试通过"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "审核结果"
+          }
+        }
+      }
+    },
+
+    "/api/v1/training-records": {
+      "post": {
+        "summary": "创建训练记录（实际完成一次带飞）",
+        "tags": ["04-训练记录"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingRecordCreateReq"
+              },
+              "example": {
+                "student_id": "550e8400-e29b-41d4-a716-446655440001",
+                "instructor_id": "550e8400-e29b-41d4-a716-446655440002",
+                "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
+                "training_date": "2026-03-20",
+                "engine_on_time": "2026-03-20T10:05:00Z",
+                "engine_off_time": "2026-03-20T11:25:00Z",
+                "flight_duration_minutes": 80,
+                "is_local": true,
+                "planned_duration_minutes": 90,
+                "theory_duration_minutes": 0,
+                "sim_duration_minutes": 0,
+                "landings": 5,
+                "syllabus_outline": "1#",
+                "archive_display_no": "1#999",
+                "status": "normal"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "创建成功，data.id 为 TRAINING_RECORD_ID"
+          }
+        }
+      }
+    },
+
+    "/api/v1/training-archives": {
+      "post": {
+        "summary": "根据训练记录创建档案",
+        "tags": ["05-训练档案"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingArchiveCreateReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "返回档案 id（ARCHIVE_ID）"
+          }
+        }
+      }
+    },
+
+    "/api/v1/training-archives/update": {
+      "post": {
+        "summary": "更新档案（评语、总结、下次任务文字说明）",
+        "tags": ["05-训练档案"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingArchiveUpdateReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功，返回完整档案对象"
+          }
+        }
+      }
+    },
+
+    "/api/v1/training-archives/sign": {
+      "post": {
+        "summary": "档案签字（含“先布置下次科目”的校验）",
+        "tags": ["05-训练档案"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ArchiveSignReq" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "签字成功或错误信息"
+          }
+        }
+      }
+    },
+
+    "/api/v1/syllabus-subjects/list": {
+      "post": {
+        "summary": "大纲科目列表（带 student_id 返回状态）",
+        "tags": ["06-科目与下次任务"],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyllabusSubjectsListReq"
+              },
+              "example": {
+                "student_id": "550e8400-e29b-41d4-a716-446655440001"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "返回 items，含 is_graduated / status"
+          }
+        }
+      }
+    },
+
+    "/api/v1/training-archives/subjects/update": {
+      "post": {
+        "summary": "设置本课科目（当前档案内的科目）",
+        "tags": ["06-科目与下次任务"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveSubjectsUpdateReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "设置成功"
+          }
+        }
+      }
+    },
+
+    "/api/v1/training-archives/next-subjects/update": {
+      "post": {
+        "summary": "布置下次训练科目（教员任务部署）",
+        "tags": ["06-科目与下次任务"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NextSubjectsUpdateReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "布置成功"
+          }
+        }
+      }
+    },
+
+    "/api/v1/training-archives/next-subjects/list": {
+      "post": {
+        "summary": "查看已布置的下次科目",
+        "tags": ["06-科目与下次任务"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NextSubjectsListReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "返回 items（下次科目列表）"
+          }
+        }
+      }
+    },
+
+    "/api/v1/tasks/my-list": {
+      "post": {
+        "summary": "学员“我的任务”列表（查看本次/下次任务）",
+        "tags": ["07-学员任务视图"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TasksMyListReq" },
+              "example": {
+                "status": "pending",
+                "page": 1,
+                "page_size": 50
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务列表（理论、飞行、其它）"
+          }
+        }
+      }
+    },
+
+    "/api/v1/tasks/update-status": {
+      "post": {
+        "summary": "更新任务状态（done / in_progress）",
+        "tags": ["07-学员任务视图"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskUpdateStatusReq"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功"
+          }
+        }
+      }
+    },
+
+    "/api/v1/students/my-home": {
+      "post": {
+        "summary": "学员“我的主页”聚合视图",
+        "tags": ["08-学员主页"],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "汇总档案、任务、未来训练、理论进度等"
+          }
+        }
+      }
+    }
+  }
+}
