@@ -60,7 +60,16 @@ func main() {
 	healthHandler := handler.NewHealthHandler(pgDB, mongoClient)
 	authHandler := handler.NewAuthHandler(authUC)
 	smsHandler := handler.NewSmsHandler(authUC)
-	studentHandler := handler.NewStudentHandler(pgDB.Student())
+	studentHandler := handler.NewStudentHandler(
+		pgDB.Student(),
+		pgDB.User(),
+		pgDB.Task(),
+		pgDB.TrainingArchive(),
+		pgDB.TrainingPlan(),
+		pgDB.Instructor(),
+		pgDB.Aircraft(),
+		pgDB.TheoryAttempt(),
+	)
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
 	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability())
 	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan())

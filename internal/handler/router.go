@@ -35,6 +35,10 @@ func Router(
 	authGroup.Use(middleware.GinAuth(jwtManager))
 	{
 		authGroup.POST("/api/v1/students/list", student.List)
+		authGroup.POST("/api/v1/admin/students/list", student.AdminList)
+		authGroup.POST("/api/v1/admin/students/detail", student.AdminDetail)
+		authGroup.POST("/api/v1/admin/students/save", student.AdminSave)
+		authGroup.POST("/api/v1/students/my-home", student.MyHome)
 		authGroup.POST("/api/v1/instructors/list", instructor.List)
 		authGroup.POST("/api/v1/aircraft/list", aircraft.List)
 		authGroup.POST("/api/v1/aircraft/create", aircraft.Create)
