@@ -136,6 +136,8 @@ type TheoryDocumentRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.TheoryDocument, error)
 	List(ctx context.Context) ([]*domain.TheoryDocument, error)
 	Create(ctx context.Context, d *domain.TheoryDocument) error
+	Update(ctx context.Context, d *domain.TheoryDocument) error
+	Delete(ctx context.Context, id string) error
 }
 
 // TheoryAttemptRepository defines theory attempt persistence.

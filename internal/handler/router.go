@@ -71,6 +71,9 @@ func Router(
 		authGroup.POST("/api/v1/training-archives/next-subjects/update", training.UpdateNextSubjects)
 
 			// 理论学习模块
+			authGroup.POST("/api/v1/theory/documents/create", theory.CreateDocument)
+			authGroup.POST("/api/v1/theory/documents/update", theory.UpdateDocument)
+			authGroup.POST("/api/v1/theory/documents/delete", theory.DeleteDocument)
 			authGroup.POST("/api/v1/theory/documents/list", theory.ListDocuments)
 			authGroup.POST("/api/v1/theory/documents/detail", theory.DocumentDetail)
 			authGroup.POST("/api/v1/theory/questions/start", theory.StartQuestions)

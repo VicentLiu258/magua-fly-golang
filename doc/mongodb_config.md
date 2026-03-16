@@ -72,6 +72,8 @@
   - 多租户或多基地扩展时，可在文档内增加 `tenant_id / org_id` 字段，并相应扩展复合索引。
 
 - **与 PostgreSQL 的关系映射**：
+  - `theory_documents.id`：由 PostgreSQL 通过 `DEFAULT gen_random_uuid()` 自动生成，作为理论文档的全局唯一标识。
+  - `theory_content.document_id` / `theory_question_sets.document_id` / `theory_papers.theory_document_id`：均引用 `theory_documents.id`。
   - `theory_documents.content_ref`：可保存 `document_id` 或 Mongo `_id` 的字符串形式，用于定位 `theory_content` 文档。
   - `theory_attempts.id` ↔ `theory_attempt_details.theory_attempt_id`：一对一映射，PG 负责统计字段，Mongo 负责详细作答记录。
   - `subject_learning.content_ref` ↔ `subject_content.subject_learning_id`：预留同构关系，用于科目学习内容。

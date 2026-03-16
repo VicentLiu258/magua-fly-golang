@@ -1219,6 +1219,105 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ---
 
+### 8.x 理论文档管理 API
+
+#### 8.x.1 创建文档 `POST /api/v1/theory/documents/create`
+
+- **说明**：教员/管理员创建理论文档，`id` 由后端自动生成 UUID。
+
+**请求体**：
+
+```json
+{
+  "title": "失速与尾旋理论",
+  "slug": "stall-spin-theory",
+  "sort_order": 10,
+  "category": "空气动力学",
+  "video_url": "https://video.example.com/stall.mp4"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440201",
+    "title": "失速与尾旋理论",
+    "slug": "stall-spin-theory",
+    "sort_order": 10,
+    "content_ref": "",
+    "video_url": "https://video.example.com/stall.mp4",
+    "category": "空气动力学",
+    "created_at": "2026-03-16T00:00:00Z",
+    "updated_at": "2026-03-16T00:00:00Z"
+  }
+}
+```
+
+> 说明：返回中的 `id` 即为后续题库录入（`document_id`）、试卷管理、答题接口使用的理论文档 ID。
+
+#### 8.x.2 更新文档 `POST /api/v1/theory/documents/update`
+
+**请求体**：
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440201",
+  "title": "失速与尾旋理论（更新后）",
+  "slug": "stall-spin-theory",
+  "sort_order": 20,
+  "category": "空气动力学",
+  "video_url": "https://video.example.com/stall-v2.mp4"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440201",
+    "title": "失速与尾旋理论（更新后）",
+    "slug": "stall-spin-theory",
+    "sort_order": 20,
+    "content_ref": "",
+    "video_url": "https://video.example.com/stall-v2.mp4",
+    "category": "空气动力学",
+    "created_at": "2026-03-16T00:00:00Z",
+    "updated_at": "2026-03-16T01:00:00Z"
+  }
+}
+```
+
+#### 8.x.3 删除文档 `POST /api/v1/theory/documents/delete`
+
+**请求体**：
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440201"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "status": "ok"
+  }
+}
+```
+
+---
+
 ### 9. 学员任务模块 API
 
 #### 9.1 我的任务列表 `POST /api/v1/tasks/my-list`

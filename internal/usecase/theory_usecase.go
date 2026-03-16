@@ -528,5 +528,58 @@ func (uc *TheoryUseCase) DeletePaper(ctx context.Context, paperID string) error 
 	return uc.paperRepo.Delete(ctx, paperID)
 }
 
+// ----- Document management -----
+
+type CreateDocumentRequest struct {
+	Title     string `json:"title" binding:"required"`
+	Slug      string `json:"slug"`
+	SortOrder int    `json:"sort_order"`
+	Category  string `json:"category"`
+	VideoURL  string `json:"video_url"`
+}
+
+type UpdateDocumentRequest struct {
+	ID        string `json:"id" binding:"required"`
+	Title     string `json:"title" binding:"required"`
+	Slug      string `json:"slug"`
+	SortOrder int    `json:"sort_order"`
+	Category  string `json:"category"`
+	VideoURL  string `json:"video_url"`
+}
+
+func (uc *TheoryUseCase) CreateDocument(ctx context.Context, req *CreateDocumentRequest) (*domain.TheoryDocument, error) {
+	doc := &domain.TheoryDocument{
+		Title:     req.Title,
+		Slug:      req.Slug,
+		SortOrder: req.SortOrder,
+		Category:  req.Category,
+		VideoURL:  req.VideoURL,
+	}
+	if err := uc.docRepo.Create(ctx, doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+func (uc *TheoryUseCase) UpdateDocument(ctx context.Context, req *UpdateDocumentRequest) (*domain.TheoryDocument, error) {
+	doc, err := uc.docRepo.GetByID(ctx, req.ID)
+	if err != nil {
+		return nil, err
+	}
+	doc.Title = req.Title
+	doc.Slug = req.Slug
+	doc.SortOrder = req.SortOrder
+	doc.Category = req.Category
+	doc.VideoURL = req.VideoURL
+	if err := uc.docRepo.Update(ctx, doc); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+func (uc *TheoryUseCase) DeleteDocument(ctx context.Context, id string) error {
+	return uc.docRepo.Delete(ctx, id)
+}
+
 
 

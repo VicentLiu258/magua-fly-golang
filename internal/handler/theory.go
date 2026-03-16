@@ -144,6 +144,83 @@ func (h *TheoryHandler) ListMyAttempts(c *gin.Context) {
 	c.JSON(http.StatusOK, okResponse(resp))
 }
 
+// ----- Document management -----
+
+type createDocumentBody struct {
+	Title     string `json:"title" binding:"required"`
+	Slug      string `json:"slug"`
+	SortOrder int    `json:"sort_order"`
+	Category  string `json:"category"`
+	VideoURL  string `json:"video_url"`
+}
+
+func (h *TheoryHandler) CreateDocument(c *gin.Context) {
+	var body createDocumentBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	doc, err := h.uc.CreateDocument(c.Request.Context(), &usecase.CreateDocumentRequest{
+		Title:     body.Title,
+		Slug:      body.Slug,
+		SortOrder: body.SortOrder,
+		Category:  body.Category,
+		VideoURL:  body.VideoURL,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(doc))
+}
+
+type updateDocumentBody struct {
+	ID        string `json:"id" binding:"required"`
+	Title     string `json:"title" binding:"required"`
+	Slug      string `json:"slug"`
+	SortOrder int    `json:"sort_order"`
+	Category  string `json:"category"`
+	VideoURL  string `json:"video_url"`
+}
+
+func (h *TheoryHandler) UpdateDocument(c *gin.Context) {
+	var body updateDocumentBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	doc, err := h.uc.UpdateDocument(c.Request.Context(), &usecase.UpdateDocumentRequest{
+		ID:        body.ID,
+		Title:     body.Title,
+		Slug:      body.Slug,
+		SortOrder: body.SortOrder,
+		Category:  body.Category,
+		VideoURL:  body.VideoURL,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(doc))
+}
+
+type deleteDocumentBody struct {
+	ID string `json:"id" binding:"required"`
+}
+
+func (h *TheoryHandler) DeleteDocument(c *gin.Context) {
+	var body deleteDocumentBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, errorResponse(err))
+		return
+	}
+	if err := h.uc.DeleteDocument(c.Request.Context(), body.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
+	}
+	c.JSON(http.StatusOK, okResponse(gin.H{"status": "ok"}))
+}
+
 // ----- Admin question management -----
 
 func (h *TheoryHandler) AdminListQuestions(c *gin.Context) {
