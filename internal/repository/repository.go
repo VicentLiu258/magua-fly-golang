@@ -18,6 +18,7 @@ type UserRepository interface {
 // StudentRepository defines student persistence.
 type StudentRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Student, error)
+	GetByUserID(ctx context.Context, userID string) (*domain.Student, error)
 	GetByStudentNo(ctx context.Context, studentNo string) (*domain.Student, error)
 	List(ctx context.Context, limit, offset int) ([]*domain.Student, error)
 	Create(ctx context.Context, s *domain.Student) error

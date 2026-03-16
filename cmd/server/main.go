@@ -89,6 +89,9 @@ func main() {
 	)
 	theoryHandler := handler.NewTheoryHandler(theoryUC)
 
+	taskUC := usecase.NewTaskUseCase(pgDB.Task(), pgDB.Student())
+	taskHandler := handler.NewTaskHandler(taskUC)
+
 	router := handler.Router(
 		healthHandler,
 		authHandler,
@@ -100,6 +103,7 @@ func main() {
 		scheduleHandler,
 		trainingHandler,
 		theoryHandler,
+		taskHandler,
 		jwtManager,
 	)
 

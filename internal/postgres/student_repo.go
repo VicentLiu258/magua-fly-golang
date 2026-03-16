@@ -28,6 +28,21 @@ func (r *StudentRepo) GetByID(ctx context.Context, id string) (*domain.Student, 
 	return &s, nil
 }
 
+func (r *StudentRepo) GetByUserID(ctx context.Context, userID string) (*domain.Student, error) {
+	var s domain.Student
+	err := r.db.Pool.QueryRow(ctx, `
+		SELECT id::text, user_id::text, name, student_no, contract_info, contract_duration_minutes, flown_minutes,
+		       COALESCE(training_progress,''), responsible_instructor_id::text, created_at, updated_at
+		FROM students WHERE user_id = $1::uuid`, userID).Scan(
+		&s.ID, &s.UserID, &s.Name, &s.StudentNo, &s.ContractInfo, &s.ContractDurationMinutes, &s.FlownMinutes,
+		&s.TrainingProgress, &s.ResponsibleInstructorID, &s.CreatedAt, &s.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
 func (r *StudentRepo) GetByStudentNo(ctx context.Context, studentNo string) (*domain.Student, error) {
 	var s domain.Student
 	err := r.db.Pool.QueryRow(ctx, `
