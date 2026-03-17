@@ -136,10 +136,19 @@ func (h *BookingHandler) Review(c *gin.Context) {
 			EndTime:      booking.EndTime,
 			Source:       domain.PlanSourceBooking,
 		}
-		_ = h.planRepo.Create(ctx, plan)
+		if err := h.planRepo.Create(ctx, plan); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+			return
+		}
+		// 关键：这里不要再 `_ =` 吞掉错误，直接返回给前端看
+		if err := h.createFlightTaskFromBooking(ctx, booking, claims.UserID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+			return
+		}
+		// _ = h.planRepo.Create(ctx, plan)
 
-		// 审核通过后为学员创建一条飞行任务（首次任务），失败仅记录日志，不阻断审核流程。
-		_ = h.createFlightTaskFromBooking(ctx, booking, claims.UserID)
+		// // 审核通过后为学员创建一条飞行任务（首次任务），失败仅记录日志，不阻断审核流程。
+		// _ = h.createFlightTaskFromBooking(ctx, booking, claims.UserID)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
