@@ -57,6 +57,8 @@ type Student struct {
 	ContractDurationMinutes *int      `json:"contract_duration_minutes,omitempty"`
 	FlownMinutes            int       `json:"flown_minutes"`
 	TrainingProgress        string    `json:"training_progress,omitempty"`
+	// TrainingProgressJSON 结构化训练进度，映射 students.training_progress_json
+	TrainingProgressJSON   []byte    `json:"training_progress_json,omitempty"`
 	ResponsibleInstructorID *string   `json:"responsible_instructor_id,omitempty"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`

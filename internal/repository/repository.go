@@ -167,6 +167,14 @@ type TheoryPaperQuestionRepository interface {
 	ListByPaperID(ctx context.Context, paperID string) ([]*domain.TheoryPaperQuestion, error)
 }
 
+// ContractRepository defines student contract persistence.
+type ContractRepository interface {
+	GetByID(ctx context.Context, id string) (*domain.Contract, error)
+	ListByStudent(ctx context.Context, studentID string) ([]*domain.Contract, error)
+	Create(ctx context.Context, c *domain.Contract) error
+	Update(ctx context.Context, c *domain.Contract) error
+}
+
 // SmsVerificationRepository defines SMS verification code persistence.
 type SmsVerificationRepository interface {
 	Create(ctx context.Context, v *domain.SmsVerificationCode) error

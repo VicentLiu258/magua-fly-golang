@@ -69,6 +69,7 @@ func main() {
 		pgDB.Instructor(),
 		pgDB.Aircraft(),
 		pgDB.TheoryAttempt(),
+		pgDB.Contract(),
 	)
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
 	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability())
@@ -99,6 +100,18 @@ func main() {
 	taskUC := usecase.NewTaskUseCase(pgDB.Task(), pgDB.Student())
 	taskHandler := handler.NewTaskHandler(taskUC)
 
+	// 合同文件（Mongo GridFS + PG contracts）
+	contractGridFS, err := mongoClient.NewGridFSBucket("contracts_files")
+	if err != nil {
+		log.Fatalf("gridfs bucket: %v", err)
+	}
+	contractFilesUC := usecase.NewContractFilesUseCase(
+		pgDB.Contract(),
+		mongoClient.ContractFilesMeta(),
+		contractGridFS,
+	)
+	contractFilesHandler := handler.NewContractFilesHandler(contractFilesUC)
+
 	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan(), pgDB.Task())
 	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking())
 	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
@@ -115,6 +128,7 @@ func main() {
 		trainingHandler,
 		theoryHandler,
 		taskHandler,
+		contractFilesHandler,
 		jwtManager,
 	)
 

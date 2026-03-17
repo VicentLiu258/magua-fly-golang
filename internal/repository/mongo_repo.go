@@ -79,3 +79,24 @@ type TheoryAttemptDetailRepository interface {
 	Upsert(ctx context.Context, doc *TheoryAttemptDetailDoc) error
 }
 
+// ContractFileMeta 记录存储在 MongoDB / GridFS 中的合同文档元数据。
+type ContractFileMeta struct {
+	ID         string   `bson:"_id,omitempty" json:"id"`
+	StudentID  string   `bson:"student_id" json:"student_id"`
+	ContractID string   `bson:"contract_id" json:"contract_id"`
+	Filename   string   `bson:"filename" json:"filename"`
+	ContentType string  `bson:"content_type" json:"content_type"`
+	Size       int64    `bson:"size" json:"size"`
+	GridFSID   string   `bson:"gridfs_id" json:"gridfs_id"`
+	Tags       []string `bson:"tags,omitempty" json:"tags,omitempty"`
+	UploadedAt int64    `bson:"uploaded_at" json:"uploaded_at"`
+	UploadedBy string   `bson:"uploaded_by" json:"uploaded_by"`
+}
+
+// ContractFileMetaRepository 定义合同文档元数据访问接口。
+type ContractFileMetaRepository interface {
+	Insert(ctx context.Context, doc *ContractFileMeta) error
+	ListByContract(ctx context.Context, contractID string) ([]*ContractFileMeta, error)
+	GetByID(ctx context.Context, id string) (*ContractFileMeta, error)
+}
+

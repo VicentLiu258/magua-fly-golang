@@ -60,4 +60,6 @@ const (
 	CollDashboardSnap        = "dashboard_snapshots"
 	CollTheoryQuestionSets   = "theory_question_sets"
 	CollTheoryAttemptDetails = "theory_attempt_details"
+	// CollContractFilesMeta 存储合同文档元数据（关联 GridFS 文件）
+	CollContractFilesMeta = "contract_files_meta"
 )

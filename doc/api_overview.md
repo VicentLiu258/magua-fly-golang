@@ -2032,3 +2032,334 @@ POST /api/v1/students/list?limit=20&offset=0
   - `POST /api/v1/students/training-archives/list`：获取最近一条训练档案；
   - `theory_attempts` 与理论模块接口：统计理论学习进度；
   - `POST /api/v1/syllabus-subjects/list`（带 `student_id`）：统计科目完成数量。
+
+---
+
+### 15. 合同文件管理 API
+
+> 说明：本节接口基于 PostgreSQL `contracts` 表与 MongoDB GridFS + `contract_files_meta` 集合，实现合同扫描件/附件的上传、列表与下载。所有接口均需登录，并按照业务权限校验学员与合同关系。
+
+#### 15.1 上传合同文件 `POST /api/v1/contracts/files/upload`
+
+- **认证**：需要，建议仅 `admin` / `staff` / 具有相应学员访问权限的教员角色调用。
+- **请求方式**：`multipart/form-data`
+
+**表单字段**：
+
+- `contract_id`：合同 ID（`contracts.id`，UUID 字符串）。
+- `student_id`：合同所属学员 ID（`students.id`）。
+- `file`：实际上传的文件（PDF、图片等）。
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": "file-meta-id-1",
+    "filename": "contract-signed.pdf",
+    "content_type": "application/pdf",
+    "size": 123456,
+    "tags": [],
+    "uploaded_at": "2026-03-20T10:00:00Z"
+  }
+}
+```
+
+**行为说明**：
+
+- 将文件二进制内容写入 MongoDB GridFS（Bucket 名称如 `contracts_files`）。
+- 在 `contract_files_meta` 集合中写入一条元数据文档，记录 `student_id`、`contract_id`、`filename`、`content_type`、`size`、`gridfs_id` 等。
+- 将该元数据文档的 `_id`（字符串形式）追加到 PG `contracts.mongo_file_ids` 数组字段中，形成 PG ↔ Mongo 的关联。
+
+#### 15.2 合同文件列表 `GET /api/v1/contracts/files/list`
+
+- **认证**：需要。
+- **请求参数**（Query）：
+
+```http
+GET /api/v1/contracts/files/list?contract_id=<UUID>
+```
+
+- `contract_id`：目标合同 ID（必填）。
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "file-meta-id-1",
+        "filename": "contract-signed.pdf",
+        "content_type": "application/pdf",
+        "size": 123456,
+        "tags": ["signed"],
+        "uploaded_at": "2026-03-20T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+> 说明：该接口仅返回元数据列表，不包含文件内容。前端通常在学员详情页或合同详情页中使用，展示已有合同扫描件清单。
+
+#### 15.3 下载合同文件 `GET /api/v1/contracts/files/download`
+
+- **认证**：需要。
+- **请求参数**（Query）：
+
+```http
+GET /api/v1/contracts/files/download?id=<FILE_META_ID>
+```
+
+- `id`：合同文件元数据 ID（即 `contract_files_meta._id`，由上传接口返回）。
+
+**成功行为**：
+
+- 根据 `id` 从 `contract_files_meta` 获取对应记录，读出内部 `gridfs_id`。
+- 通过 GridFS 以流方式读取文件内容。
+- 按元数据中的 `content_type` 设置 `Content-Type` 响应头，返回文件二进制内容。
+
+**响应示例**：
+
+- HTTP 头部：
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/pdf
+Content-Disposition: attachment
+```
+
+- Body：文件二进制流（不再包裹统一的 JSON 结构）。
+
+---
+
+### 16. 学员合同管理 API（设计稿）
+
+> 说明：本节为基于当前 `contracts` 表结构的后台“学员合同管理”接口设计，包括合同的创建、更新、详情与按学员查询等，接口均建议由 `admin` / `staff` 角色或具有相应权限的教员调用。
+
+#### 16.1 创建合同 `POST /api/v1/admin/contracts/create`
+
+- **认证**：需要，推荐仅 `admin` / `staff` 角色可访问。
+- **说明**：为指定学员创建一份新的训练合同。
+
+**请求体（示例）**：
+
+```json
+{
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
+  "contract_no": "HT-2026-001",
+  "sign_date": "2026-03-20",
+  "start_date": "2026-04-01",
+  "end_date": "2027-04-01",
+  "total_minutes": 3600,
+  "price_total": 150000.00,
+  "currency": "CNY",
+  "status": "active",
+  "remark": "私商一体训练合同"
+}
+```
+
+**成功响应（示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": "c-uuid-1",
+    "student_id": "550e8400-e29b-41d4-a716-446655440001",
+    "contract_no": "HT-2026-001",
+    "sign_date": "2026-03-20",
+    "start_date": "2026-04-01",
+    "end_date": "2027-04-01",
+    "total_minutes": 3600,
+    "price_total": 150000.00,
+    "currency": "CNY",
+    "status": "active",
+    "mongo_file_ids": [],
+    "remark": "私商一体训练合同",
+    "created_at": "2026-03-20T10:00:00Z",
+    "updated_at": "2026-03-20T10:00:00Z"
+  }
+}
+```
+
+#### 16.2 更新合同 `POST /api/v1/admin/contracts/update`
+
+- **认证**：需要。
+- **说明**：更新合同的关键信息，例如结束日期、总时长、金额、状态等。
+
+**请求体（示例）**：
+
+```json
+{
+  "id": "c-uuid-1",
+  "end_date": "2027-06-01",
+  "total_minutes": 4000,
+  "price_total": 168000.00,
+  "status": "active",
+  "remark": "延长 2 个月，追加 400 分钟"
+}
+```
+
+- `id`：必填，其余字段可选，未提供的字段保持原值。
+
+**成功响应（示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": "c-uuid-1",
+    "student_id": "550e8400-e29b-41d4-a716-446655440001",
+    "contract_no": "HT-2026-001",
+    "sign_date": "2026-03-20",
+    "start_date": "2026-04-01",
+    "end_date": "2027-06-01",
+    "total_minutes": 4000,
+    "price_total": 168000.00,
+    "currency": "CNY",
+    "status": "active",
+    "mongo_file_ids": ["file-meta-id-1"],
+    "remark": "延长 2 个月，追加 400 分钟",
+    "created_at": "2026-03-20T10:00:00Z",
+    "updated_at": "2026-03-21T08:00:00Z"
+  }
+}
+```
+
+#### 16.3 合同详情 `POST /api/v1/admin/contracts/detail`
+
+- **认证**：需要。
+- **说明**：查看单份合同的详细信息及其绑定的文件列表（可结合 15.2/15.3 使用）。
+
+**请求体**：
+
+```json
+{
+  "id": "c-uuid-1"
+}
+```
+
+**成功响应（示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "contract": {
+      "id": "c-uuid-1",
+      "student_id": "550e8400-e29b-41d4-a716-446655440001",
+      "contract_no": "HT-2026-001",
+      "sign_date": "2026-03-20",
+      "start_date": "2026-04-01",
+      "end_date": "2027-06-01",
+      "total_minutes": 4000,
+      "price_total": 168000.00,
+      "currency": "CNY",
+      "status": "active",
+      "mongo_file_ids": ["file-meta-id-1"],
+      "remark": "延长 2 个月，追加 400 分钟",
+      "created_at": "2026-03-20T10:00:00Z",
+      "updated_at": "2026-03-21T08:00:00Z"
+    },
+    "files": [
+      {
+        "id": "file-meta-id-1",
+        "filename": "contract-signed.pdf",
+        "content_type": "application/pdf",
+        "size": 123456,
+        "tags": ["signed"],
+        "uploaded_at": "2026-03-20T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+> 说明：`files` 数组可直接复用 15.2 中的文件元数据结构，实际实现时可通过 `contracts.mongo_file_ids` 与 `contract_files_meta` 关联查询。
+
+#### 16.4 按学员查询合同列表 `POST /api/v1/admin/contracts/list-by-student`
+
+- **认证**：需要。
+- **说明**：在学员详情页中列出该学员的全部合同（含历史合同）。
+
+**请求体**：
+
+```json
+{
+  "student_id": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+**成功响应（示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "c-uuid-2",
+        "contract_no": "HT-2025-001",
+        "sign_date": "2025-03-01",
+        "start_date": "2025-04-01",
+        "end_date": "2026-03-31",
+        "total_minutes": 3000,
+        "price_total": 120000.00,
+        "currency": "CNY",
+        "status": "finished"
+      },
+      {
+        "id": "c-uuid-1",
+        "contract_no": "HT-2026-001",
+        "sign_date": "2026-03-20",
+        "start_date": "2026-04-01",
+        "end_date": "2027-06-01",
+        "total_minutes": 4000,
+        "price_total": 168000.00,
+        "currency": "CNY",
+        "status": "active"
+      }
+    ]
+  }
+}
+```
+
+> 建议：按 `sign_date` 或 `created_at` 倒序排序，方便后台快速看到最新合同。
+
+#### 16.5 合同状态变更（可选）`POST /api/v1/admin/contracts/change-status`
+
+- **认证**：需要。
+- **说明**：用于将合同标记为已结束、已作废等，配合 `status` 字段使用。
+
+**请求体（示例）**：
+
+```json
+{
+  "id": "c-uuid-1",
+  "status": "finished",
+  "remark": "学员提前结业，合同结束"
+}
+```
+
+**成功响应（示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "status": "ok"
+  }
+}
+```
+

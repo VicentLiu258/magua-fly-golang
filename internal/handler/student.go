@@ -22,6 +22,7 @@ type StudentHandler struct {
 	instrRepo    repository.InstructorRepository
 	aircraftRepo repository.AircraftRepository
 	theoryRepo   repository.TheoryAttemptRepository
+	contractRepo repository.ContractRepository
 }
 
 // NewStudentHandler creates a StudentHandler.
@@ -34,6 +35,7 @@ func NewStudentHandler(
 	instrRepo repository.InstructorRepository,
 	aircraftRepo repository.AircraftRepository,
 	theoryRepo repository.TheoryAttemptRepository,
+	contractRepo repository.ContractRepository,
 ) *StudentHandler {
 	return &StudentHandler{
 		studentRepo:  studentRepo,
@@ -44,6 +46,7 @@ func NewStudentHandler(
 		instrRepo:    instrRepo,
 		aircraftRepo: aircraftRepo,
 		theoryRepo:   theoryRepo,
+		contractRepo: contractRepo,
 	}
 }
 
@@ -220,6 +223,24 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 		remaining = &r
 	}
 
+	// 合同列表摘要（按创建时间倒序）
+	var contracts []gin.H
+	if h.contractRepo != nil {
+		if list, err := h.contractRepo.ListByStudent(ctx, s.ID); err == nil {
+			for _, ct := range list {
+				contracts = append(contracts, gin.H{
+					"id":            ct.ID,
+					"contract_no":   ct.ContractNo,
+					"sign_date":     ct.SignDate,
+					"start_date":    ct.StartDate,
+					"end_date":      ct.EndDate,
+					"total_minutes": ct.TotalMinutes,
+					"status":        ct.Status,
+				})
+			}
+		}
+	}
+
 	resp := gin.H{
 		"basic": gin.H{
 			"student_id":               s.ID,
@@ -239,6 +260,7 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 		"responsible_instructor": responsibleInstructor,
 		"latest_archive":         latestArchive,
 		"pending_task_count":     pendingCount,
+		"contracts":              contracts,
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": resp})
