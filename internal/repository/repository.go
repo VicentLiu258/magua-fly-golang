@@ -132,6 +132,8 @@ type TaskRepository interface {
 	ListByStudent(ctx context.Context, studentID string, status *domain.TaskStatus) ([]*domain.Task, error)
 	Create(ctx context.Context, t *domain.Task) error
 	UpdateStatus(ctx context.Context, id string, status domain.TaskStatus) error
+	// FindByTypeAndRefID 根据任务类型与业务引用 ID 查找单条任务，用于幂等创建。
+	FindByTypeAndRefID(ctx context.Context, taskType domain.TaskType, refID string) (*domain.Task, error)
 }
 
 // TheoryDocumentRepository defines theory document persistence.

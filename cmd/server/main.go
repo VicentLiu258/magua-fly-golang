@@ -72,10 +72,7 @@ func main() {
 	)
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
 	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability())
-	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan())
-	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking())
-	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
-
+	// 训练与任务相关 UseCase / Handler
 	trainingUC := usecase.NewTrainingUseCase(
 		pgDB.TrainingRecord(),
 		pgDB.TrainingArchive(),
@@ -84,6 +81,7 @@ func main() {
 		pgDB.SyllabusSubject(),
 		pgDB.TrainingArchiveSubject(),
 		pgDB.NextTrainingSubject(),
+		pgDB.Task(),
 	)
 	trainingHandler := handler.NewTrainingHandler(trainingUC)
 
@@ -100,6 +98,10 @@ func main() {
 
 	taskUC := usecase.NewTaskUseCase(pgDB.Task(), pgDB.Student())
 	taskHandler := handler.NewTaskHandler(taskUC)
+
+	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan(), pgDB.Task())
+	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking())
+	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
 
 	router := handler.Router(
 		healthHandler,

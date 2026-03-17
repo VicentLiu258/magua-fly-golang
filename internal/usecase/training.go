@@ -16,13 +16,14 @@ var ErrTrainingRecordNotFound = errors.New("training_record_id 不存在，请�
 
 // TrainingUseCase 训练记录、导入认领、视图、档案与科目
 type TrainingUseCase struct {
-	recordRepo   repository.TrainingRecordRepository
-	archiveRepo  repository.TrainingArchiveRepository
-	rawImportRepo repository.RawFlightImportRepository
-	viewRepo     repository.TrainingRecordViewRepository
-	syllabusRepo repository.SyllabusSubjectRepository
+	recordRepo     repository.TrainingRecordRepository
+	archiveRepo    repository.TrainingArchiveRepository
+	rawImportRepo  repository.RawFlightImportRepository
+	viewRepo       repository.TrainingRecordViewRepository
+	syllabusRepo   repository.SyllabusSubjectRepository
 	archiveSubjRepo repository.TrainingArchiveSubjectRepository
-	nextSubjRepo repository.NextTrainingSubjectRepository
+	nextSubjRepo   repository.NextTrainingSubjectRepository
+	taskRepo       repository.TaskRepository
 }
 
 // NewTrainingUseCase 创建 TrainingUseCase
@@ -34,15 +35,17 @@ func NewTrainingUseCase(
 	syllabusRepo repository.SyllabusSubjectRepository,
 	archiveSubjRepo repository.TrainingArchiveSubjectRepository,
 	nextSubjRepo repository.NextTrainingSubjectRepository,
+	taskRepo repository.TaskRepository,
 ) *TrainingUseCase {
 	return &TrainingUseCase{
-		recordRepo:     recordRepo,
-		archiveRepo:    archiveRepo,
-		rawImportRepo:  rawImportRepo,
-		viewRepo:       viewRepo,
-		syllabusRepo:   syllabusRepo,
+		recordRepo:      recordRepo,
+		archiveRepo:     archiveRepo,
+		rawImportRepo:   rawImportRepo,
+		viewRepo:        viewRepo,
+		syllabusRepo:    syllabusRepo,
 		archiveSubjRepo: archiveSubjRepo,
-		nextSubjRepo:   nextSubjRepo,
+		nextSubjRepo:    nextSubjRepo,
+		taskRepo:        taskRepo,
 	}
 }
 
@@ -250,9 +253,10 @@ func (u *TrainingUseCase) SignArchive(ctx context.Context, archiveID string, rol
 	if err != nil {
 		return err
 	}
+	var nextSubjects []*domain.NextTrainingSubject
 	// 业务约束：责任教员 / 主任教员签字前，必须先布置下次训练科目
 	if role == "responsible_instructor" || role == "chief_instructor" {
-		nextSubjects, err := u.nextSubjRepo.ListByArchiveID(ctx, archiveID)
+		nextSubjects, err = u.nextSubjRepo.ListByArchiveID(ctx, archiveID)
 		if err != nil {
 			return err
 		}
@@ -273,7 +277,53 @@ func (u *TrainingUseCase) SignArchive(ctx context.Context, archiveID string, rol
 	default:
 		return nil
 	}
-	return u.archiveRepo.Update(ctx, a)
+	if err := u.archiveRepo.Update(ctx, a); err != nil {
+		return err
+	}
+
+	// 责任教员签字成功后，为学员生成基于本课档案与下次科目的「下次飞行任务」。
+	if role == "responsible_instructor" && len(nextSubjects) > 0 {
+		_ = u.createNextFlightTaskFromArchive(ctx, a, nextSubjects, signerID)
+	}
+
+	return nil
+}
+
+// createNextFlightTaskFromArchive 基于当前档案与已布置的下次科目，为学员生成一条飞行类任务。
+// 若任务已存在或缺少必要信息，则直接返回。
+func (u *TrainingUseCase) createNextFlightTaskFromArchive(ctx context.Context, a *domain.TrainingArchive, nextSubjects []*domain.NextTrainingSubject, assignerID string) error {
+	if u.taskRepo == nil || a == nil || a.StudentID == "" || len(nextSubjects) == 0 {
+		return nil
+	}
+	// 幂等：同一档案只生成一条「下次飞行任务」。
+	existing, err := u.taskRepo.FindByTypeAndRefID(ctx, domain.TaskTypeFlight, a.ID)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return nil
+	}
+
+	// 任务标题 / 描述聚合科目信息。
+	title := "下次飞行科目任务"
+	if len(nextSubjects) == 1 {
+		title = "下次飞行科目任务（1 个科目）"
+	} else {
+		title = fmt.Sprintf("下次飞行科目任务（%d 个科目）", len(nextSubjects))
+	}
+	desc := fmt.Sprintf("基于档案 %s 布置的下次飞行训练任务", a.ID)
+
+	refID := a.ID
+	task := &domain.Task{
+		StudentID:   a.StudentID,
+		AssignerID:  assignerID,
+		Type:        domain.TaskTypeFlight,
+		RefID:       &refID,
+		Title:       title,
+		Description: desc,
+		Status:      domain.TaskStatusPending,
+	}
+	return u.taskRepo.Create(ctx, task)
 }
 
 // ListSyllabusSubjects 全部大纲科目，可选带学员已结业标记

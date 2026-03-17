@@ -9,6 +9,8 @@ const (
 	TaskTypeTheory  TaskType = "theory"
 	TaskTypeSubject TaskType = "subject"
 	TaskTypeOther   TaskType = "other"
+	// TaskTypeFlight 代表飞行相关任务（含首次飞行任务与基于档案布置的下次飞行任务）。
+	TaskTypeFlight TaskType = "flight"
 )
 
 // TaskStatus for task completion.

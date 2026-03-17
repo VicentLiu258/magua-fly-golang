@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -15,11 +17,16 @@ import (
 type BookingHandler struct {
 	bookingRepo repository.BookingRepository
 	planRepo    repository.TrainingPlanRepository
+	taskRepo    repository.TaskRepository
 }
 
 // NewBookingHandler creates a BookingHandler.
-func NewBookingHandler(bookingRepo repository.BookingRepository, planRepo repository.TrainingPlanRepository) *BookingHandler {
-	return &BookingHandler{bookingRepo: bookingRepo, planRepo: planRepo}
+func NewBookingHandler(bookingRepo repository.BookingRepository, planRepo repository.TrainingPlanRepository, taskRepo repository.TaskRepository) *BookingHandler {
+	return &BookingHandler{
+		bookingRepo: bookingRepo,
+		planRepo:    planRepo,
+		taskRepo:    taskRepo,
+	}
 }
 
 // ListPending returns all pending bookings (for staff).
@@ -114,7 +121,8 @@ func (h *BookingHandler) Review(c *gin.Context) {
 	if !body.Approve {
 		status = domain.BookingRejected
 	}
-	if err := h.bookingRepo.UpdateStatus(c.Request.Context(), body.ID, status, reason, claims.UserID); err != nil {
+	ctx := c.Request.Context()
+	if err := h.bookingRepo.UpdateStatus(ctx, body.ID, status, reason, claims.UserID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
@@ -128,11 +136,58 @@ func (h *BookingHandler) Review(c *gin.Context) {
 			EndTime:      booking.EndTime,
 			Source:       domain.PlanSourceBooking,
 		}
-		_ = h.planRepo.Create(c.Request.Context(), plan)
+		_ = h.planRepo.Create(ctx, plan)
+
+		// 审核通过后为学员创建一条飞行任务（首次任务），失败仅记录日志，不阻断审核流程。
+		_ = h.createFlightTaskFromBooking(ctx, booking, claims.UserID)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"msg":  "ok",
 		"data": gin.H{"status": string(status)},
 	})
+}
+
+// createFlightTaskFromBooking 在预约审核通过后，为学员创建一条飞行类任务（type=flight，ref_id=booking_id）。
+// 若任务已存在或学生 ID 为空，则直接返回。
+func (h *BookingHandler) createFlightTaskFromBooking(ctx context.Context, booking *domain.Booking, assignerID string) error {
+	if booking == nil || booking.StudentID == "" || h.taskRepo == nil {
+		return nil
+	}
+	// 幂等：若已存在同 type+ref_id 的任务则不再创建。
+	existing, err := h.taskRepo.FindByTypeAndRefID(ctx, domain.TaskTypeFlight, booking.ID)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return nil
+	}
+
+	title := fmt.Sprintf(
+		"飞行训练：%s %s-%s",
+		booking.PlanDate.Format("2006-01-02"),
+		booking.StartTime.Format("15:04"),
+		booking.EndTime.Format("15:04"),
+	)
+	desc := fmt.Sprintf("预约飞行任务，教员ID=%s，飞机ID=%s", booking.InstructorID, booking.AircraftID)
+
+	// 将 plan_date 与 start_time 组合成一个 dueAt 时间（使用 plan_date 的时区）。
+	dueAt := time.Date(
+		booking.PlanDate.Year(), booking.PlanDate.Month(), booking.PlanDate.Day(),
+		booking.StartTime.Hour(), booking.StartTime.Minute(), 0, 0,
+		booking.PlanDate.Location(),
+	)
+
+	refID := booking.ID
+	task := &domain.Task{
+		StudentID:   booking.StudentID,
+		AssignerID:  assignerID,
+		Type:        domain.TaskTypeFlight,
+		RefID:       &refID,
+		Title:       title,
+		Description: desc,
+		DueAt:       &dueAt,
+		Status:      domain.TaskStatusPending,
+	}
+	return h.taskRepo.Create(ctx, task)
 }

@@ -5,6 +5,8 @@ import (
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/repository"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type TaskRepo struct{ db *DB }
@@ -65,4 +67,25 @@ func (r *TaskRepo) Create(ctx context.Context, t *domain.Task) error {
 func (r *TaskRepo) UpdateStatus(ctx context.Context, id string, status domain.TaskStatus) error {
 	_, err := r.db.Pool.Exec(ctx, `UPDATE tasks SET status=$2, updated_at=NOW() WHERE id=$1::uuid`, id, status)
 	return err
+}
+
+// FindByTypeAndRefID 根据任务类型与 ref_id（通常为 booking_id 或 archive_id）查找单条任务。
+func (r *TaskRepo) FindByTypeAndRefID(ctx context.Context, taskType domain.TaskType, refID string) (*domain.Task, error) {
+	var t domain.Task
+	err := r.db.Pool.QueryRow(ctx, `
+		SELECT id::text, student_id::text, assigner_id::text, type, ref_id::text, title, COALESCE(description,''), due_at, status, created_at, updated_at
+		FROM tasks
+		WHERE type = $1 AND ref_id = $2::uuid
+		LIMIT 1`,
+		taskType, refID,
+	).Scan(
+		&t.ID, &t.StudentID, &t.AssignerID, &t.Type, &t.RefID, &t.Title, &t.Description, &t.DueAt, &t.Status, &t.CreatedAt, &t.UpdatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &t, nil
 }
