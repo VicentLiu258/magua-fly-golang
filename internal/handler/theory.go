@@ -237,9 +237,52 @@ func (h *TheoryHandler) AdminListQuestions(c *gin.Context) {
 	c.JSON(http.StatusOK, okResponse(resp))
 }
 
+// adminQuestionOptionBody is the payload schema for a single option in admin question APIs.
+type adminQuestionOptionBody struct {
+	ID   string `json:"id" binding:"required"`
+	Text string `json:"text" binding:"required"`
+}
+
+// adminQuestionPayload is the payload schema for a question in admin create/update APIs.
+// It mirrors repository.TheoryQuestionItem but keeps correct answers/explanation visible
+// to admin clients while still preventing them from being exposed in student APIs.
+type adminQuestionPayload struct {
+	ID               string                    `json:"id"`
+	Type             string                    `json:"type" binding:"required"` // single | multi
+	Stem             string                    `json:"stem" binding:"required"`
+	Options          []adminQuestionOptionBody `json:"options" binding:"required"`
+	CorrectOptionIDs []string                  `json:"correct_option_ids"` // admin only
+	Explanation      string                    `json:"explanation"`
+	Tags             []string                  `json:"tags"`
+	Score            int                       `json:"score"`
+}
+
+// toRepositoryQuestion converts adminQuestionPayload into repository.TheoryQuestionItem
+// so that sensitive fields (correct answers, explanation) are stored in MongoDB
+// but not leaked to student-facing JSON responses.
+func toRepositoryQuestion(q adminQuestionPayload) repository.TheoryQuestionItem {
+	opts := make([]repository.TheoryQuestionOption, 0, len(q.Options))
+	for _, o := range q.Options {
+		opts = append(opts, repository.TheoryQuestionOption{
+			ID:   o.ID,
+			Text: o.Text,
+		})
+	}
+	return repository.TheoryQuestionItem{
+		ID:               q.ID,
+		Type:             q.Type,
+		Stem:             q.Stem,
+		Options:          opts,
+		CorrectOptionIDs: q.CorrectOptionIDs,
+		Explanation:      q.Explanation,
+		Tags:             q.Tags,
+		Score:            q.Score,
+	}
+}
+
 type adminQuestionBody struct {
-	DocumentID string                         `json:"document_id" binding:"required"`
-	Question   repository.TheoryQuestionItem `json:"question" binding:"required"`
+	DocumentID string               `json:"document_id" binding:"required"`
+	Question   adminQuestionPayload `json:"question" binding:"required"`
 }
 
 func (h *TheoryHandler) AdminCreateQuestion(c *gin.Context) {
@@ -248,7 +291,8 @@ func (h *TheoryHandler) AdminCreateQuestion(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse(err))
 		return
 	}
-	if err := h.uc.AdminCreateQuestion(c.Request.Context(), body.DocumentID, body.Question); err != nil {
+	q := toRepositoryQuestion(body.Question)
+	if err := h.uc.AdminCreateQuestion(c.Request.Context(), body.DocumentID, q); err != nil {
 		c.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}
@@ -261,7 +305,8 @@ func (h *TheoryHandler) AdminUpdateQuestion(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, errorResponse(err))
 		return
 	}
-	if err := h.uc.AdminUpdateQuestion(c.Request.Context(), body.DocumentID, body.Question); err != nil {
+	q := toRepositoryQuestion(body.Question)
+	if err := h.uc.AdminUpdateQuestion(c.Request.Context(), body.DocumentID, q); err != nil {
 		if err == usecase.ErrQuestionNotFound {
 			c.JSON(http.StatusBadRequest, errorMessage("question not found"))
 			return
