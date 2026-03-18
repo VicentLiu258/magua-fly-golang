@@ -143,6 +143,18 @@ func (uc *TheoryUseCase) StartQuestions(ctx context.Context, userID, documentID,
 	questions := qs.Questions
 	// If a paper is specified, slice and reorder questions by paper config.
 	if paperID != "" {
+		// Ensure the paper exists and belongs to the same document, and is enabled.
+		paper, err := uc.paperRepo.GetByID(ctx, paperID)
+		if err != nil {
+			return nil, err
+		}
+		if paper.TheoryDocumentID != documentID {
+			return nil, errors.New("paper does not belong to document")
+		}
+		if !paper.Enabled {
+			return nil, errors.New("paper is disabled")
+		}
+
 		paperQuestions, err := uc.paperQuestionRepo.ListByPaperID(ctx, paperID)
 		if err != nil {
 			return nil, err

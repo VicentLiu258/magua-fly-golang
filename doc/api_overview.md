@@ -1181,11 +1181,25 @@ POST /api/v1/students/list?limit=20&offset=0
 
 - **说明**：点击“答题”后调用，初始化一次答题尝试并返回题目列表。
 
-**请求体**：
+**说明**：
+
+- 当只传 `document_id` 时，系统会使用该文档下的**全部题目**生成一次练习/测试。
+- 当同时传入 `paper_id` 时，系统会根据对应试卷配置（`theory_papers` + `theory_paper_questions`）抽取题目子集并设置每题分值，实现“不同试卷”的出题方案。
+
+**请求体（不指定试卷，整套题库）**：
 
 ```json
 {
   "document_id": "550e8400-e29b-41d4-a716-446655440201"
+}
+```
+
+**请求体（指定某张试卷）**：
+
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440201",
+  "paper_id": "paper-uuid-1"
 }
 ```
 
@@ -1207,6 +1221,7 @@ POST /api/v1/students/list?limit=20&offset=0
           { "id": "A", "text": "与迎角无关" },
           { "id": "B", "text": "与迎角有关" }
         ],
+        "tags": ["基础"],
         "score": 2
       }
     ]
@@ -1597,7 +1612,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 #### 11.1 列出试卷 `POST /api/v1/theory/papers/list`
 
-- **说明**：查看某理论文档下已配置的试卷列表，用于后台维护和前端出卷选择。
+- **说明**：查看某理论文档下已配置的试卷列表，用于后台维护和前端出卷选择（例如 A/B 卷、模拟考试卷、强化训练卷等）。
 
 **请求体**：
 
@@ -1651,6 +1666,8 @@ POST /api/v1/students/list?limit=20&offset=0
   ]
 }
 ```
+
+> 前端通常不直接调用该接口，而是在后台管理系统中使用，用于配置不同的出卷方案；学员端只需要通过 `POST /api/v1/theory/papers/list` 获取可选试卷，并在 `POST /api/v1/theory/questions/start` 时携带所选 `paper_id`。
 
 **成功响应**（返回试卷基本信息）：
 
