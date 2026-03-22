@@ -72,7 +72,7 @@ func main() {
 		pgDB.Contract(),
 	)
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
-	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability())
+	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability(), pgDB.AircraftMaintenance(), pgDB)
 	// 训练与任务相关 UseCase / Handler
 	trainingUC := usecase.NewTrainingUseCase(
 		pgDB.TrainingRecord(),
@@ -113,7 +113,7 @@ func main() {
 	contractFilesHandler := handler.NewContractFilesHandler(contractFilesUC)
 
 	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan(), pgDB.Task())
-	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking())
+	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking(), pgDB.AircraftAvailability())
 	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
 
 	router := handler.Router(

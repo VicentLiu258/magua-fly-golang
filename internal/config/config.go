@@ -26,7 +26,7 @@ func Load() *Config {
 	port, _ := strconv.Atoi(getEnv("SERVER_PORT", "8080"))
 	return &Config{
 		ServerPort:   port,
-		PostgresDSN:  getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5432/maguafly?sslmode=disable"),
+		PostgresDSN:  getEnv("POSTGRES_DSN", "postgres://postgres:postgres@localhost:5437/maguafly?sslmode=disable"),
 		MongoURI:     getEnv("MONGODB_URI", "mongodb://localhost:27017"),
 		MongoDBName:  getEnv("MONGODB_DB", "maguafly"),
 		JWTSecret:    getEnv("JWT_SECRET", "change-me-in-production"),

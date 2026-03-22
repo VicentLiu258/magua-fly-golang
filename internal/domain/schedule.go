@@ -4,12 +4,15 @@ import "time"
 
 // Aircraft represents an aircraft.
 type Aircraft struct {
-	ID        string    `json:"id"`
-	Code      string    `json:"code"`
-	Name      string    `json:"name,omitempty"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                      string    `json:"id"`
+	Code                    string    `json:"code"`
+	Name                    string    `json:"name,omitempty"`
+	Status                  string    `json:"status"`
+	TotalAirframeHours      *float64  `json:"total_airframe_hours,omitempty"`
+	LastInspectionHours     *float64  `json:"last_inspection_hours,omitempty"`
+	InspectionIntervalHours int       `json:"inspection_interval_hours,omitempty"`
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 // AvailabilityStatus for aircraft slots.
@@ -23,14 +26,15 @@ const (
 
 // AircraftAvailability is a time slot for one aircraft.
 type AircraftAvailability struct {
-	ID         string             `json:"id"`
-	AircraftID string             `json:"aircraft_id"`
-	Date       time.Time          `json:"date"`
-	StartTime  time.Time          `json:"start_time"`
-	EndTime    time.Time          `json:"end_time"`
-	Status     AvailabilityStatus `json:"status"`
-	CreatedAt  time.Time          `json:"created_at"`
-	UpdatedAt  time.Time          `json:"updated_at"`
+	ID                  string             `json:"id"`
+	AircraftID          string             `json:"aircraft_id"`
+	Date                time.Time          `json:"date"`
+	StartTime           time.Time          `json:"start_time"`
+	EndTime             time.Time          `json:"end_time"`
+	Status              AvailabilityStatus `json:"status"`
+	MaintenanceWindowID *string            `json:"maintenance_window_id,omitempty"`
+	CreatedAt           time.Time          `json:"created_at"`
+	UpdatedAt           time.Time          `json:"updated_at"`
 }
 
 // InstructorSchedule is a duty slot for an instructor.

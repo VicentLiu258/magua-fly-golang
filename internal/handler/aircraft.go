@@ -12,15 +12,24 @@ import (
 
 // AircraftHandler handles aircraft endpoints.
 type AircraftHandler struct {
-	aircraftRepo     repository.AircraftRepository
-	availabilityRepo repository.AircraftAvailabilityRepository
+	aircraftRepo      repository.AircraftRepository
+	availabilityRepo  repository.AircraftAvailabilityRepository
+	maintenanceRepo   repository.AircraftMaintenanceRepository
+	maintSync         repository.MaintenanceWindowSyncer
 }
 
 // NewAircraftHandler creates an AircraftHandler.
-func NewAircraftHandler(aircraftRepo repository.AircraftRepository, availabilityRepo repository.AircraftAvailabilityRepository) *AircraftHandler {
+func NewAircraftHandler(
+	aircraftRepo repository.AircraftRepository,
+	availabilityRepo repository.AircraftAvailabilityRepository,
+	maintenanceRepo repository.AircraftMaintenanceRepository,
+	maintSync repository.MaintenanceWindowSyncer,
+) *AircraftHandler {
 	return &AircraftHandler{
 		aircraftRepo:     aircraftRepo,
 		availabilityRepo: availabilityRepo,
+		maintenanceRepo:  maintenanceRepo,
+		maintSync:        maintSync,
 	}
 }
 

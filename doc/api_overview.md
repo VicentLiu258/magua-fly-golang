@@ -265,6 +265,9 @@ POST /api/v1/students/list?limit=20&offset=0
         "code": "AC001",
         "name": "塞斯纳 172",
         "status": "active",
+        "total_airframe_hours": 120.5,
+        "last_inspection_hours": 100.0,
+        "inspection_interval_hours": 50,
         "created_at": "...",
         "updated_at": "..."
       }
@@ -272,6 +275,8 @@ POST /api/v1/students/list?limit=20&offset=0
   }
 }
 ```
+
+`total_airframe_hours`、`last_inspection_hours` 可为 `null`（未录入时）；`inspection_interval_hours` 默认 `50`。
 
 ### 4.4 创建飞机 `POST /api/v1/aircraft/create`
 
@@ -301,7 +306,137 @@ POST /api/v1/students/list?limit=20&offset=0
 }
 ```
 
-**成功响应**：返回 `aircraft_availability` 记录详情。
+**成功响应**：返回 `aircraft_availability` 记录详情（若由维护计划生成，可能含 `maintenance_window_id`）。
+
+#### 检修排期 vs 机时参考（约定）
+
+- **检修占用时段**：以人工创建/维护的 **维护时间窗**（§4.8～4.11）及其生成的 `aircraft_availability`（`status=maintenance`）为**唯一排期依据**；排班网格与预约冲突处理均以此为标准（见 §5.4）。
+- **机时与定检间隔**（§4.6～4.7）：`total_airframe_hours`、`last_inspection_hours`、`inspection_interval_hours` 等字段**仅作参考与提醒**（`hours_reference_role` 恒为 `advisory`），**不会**根据机时自动生成维护窗，也**不会**因机时“到期”而自动拒绝预约；具体检修时段须由运维在维护窗接口中配置。
+
+### 4.6 机时与定检查询 `POST /api/v1/aircraft/airworthiness/get`
+
+**请求体**：
+
+```json
+{ "aircraft_id": "550e8400-e29b-41d4-a716-446655440003" }
+```
+
+**成功响应** `data`：
+
+```json
+{
+  "hours_reference_role": "advisory",
+  "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
+  "total_airframe_hours": 120.5,
+  "last_inspection_hours": 100.0,
+  "inspection_interval_hours": 50,
+  "next_due_hours": 150.0,
+  "remaining_hours": 29.5,
+  "reminder_level": "info",
+  "reminder_hint": "机时定检参考：剩余约 29.5 小时"
+}
+```
+
+- `hours_reference_role`：固定为 `advisory`，表示机时相关字段**不驱动**自动排期，仅供展示与提醒。
+- `next_due_hours` = `last_inspection_hours` + `inspection_interval_hours`（需已录入上次定检小时）；`remaining_hours` = `next_due_hours` - `total_airframe_hours`。若缺少必要字段，对应派生字段可为 `null`。
+- `reminder_level`：`none` | `info` | `warning` | `overdue`。在能计算 `remaining_hours` 时，按剩余小时分段：`>15` 为 `none`；`(5,15]` 为 `info`；`(0,5]` 为 `warning`；`<=0` 为 `overdue`。无 `remaining_hours` 时为 `none`。
+- `reminder_hint`：与级别配套的中文短句，便于前端直接展示；`reminder_level` 为 `none` 时通常为空。
+
+### 4.7 机时与定检更新 `POST /api/v1/aircraft/airworthiness/update`
+
+**请求体**（字段均可选，仅提交需要修改的项）：
+
+```json
+{
+  "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
+  "total_airframe_hours": 121.0,
+  "last_inspection_hours": 100.0,
+  "inspection_interval_hours": 50
+}
+```
+
+**成功响应**：`data` 同 4.6 查询结构（更新后的派生信息）。
+
+### 4.8 维护时间窗列表 `POST /api/v1/aircraft/maintenance-windows/list`
+
+**请求体**：
+
+```json
+{
+  "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
+  "from_date": "2026-03-01",
+  "to_date": "2026-03-31",
+  "status": "planned"
+}
+```
+
+`from_date`、`to_date`、`status` 均可选。`status`：`planned` | `in_progress` | `completed` | `cancelled`。
+
+**成功响应**：`data.items` 为维护窗数组，字段含 `id`、`aircraft_id`、`kind`、`scheduled_start_at`、`scheduled_end_at`（RFC3339）、`status`、`hangar_location`、`notes`、`created_at`、`updated_at`。
+
+`kind` 为业务分类字符串：**新建时若省略，默认为 `manual`**（人工排定检修时段）。常见取值示例：`manual`（默认）、`periodic_inspection`（周期定检类备注）、其它由业务自定义；**不改变**「排期由人工维护窗决定」的规则。
+
+### 4.9 创建维护时间窗 `POST /api/v1/aircraft/maintenance-windows/create`
+
+**检修时段以本接口人工配置为准**：写入 `aircraft_maintenance_windows`，按自然日拆分写入 `aircraft_availability`（`status=maintenance`，并关联 `maintenance_window_id`）。机时定检参考信息（§4.6）仅可在 `notes` 中作为**备注**说明，例如「参考 50 小时定检窗口」，**系统不会**根据机时自动创建或修改本记录。
+
+**请求体**：
+
+```json
+{
+  "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
+  "kind": "manual",
+  "scheduled_start_at": "2026-03-21T08:00:00+08:00",
+  "scheduled_end_at": "2026-03-21T21:00:00+08:00",
+  "hangar_location": "一号机库",
+  "notes": "明日进机库检修（机时定检参考见机务记录）",
+  "sync_schedule": true
+}
+```
+
+- `kind`：可选；省略时默认为 `manual`。
+- `scheduled_start_at`：**必填**，RFC3339。
+- `scheduled_end_at`：可选；省略则取开始日 **当地** 23:59:59。
+- `sync_schedule`：为 `true` 时，将与该时间窗重叠的 `pending`/`approved` 预约置为 `rejected`（原因：飞机维护/定检），并对 `approved` 预约删除对应 `training_plans` 中与时段匹配的一条记录。
+
+**成功响应** `data`：
+
+```json
+{
+  "window": { "...": "..." },
+  "affected_booking_ids": ["..."],
+  "cancelled_training_plan_ids": ["..."]
+}
+```
+
+### 4.10 更新维护时间窗 `POST /api/v1/aircraft/maintenance-windows/update`
+
+**请求体**：
+
+```json
+{
+  "id": "维护窗 UUID",
+  "aircraft_id": "",
+  "kind": "manual",
+  "scheduled_start_at": "2026-03-21T08:00:00+08:00",
+  "scheduled_end_at": "2026-03-21T18:00:00+08:00",
+  "hangar_location": "",
+  "notes": "",
+  "sync_schedule": true
+}
+```
+
+`aircraft_id` 可留空（表示不修改所属飞机，须与原有记录一致）。`kind` 可留空，留空时按 **`manual`** 写入。行为：删除该窗下原 `aircraft_availability` 行后按新时间重写，并在 `sync_schedule` 为 `true` 时再次执行与 4.9 相同的预约同步逻辑。
+
+### 4.11 取消维护时间窗 `POST /api/v1/aircraft/maintenance-windows/cancel`
+
+**请求体**：
+
+```json
+{ "id": "维护窗 UUID" }
+```
+
+将状态置为 `cancelled`，并删除关联的 `aircraft_availability` 记录（不自动恢复已拒绝的预约）。
 
 ---
 
@@ -364,7 +499,9 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ### 5.4 教员 × 时间排期网格 `POST /api/v1/schedules/instructor-grid`
 
-详见 `doc/schedule_api.md` 第 2 节，这里只列接口：
+详见 `doc/schedule_api.md` 第 2 节，这里只列接口。
+
+**补充**：当某日某飞机存在 `aircraft_availability.status = maintenance` 且与预约时段重叠时，对应格子的 `status` 为 `aircraft_unavailable`（仍带原 `bookingId` / `aircraftId` / `studentId`，表示该预约与维护冲突需在业务上处理）。维护时段来源见 §4.8～4.11（人工维护窗），**与** §4.6 **机时参考提醒无关**。
 
 **请求体**：
 

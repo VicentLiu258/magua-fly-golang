@@ -37,6 +37,7 @@ type AircraftRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Aircraft, error)
 	List(ctx context.Context) ([]*domain.Aircraft, error)
 	Create(ctx context.Context, a *domain.Aircraft) error
+	UpdateAirworthiness(ctx context.Context, id string, totalHours, lastInspectionHours *float64, inspectionIntervalHours *int) error
 }
 
 // InstructorScheduleRepository defines instructor schedule (duty) persistence.
@@ -50,6 +51,22 @@ type AircraftAvailabilityRepository interface {
 	// ListByDate returns all availability records for a given date.
 	ListByDate(ctx context.Context, date time.Time) ([]*domain.AircraftAvailability, error)
 	Create(ctx context.Context, a *domain.AircraftAvailability) error
+	DeleteByMaintenanceWindowID(ctx context.Context, maintenanceWindowID string) error
+}
+
+// AircraftMaintenanceRepository 维护时间窗持久化
+type AircraftMaintenanceRepository interface {
+	Create(ctx context.Context, w *domain.MaintenanceWindow) error
+	GetByID(ctx context.Context, id string) (*domain.MaintenanceWindow, error)
+	Update(ctx context.Context, w *domain.MaintenanceWindow) error
+	ListByAircraft(ctx context.Context, aircraftID string, from, to *time.Time, status *domain.MaintenanceWindowStatus) ([]*domain.MaintenanceWindow, error)
+}
+
+// MaintenanceWindowSyncer 维护窗口事务（创建/更新/取消并同步排班）
+type MaintenanceWindowSyncer interface {
+	CreateMaintenanceWindowWithSync(ctx context.Context, aircraftID, kind string, startAt, endAt time.Time, hangar, notes string, syncSchedule bool, reviewerID string) (*domain.MaintenanceWindowSyncResult, error)
+	UpdateMaintenanceWindowWithSync(ctx context.Context, windowID, aircraftID, kind string, startAt, endAt time.Time, hangar, notes string, syncSchedule bool, reviewerID string) (*domain.MaintenanceWindowSyncResult, error)
+	CancelMaintenanceWindow(ctx context.Context, windowID string) error
 }
 
 // BookingRepository defines booking persistence.
@@ -61,12 +78,15 @@ type BookingRepository interface {
 	UpdateStatus(ctx context.Context, id string, status domain.BookingStatus, rejectReason string, reviewerID string) error
 	// ListByDate returns all bookings on a specific plan date.
 	ListByDate(ctx context.Context, date time.Time) ([]*domain.Booking, error)
+	// ListByAircraftAndDateRange 某飞机在日期区间内的预约（用于维护冲突处理）
+	ListByAircraftAndDateRange(ctx context.Context, aircraftID string, from, to time.Time) ([]*domain.Booking, error)
 }
 
 // TrainingPlanRepository defines training plan persistence.
 type TrainingPlanRepository interface {
 	Create(ctx context.Context, p *domain.TrainingPlan) error
 	ListByDate(ctx context.Context, from, to string) ([]*domain.TrainingPlan, error)
+	DeleteMatchingBookingFields(ctx context.Context, studentID, instructorID, aircraftID string, planDate time.Time, startTime, endTime time.Time) (deletedID *string, err error)
 }
 
 // TrainingRecordRepository defines training record persistence.

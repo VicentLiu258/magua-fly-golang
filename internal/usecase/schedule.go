@@ -12,9 +12,10 @@ import (
 // ScheduleUseCase aggregates instructor schedules, bookings and (optionally) aircraft availability
 // into per-slot grids for the Schedule page.
 type ScheduleUseCase struct {
-	instructorRepo    repository.InstructorRepository
-	instrScheduleRepo repository.InstructorScheduleRepository
-	bookingRepo       repository.BookingRepository
+	instructorRepo       repository.InstructorRepository
+	instrScheduleRepo    repository.InstructorScheduleRepository
+	bookingRepo          repository.BookingRepository
+	aircraftAvailRepo    repository.AircraftAvailabilityRepository
 }
 
 // NewScheduleUseCase creates a ScheduleUseCase.
@@ -22,11 +23,13 @@ func NewScheduleUseCase(
 	instructorRepo repository.InstructorRepository,
 	instrScheduleRepo repository.InstructorScheduleRepository,
 	bookingRepo repository.BookingRepository,
+	aircraftAvailRepo repository.AircraftAvailabilityRepository,
 ) *ScheduleUseCase {
 	return &ScheduleUseCase{
 		instructorRepo:    instructorRepo,
 		instrScheduleRepo: instrScheduleRepo,
 		bookingRepo:       bookingRepo,
+		aircraftAvailRepo: aircraftAvailRepo,
 	}
 }
 
@@ -93,6 +96,14 @@ func (u *ScheduleUseCase) GetInstructorGrid(ctx context.Context, date time.Time)
 	bookings, err := u.bookingRepo.ListByDate(ctx, dayDate)
 	if err != nil {
 		return nil, err
+	}
+
+	var aircraftMaint []*domain.AircraftAvailability
+	if u.aircraftAvailRepo != nil {
+		aircraftMaint, err = u.aircraftAvailRepo.ListByDate(ctx, dayDate)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Index schedules and bookings by instructor.
@@ -181,7 +192,13 @@ func (u *ScheduleUseCase) GetInstructorGrid(ctx context.Context, date time.Time)
 					id := b.ID
 					aircraftID := b.AircraftID
 					studentID := b.StudentID
-					timeline[i].Status = domain.SlotBooked
+					slotStart := slotStarts[i]
+					slotEnd := slotStart + time.Duration(cfg.slotMinutes)*time.Minute
+					st := domain.SlotBooked
+					if slotOverlapsAircraftMaintenance(b.AircraftID, aircraftMaint, slotStart, slotEnd) {
+						st = domain.SlotAircraftUnavailable
+					}
+					timeline[i].Status = st
 					timeline[i].BookingID = &id
 					timeline[i].AircraftID = &aircraftID
 					timeline[i].StudentID = &studentID
@@ -198,5 +215,19 @@ func (u *ScheduleUseCase) GetInstructorGrid(ctx context.Context, date time.Time)
 	}
 
 	return result, nil
+}
+
+func slotOverlapsAircraftMaintenance(aircraftID string, maintList []*domain.AircraftAvailability, slotStart, slotEnd time.Duration) bool {
+	for _, m := range maintList {
+		if m.AircraftID != aircraftID || m.Status != domain.AvailMaintenance {
+			continue
+		}
+		ms := time.Duration(m.StartTime.Hour())*time.Hour + time.Duration(m.StartTime.Minute())*time.Minute + time.Duration(m.StartTime.Second())*time.Second
+		me := time.Duration(m.EndTime.Hour())*time.Hour + time.Duration(m.EndTime.Minute())*time.Minute + time.Duration(m.EndTime.Second())*time.Second
+		if slotStart < me && ms < slotEnd {
+			return true
+		}
+	}
+	return false
 }
 

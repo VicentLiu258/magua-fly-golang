@@ -78,6 +78,18 @@ echo "All 5 migrations completed."
 
 ---
 
+## 011：飞机机时与维护窗口（UUID 库）
+
+若使用 `008_uuid_schema.up.sql` 建库，应用启动时 `golang-migrate` 会执行 `011_aircraft_maintenance.up.sql`。也可手动执行：
+
+```bash
+docker exec -i docker-postgres-1 psql -U postgres -d maguafly < ./migrations/011_aircraft_maintenance.up.sql
+```
+
+为 `aircraft` 增加机时/定检字段，新增 `aircraft_maintenance_windows`，并为 `aircraft_availability` 增加 `maintenance_window_id`。
+
+---
+
 ## 常见问题
 
 - **001 报错 `relation "users_username_unique" already exists` 或 unique 冲突**  
