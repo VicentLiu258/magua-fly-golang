@@ -63,12 +63,27 @@
     - `SubjectContentRepository`
     - 以及对应 Mongo repo。
 
+- **集合五：科目题库 `subject_question_sets`**
+  - 对应常量：`CollSubjectQuestionSets`。
+  - 文档结构（`SubjectQuestionSetDoc`）：与 `theory_question_sets` 同构，将 `document_id` 换为 `subject_learning_id`（PG `subject_learning.id`），`questions[]` 每题字段与理论一致。
+  - 实现：`internal/mongodb/subject_question_repo.go`，接口 `internal/repository.SubjectQuestionSetRepository`。
+
+- **集合六：科目作答明细 `subject_attempt_details`**
+  - 对应常量：`CollSubjectAttemptDetails`。
+  - 文档结构（`SubjectAttemptDetailDoc`）：
+    - `subject_attempt_id`：PostgreSQL `subject_attempts.id`（UUID）。
+    - `answers[]`：与 `theory_attempt_details` 中每条结构相同。
+    - `auto_graded`、`created_at`。
+  - 实现：`internal/mongodb/subject_attempt_detail_repo.go`，接口 `internal/repository.SubjectAttemptDetailRepository`。
+
 - **索引与性能建议**：
   - 为高频查询字段建立索引（建议在 Mongo shell 或迁移脚本中维护）：
     - `theory_content`：`{ document_id: 1 }`。
     - `theory_question_sets`：`{ document_id: 1 }`。
     - `theory_attempt_details`：`{ theory_attempt_id: 1 }`。
     - `subject_content`：`{ subject_learning_id: 1 }`（预留）。
+    - `subject_question_sets`：`{ subject_learning_id: 1 }`（唯一）。
+    - `subject_attempt_details`：`{ subject_attempt_id: 1 }`。
   - 多租户或多基地扩展时，可在文档内增加 `tenant_id / org_id` 字段，并相应扩展复合索引。
 
 - **与 PostgreSQL 的关系映射**：
@@ -77,4 +92,5 @@
   - `theory_documents.content_ref`：可保存 `document_id` 或 Mongo `_id` 的字符串形式，用于定位 `theory_content` 文档。
   - `theory_attempts.id` ↔ `theory_attempt_details.theory_attempt_id`：一对一映射，PG 负责统计字段，Mongo 负责详细作答记录。
   - `subject_learning.content_ref` ↔ `subject_content.subject_learning_id`：预留同构关系，用于科目学习内容。
+  - `subject_attempts.id` ↔ `subject_attempt_details.subject_attempt_id`：科目考试与理论相同模式；`subject_learning.id` ↔ `subject_question_sets.subject_learning_id`。
 

@@ -52,8 +52,25 @@ type SubjectLearning struct {
 	Title              string    `json:"title"`
 	ContentRef         string    `json:"content_ref,omitempty"`
 	VideoURL           string    `json:"video_url,omitempty"`
+	SortOrder          int       `json:"sort_order,omitempty"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+// SubjectAttempt is a user's quiz attempt for a subject learning unit (details in MongoDB).
+type SubjectAttempt struct {
+	ID                string    `json:"id"`
+	UserID            string    `json:"user_id"`
+	SubjectLearningID string    `json:"subject_learning_id"`
+	AnswersJSON       string    `json:"-"`
+	Score             int       `json:"score"`
+	SubmittedAt       time.Time `json:"submitted_at"`
+
+	DurationSeconds int  `json:"duration_seconds,omitempty"`
+	MaxScore        int  `json:"max_score,omitempty"`
+	CorrectCount    int  `json:"correct_count,omitempty"`
+	TotalCount      int  `json:"total_count,omitempty"`
+	Passed          bool `json:"passed,omitempty"`
 }
 
 // TheoryPaper represents an exam paper under a theory document.

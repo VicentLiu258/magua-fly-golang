@@ -19,6 +19,7 @@ func Router(
 	schedule *ScheduleHandler,
 	training *TrainingHandler,
 	theory *TheoryHandler,
+	subjectExam *SubjectExamHandler,
 	task *TaskHandler,
 	contractFiles *ContractFilesHandler,
 	jwtManager *jwt.Manager,
@@ -112,6 +113,15 @@ func Router(
 			authGroup.POST("/api/v1/theory/papers/list", theory.ListPapers)
 			authGroup.POST("/api/v1/theory/papers/save", theory.SavePaper)
 			authGroup.POST("/api/v1/theory/papers/delete", theory.DeletePaper)
+
+			// 训练科目学习与考试（Mongo 题库 + PG 摘要，与理论同构）
+			authGroup.POST("/api/v1/subject-learning/questions/start", subjectExam.StartQuestions)
+			authGroup.POST("/api/v1/subject-learning/questions/submit", subjectExam.SubmitAnswers)
+			authGroup.POST("/api/v1/subject-learning/attempts/my-list", subjectExam.ListMyAttempts)
+			authGroup.POST("/api/v1/subject-learning/questions/admin/list", subjectExam.AdminListQuestions)
+			authGroup.POST("/api/v1/subject-learning/questions/admin/create", subjectExam.AdminCreateQuestion)
+			authGroup.POST("/api/v1/subject-learning/questions/admin/update", subjectExam.AdminUpdateQuestion)
+			authGroup.POST("/api/v1/subject-learning/questions/admin/delete", subjectExam.AdminDeleteQuestion)
 
 		// 学员任务模块
 		authGroup.POST("/api/v1/tasks/my-list", task.MyList)

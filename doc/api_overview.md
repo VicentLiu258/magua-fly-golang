@@ -1536,6 +1536,62 @@ POST /api/v1/students/list?limit=20&offset=0
 }
 ```
 
+#### 8.6 训练科目：开始答题 `POST /api/v1/subject-learning/questions/start`
+
+- **说明**：与理论 `POST /api/v1/theory/questions/start` 同构，针对 PostgreSQL `subject_learning` / Mongo `subject_question_sets`。当前版本**不按试卷抽题**，始终返回该科目下全部题目。
+- **前置**：`subject_learning.id` 需已存在；题库写入 Mongo `subject_question_sets`（`subject_learning_id` 为键）。
+
+**请求体**：
+
+```json
+{
+  "subject_learning_id": "550e8400-e29b-41d4-a716-446655440301"
+}
+```
+
+**成功响应**：与理论 8.3 相同结构（`attempt_id`、`time_limit_seconds`、`questions[]`）。
+
+#### 8.7 训练科目：交卷 `POST /api/v1/subject-learning/questions/submit`
+
+**请求体**：
+
+```json
+{
+  "subject_learning_id": "550e8400-e29b-41d4-a716-446655440301",
+  "attempt_id": "550e8400-e29b-41d4-a716-446655441101",
+  "answers": [
+    {
+      "question_id": "q1",
+      "selected_option_ids": ["B"]
+    }
+  ]
+}
+```
+
+**成功响应**：与理论 8.4 相同（`score`、`max_score`、`correct_count`、`total_count`、`passed`）。
+
+#### 8.8 训练科目：历史成绩 `POST /api/v1/subject-learning/attempts/my-list`
+
+**请求体**：
+
+```json
+{
+  "subject_learning_id": "550e8400-e29b-41d4-a716-446655440301",
+  "page": 1,
+  "page_size": 20
+}
+```
+
+**成功响应**：`data.items[]` 为 `SubjectAttempt` 摘要（`subject_learning_id`、`score`、`submitted_at`、`max_score`、`correct_count`、`total_count`、`passed` 等）。
+
+#### 8.9 训练科目：题库管理（后台）
+
+与理论 10.1–10.4 同构，路径与字段替换如下：
+
+- `POST /api/v1/subject-learning/questions/admin/list`：请求体使用 `subject_learning_id`（可选 `page` / `page_size`）。
+- `POST /api/v1/subject-learning/questions/admin/create|update`：使用 `subject_learning_id` + `question`（结构与理论 `question` 相同）。
+- `POST /api/v1/subject-learning/questions/admin/delete`：`subject_learning_id` + `question_id`。
+
 ---
 
 ### 8.x 理论文档管理 API

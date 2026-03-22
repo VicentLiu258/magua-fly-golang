@@ -204,6 +204,19 @@ type TheoryPaperQuestionRepository interface {
 	ListByPaperID(ctx context.Context, paperID string) ([]*domain.TheoryPaperQuestion, error)
 }
 
+// SubjectLearningRepository defines subject learning (per syllabus subject) persistence.
+type SubjectLearningRepository interface {
+	GetByID(ctx context.Context, id string) (*domain.SubjectLearning, error)
+	List(ctx context.Context) ([]*domain.SubjectLearning, error)
+}
+
+// SubjectAttemptRepository defines subject exam attempt persistence (summary in PostgreSQL).
+type SubjectAttemptRepository interface {
+	Create(ctx context.Context, a *domain.SubjectAttempt) error
+	UpdateOnSubmit(ctx context.Context, a *domain.SubjectAttempt) error
+	ListByUserAndSubjectLearning(ctx context.Context, userID, subjectLearningID string, limit, offset int) ([]*domain.SubjectAttempt, error)
+}
+
 // ContractRepository defines student contract persistence.
 type ContractRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Contract, error)

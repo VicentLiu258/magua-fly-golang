@@ -97,6 +97,14 @@ func main() {
 	)
 	theoryHandler := handler.NewTheoryHandler(theoryUC)
 
+	subjectExamUC := usecase.NewSubjectExamUseCase(
+		pgDB.SubjectLearning(),
+		pgDB.SubjectAttempt(),
+		mongoClient.SubjectQuestionSet(),
+		mongoClient.SubjectAttemptDetail(),
+	)
+	subjectExamHandler := handler.NewSubjectExamHandler(subjectExamUC)
+
 	taskUC := usecase.NewTaskUseCase(pgDB.Task(), pgDB.Student())
 	taskHandler := handler.NewTaskHandler(taskUC)
 
@@ -127,6 +135,7 @@ func main() {
 		scheduleHandler,
 		trainingHandler,
 		theoryHandler,
+		subjectExamHandler,
 		taskHandler,
 		contractFilesHandler,
 		jwtManager,

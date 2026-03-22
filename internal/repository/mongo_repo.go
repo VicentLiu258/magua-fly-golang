@@ -1,6 +1,10 @@
 package repository
 
-import "context"
+import (
+	"context"
+
+	"magua-fly-golang/internal/exam"
+)
 
 // TheoryContentBlock is one rich-content block for a theory document.
 // It is designed to be flexible enough for text, images and embedded videos.
@@ -26,29 +30,17 @@ type TheoryContentRepository interface {
 	Upsert(ctx context.Context, doc *TheoryContentDoc) error
 }
 
-// TheoryQuestionOption represents a single option in a theory question.
-type TheoryQuestionOption struct {
-	ID   string `bson:"id" json:"id"`
-	Text string `bson:"text" json:"text"`
-}
+// TheoryQuestionOption is an alias for shared exam option types.
+type TheoryQuestionOption = exam.ExamQuestionOption
 
-// TheoryQuestionItem is a single question within a theory question set.
-type TheoryQuestionItem struct {
-	ID               string               `bson:"id" json:"id"`
-	Type             string               `bson:"type" json:"type"` // single | multi
-	Stem             string               `bson:"stem" json:"stem"`
-	Options          []TheoryQuestionOption `bson:"options" json:"options"`
-	CorrectOptionIDs []string             `bson:"correct_option_ids" json:"-"`          // not sent to client
-	Explanation      string               `bson:"explanation,omitempty" json:"-"`       // not sent to client
-	Tags             []string             `bson:"tags,omitempty" json:"tags,omitempty"` // for filtering / stats
-	Score            int                  `bson:"score" json:"score"`
-}
+// TheoryQuestionItem is an alias for shared exam question types.
+type TheoryQuestionItem = exam.ExamQuestionItem
 
 // TheoryQuestionSetDoc stores all questions for one theory document.
 type TheoryQuestionSetDoc struct {
-	DocumentID string              `bson:"document_id" json:"document_id"`
-	Questions  []TheoryQuestionItem `bson:"questions" json:"questions"`
-	UpdatedAt  int64               `bson:"updated_at" json:"updated_at"`
+	DocumentID string               `bson:"document_id" json:"document_id"`
+	Questions  []exam.ExamQuestionItem `bson:"questions" json:"questions"`
+	UpdatedAt  int64                `bson:"updated_at" json:"updated_at"`
 }
 
 // TheoryQuestionSetRepository defines access to theory question sets.
@@ -57,20 +49,42 @@ type TheoryQuestionSetRepository interface {
 	Upsert(ctx context.Context, doc *TheoryQuestionSetDoc) error
 }
 
-// TheoryAnswerRecord is the per-question answer result in an attempt.
-type TheoryAnswerRecord struct {
-	QuestionID        string   `bson:"question_id" json:"question_id"`
-	SelectedOptionIDs []string `bson:"selected_option_ids" json:"selected_option_ids"`
-	IsCorrect         bool     `bson:"is_correct" json:"is_correct"`
-	Score             int      `bson:"score" json:"score"`
-}
+// TheoryAnswerRecord is an alias for per-question graded rows.
+type TheoryAnswerRecord = exam.ExamAnswerRecord
 
 // TheoryAttemptDetailDoc stores detailed answers for one theory attempt.
 type TheoryAttemptDetailDoc struct {
-	TheoryAttemptID string              `bson:"theory_attempt_id" json:"theory_attempt_id"`
-	Answers         []TheoryAnswerRecord `bson:"answers" json:"answers"`
-	AutoGraded      bool                `bson:"auto_graded" json:"auto_graded"`
-	CreatedAt       int64               `bson:"created_at" json:"created_at"`
+	TheoryAttemptID string                 `bson:"theory_attempt_id" json:"theory_attempt_id"`
+	Answers         []exam.ExamAnswerRecord `bson:"answers" json:"answers"`
+	AutoGraded      bool                   `bson:"auto_graded" json:"auto_graded"`
+	CreatedAt       int64                  `bson:"created_at" json:"created_at"`
+}
+
+// SubjectQuestionSetDoc stores all questions for one subject_learning unit (same shape as theory).
+type SubjectQuestionSetDoc struct {
+	SubjectLearningID string                 `bson:"subject_learning_id" json:"subject_learning_id"`
+	Questions         []exam.ExamQuestionItem `bson:"questions" json:"questions"`
+	UpdatedAt         int64                  `bson:"updated_at" json:"updated_at"`
+}
+
+// SubjectQuestionSetRepository defines access to subject question sets in MongoDB.
+type SubjectQuestionSetRepository interface {
+	GetBySubjectLearningID(ctx context.Context, subjectLearningID string) (*SubjectQuestionSetDoc, error)
+	Upsert(ctx context.Context, doc *SubjectQuestionSetDoc) error
+}
+
+// SubjectAttemptDetailDoc stores detailed answers for one subject attempt.
+type SubjectAttemptDetailDoc struct {
+	SubjectAttemptID string                 `bson:"subject_attempt_id" json:"subject_attempt_id"`
+	Answers          []exam.ExamAnswerRecord `bson:"answers" json:"answers"`
+	AutoGraded       bool                    `bson:"auto_graded" json:"auto_graded"`
+	CreatedAt        int64                   `bson:"created_at" json:"created_at"`
+}
+
+// SubjectAttemptDetailRepository defines access to subject attempt detail docs.
+type SubjectAttemptDetailRepository interface {
+	GetByAttemptID(ctx context.Context, attemptID string) (*SubjectAttemptDetailDoc, error)
+	Upsert(ctx context.Context, doc *SubjectAttemptDetailDoc) error
 }
 
 // TheoryAttemptDetailRepository defines access to detailed attempt docs.

@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"magua-fly-golang/internal/domain"
+	"magua-fly-golang/internal/exam"
 	"magua-fly-golang/internal/repository"
 )
 
@@ -207,47 +207,29 @@ func (uc *TheoryUseCase) SubmitAnswers(ctx context.Context, userID, documentID s
 		return nil, err
 	}
 
-	// Build index from questionID -> question.
-	qIndex := make(map[string]repository.TheoryQuestionItem, len(qs.Questions))
+	qIndex := make(map[string]exam.ExamQuestionItem, len(qs.Questions))
 	for _, q := range qs.Questions {
 		qIndex[q.ID] = q
 	}
+	inputs := make([]exam.AnswerInput, 0, len(req.Answers))
+	for _, a := range req.Answers {
+		inputs = append(inputs, exam.AnswerInput{
+			QuestionID:        a.QuestionID,
+			SelectedOptionIDs: a.SelectedOptionIDs,
+		})
+	}
+	graded := exam.GradeMCQ(qIndex, inputs)
 
-	// Grade answers.
-	totalCount := len(req.Answers)
-	var correctCount, score, maxScore int
 	detail := &repository.TheoryAttemptDetailDoc{
 		TheoryAttemptID: req.AttemptID,
+		Answers:         graded.Answers,
 		AutoGraded:      true,
 		CreatedAt:       time.Now().Unix(),
 	}
-	for _, a := range req.Answers {
-		q, ok := qIndex[a.QuestionID]
-		if !ok {
-			continue
-		}
-		maxScore += q.Score
-
-		rec := repository.TheoryAnswerRecord{
-			QuestionID:        a.QuestionID,
-			SelectedOptionIDs: a.SelectedOptionIDs,
-		}
-
-		// Compare sets for correctness.
-		if isSameStringSet(a.SelectedOptionIDs, q.CorrectOptionIDs) {
-			rec.IsCorrect = true
-			rec.Score = q.Score
-			correctCount++
-			score += q.Score
-		}
-		detail.Answers = append(detail.Answers, rec)
-	}
-
 	if err := uc.attemptDetail.Upsert(ctx, detail); err != nil {
 		return nil, err
 	}
 
-	// Persist summary back to PostgreSQL.
 	now := time.Now()
 	answersJSONBytes, err := json.Marshal(req.Answers)
 	if err != nil {
@@ -258,23 +240,23 @@ func (uc *TheoryUseCase) SubmitAnswers(ctx context.Context, userID, documentID s
 		UserID:           userID,
 		TheoryDocumentID: documentID,
 		AnswersJSON:      string(answersJSONBytes),
-		Score:            score,
+		Score:            graded.Score,
 		SubmittedAt:      now,
 		DurationSeconds:  0,
-		MaxScore:         maxScore,
-		CorrectCount:     correctCount,
-		TotalCount:       totalCount,
-		Passed:           score*100 >= maxScore*60, // 60% as default passing line
+		MaxScore:         graded.MaxScore,
+		CorrectCount:     graded.CorrectCount,
+		TotalCount:       graded.TotalCount,
+		Passed:           graded.Score*100 >= graded.MaxScore*60, // 60% as default passing line
 	}
 	if err := uc.attemptRepo.UpdateOnSubmit(ctx, attempt); err != nil {
 		return nil, err
 	}
 
 	return &SubmitAnswersResponse{
-		Score:        score,
-		MaxScore:     maxScore,
-		CorrectCount: correctCount,
-		TotalCount:   totalCount,
+		Score:        graded.Score,
+		MaxScore:     graded.MaxScore,
+		CorrectCount: graded.CorrectCount,
+		TotalCount:   graded.TotalCount,
 		Passed:       attempt.Passed,
 	}, nil
 }
@@ -303,34 +285,8 @@ func (uc *TheoryUseCase) ListMyAttempts(ctx context.Context, userID, documentID 
 	}, nil
 }
 
-// isSameStringSet compares two string slices as sets (order-insensitive, no duplicates).
-func isSameStringSet(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	m := make(map[string]int, len(a))
-	for _, v := range a {
-		m[v]++
-	}
-	for _, v := range b {
-		if m[v] == 0 {
-			return false
-		}
-		m[v]--
-		if m[v] == 0 {
-			delete(m, v)
-		}
-	}
-	return len(m) == 0
-}
-
 // ErrQuestionNotFound is returned when updating a non-existing question.
 var ErrQuestionNotFound = errors.New("question not found")
-
-// generateQuestionID returns a simple unique ID for new questions.
-func generateQuestionID() string {
-	return fmt.Sprintf("q_%d", time.Now().UnixNano())
-}
 
 // ----- Admin question management -----
 
@@ -374,7 +330,7 @@ func (uc *TheoryUseCase) AdminCreateQuestion(ctx context.Context, documentID str
 		}
 	}
 	if q.ID == "" {
-		q.ID = generateQuestionID()
+		q.ID = exam.GenerateQuestionID()
 	}
 	set.Questions = append(set.Questions, q)
 	return uc.questionRepo.Upsert(ctx, set)
