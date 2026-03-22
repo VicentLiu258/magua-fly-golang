@@ -13,6 +13,8 @@ type UserRepository interface {
 	GetByUsername(ctx context.Context, username string) (*domain.User, error)
 	GetByPhone(ctx context.Context, phone string) (*domain.User, error)
 	Create(ctx context.Context, u *domain.User) error
+	// ListByRoles returns users with any of the given roles, ordered by role then username.
+	ListByRoles(ctx context.Context, roles []domain.UserRole) ([]*domain.User, error)
 }
 
 // StudentRepository defines student persistence.
@@ -28,6 +30,7 @@ type StudentRepository interface {
 // InstructorRepository defines instructor persistence.
 type InstructorRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Instructor, error)
+	GetByUserID(ctx context.Context, userID string) (*domain.Instructor, error)
 	List(ctx context.Context) ([]*domain.Instructor, error)
 	Create(ctx context.Context, i *domain.Instructor) error
 }
@@ -48,6 +51,14 @@ type InstructorScheduleRepository interface {
 	ListByDateRange(ctx context.Context, from, to time.Time, instructorIDs []string) ([]*domain.InstructorSchedule, error)
 	GetByInstructorAndDate(ctx context.Context, instructorID string, date time.Time) (*domain.InstructorSchedule, error)
 	UpsertDay(ctx context.Context, s *domain.InstructorSchedule) error
+}
+
+// StaffScheduleRepository defines staff (non-flying) duty persistence by users.id.
+type StaffScheduleRepository interface {
+	ListByDate(ctx context.Context, date time.Time) ([]*domain.StaffSchedule, error)
+	ListByDateRange(ctx context.Context, from, to time.Time, userIDs []string) ([]*domain.StaffSchedule, error)
+	GetByUserAndDate(ctx context.Context, userID string, date time.Time) (*domain.StaffSchedule, error)
+	UpsertDay(ctx context.Context, s *domain.StaffSchedule) error
 }
 
 // AircraftAvailabilityRepository defines aircraft availability persistence.

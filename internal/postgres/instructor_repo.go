@@ -2,6 +2,9 @@ package postgres
 
 import (
 	"context"
+	"errors"
+
+	"github.com/jackc/pgx/v5"
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/repository"
@@ -19,6 +22,22 @@ func (r *InstructorRepo) GetByID(ctx context.Context, id string) (*domain.Instru
 		&i.ID, &i.UserID, &i.Name, &i.DisplayColor, &i.CreatedAt, &i.UpdatedAt,
 	)
 	if err != nil {
+		return nil, err
+	}
+	return &i, nil
+}
+
+func (r *InstructorRepo) GetByUserID(ctx context.Context, userID string) (*domain.Instructor, error) {
+	var i domain.Instructor
+	err := r.db.Pool.QueryRow(ctx, `
+		SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at
+		FROM instructors WHERE user_id = $1::uuid`, userID).Scan(
+		&i.ID, &i.UserID, &i.Name, &i.DisplayColor, &i.CreatedAt, &i.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &i, nil

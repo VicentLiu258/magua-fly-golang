@@ -608,6 +608,43 @@ POST /api/v1/students/list?limit=20&offset=0
 
 **响应**：`data.upserted` 为实际写入的天数。
 
+### 5.6 工作人员考勤网格与 staff 排班
+
+面向地勤、行政等 **staff** 账号的考勤排班；**教员**行仍读取 `instructor_schedules`（与 §5.4 规则一致），**不可预约**、无 `bookings` 覆盖层。
+
+#### 5.6.1 全员考勤网格 `POST /api/v1/schedules/workforce-grid`
+
+返回 **role 为 `staff` 与 `instructor` 的用户**（不含 `admin`、`student`），格点定义与教员网格相同（`dayStart`/`dayEnd`/`slots`/`slotMinutes`）。
+
+**请求体**：
+
+```json
+{ "date": "2026-03-15" }
+```
+
+**响应 `data`**：
+
+- `workers[]`：每人一行。
+  - `userId`、`role`（`staff` | `instructor`）、`username`、`name`（教员取 `instructors.name`，staff 取 `username`）、`instructorId`（仅教员有）、`displayColor`（教员可选）、`timeline[]`。
+  - `timeline[].status` 仅为 `off` 或 `available`（考勤在岗），**无** `booked` / `aircraft_unavailable`。
+- 教员行的执勤窗口来自 **`instructor_schedules`**；纯 staff 行来自 **`staff_schedules`**（按 `users.id`）。
+
+#### 5.6.2 staff 排班列表 `POST /api/v1/schedules/staff-duties/list`
+
+仅列出 **`staff_schedules`** 中记录（`user_id` 对应 `role=staff` 的用户）。
+
+**请求体**：`from_date`、`to_date`、`user_ids`（可选，空表示不限）。
+
+**响应**：`data.items[]` 含 `user_id`、`username`、`name`、`duty_status`、`resolved_windows` 等（无带飞任务字段）。
+
+#### 5.6.3 staff 单日 upsert `POST /api/v1/schedules/staff-duties/upsert`
+
+**请求体**：`user_id`（须为 **staff** 角色）、`date`、`duty_status`、`remark`、`duty_windows`（可选，语义同教员）。
+
+#### 5.6.4 staff 批量 `POST /api/v1/schedules/staff-duties/bulk`
+
+**请求体**：`user_id`（staff）、`from_date`、`to_date`、`weekdays`、`duty_status`、`remark`、`replace_existing`（与教员 bulk 一致）。
+
 ---
 
 ## 6. 统一错误示例

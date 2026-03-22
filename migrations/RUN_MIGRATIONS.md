@@ -114,6 +114,12 @@ docker exec -i docker-postgres-1 psql -U postgres -d maguafly < ./migrations/011
 
 ---
 
+## 015：工作人员 staff 排班表
+
+执行 `015_staff_schedules.up.sql`：新增 `staff_schedules`（`user_id` → `users`，`duty_status` 与教员共用枚举），每用户每自然日一行，用于地勤/行政等 **staff** 考勤；与 `instructor_schedules` 并行，互不为约课依据。
+
+---
+
 ## 常见问题
 
 - **001 报错 `relation "users_username_unique" already exists` 或 unique 冲突**  

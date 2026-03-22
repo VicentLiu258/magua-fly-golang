@@ -209,3 +209,51 @@ type InstructorGridResponse struct {
 	Instructors []InstructorTimeline `json:"instructors"`
 }
 
+// StaffSchedule 工作人员日排班（users.id，角色为 staff），字段语义与 InstructorSchedule 一致，不可预约。
+type StaffSchedule struct {
+	ID              string               `json:"id"`
+	UserID          string               `json:"user_id"`
+	Date            time.Time            `json:"date"`
+	DutyStatus      InstructorDutyStatus `json:"duty_status"`
+	Remark          string               `json:"remark,omitempty"`
+	DutyWindowsJSON []byte               `json:"duty_windows,omitempty"`
+	CreatedAt       time.Time            `json:"created_at"`
+	UpdatedAt       time.Time            `json:"updated_at"`
+}
+
+// WorkforceMemberRow 工作人员网格一行（含教员 + 纯 staff，不含 admin/student）。
+type WorkforceMemberRow struct {
+	UserID       string    `json:"userId"`
+	Role         UserRole  `json:"role"`
+	Username     string    `json:"username"`
+	Name         string    `json:"name"`
+	InstructorID *string   `json:"instructorId,omitempty"`
+	DisplayColor string    `json:"displayColor,omitempty"`
+	Timeline     []TimeSlot `json:"timeline"`
+}
+
+// WorkforceGridResponse is used by /schedules/workforce-grid（考勤网格，无预约覆盖）。
+type WorkforceGridResponse struct {
+	Date        string               `json:"date"`
+	SlotMinutes int                  `json:"slotMinutes"`
+	DayStart    string               `json:"dayStart"`
+	DayEnd      string               `json:"dayEnd"`
+	Slots       []string             `json:"slots"`
+	Workers     []WorkforceMemberRow `json:"workers"`
+}
+
+// StaffDutyListItem staff 排班列表一行（无带飞/地面任务聚合）。
+type StaffDutyListItem struct {
+	ScheduleID      string               `json:"schedule_id,omitempty"`
+	UserID          string               `json:"user_id"`
+	Username        string               `json:"username"`
+	Name            string               `json:"name"`
+	Date            string               `json:"date"`
+	DutyStatus      InstructorDutyStatus `json:"duty_status"`
+	Remark          string               `json:"remark,omitempty"`
+	DutyWindows     []DutyWindowJSON     `json:"duty_windows,omitempty"`
+	ResolvedWindows []ResolvedDutyWindow `json:"resolved_windows"`
+	CreatedAt       time.Time            `json:"created_at,omitempty"`
+	UpdatedAt       time.Time            `json:"updated_at,omitempty"`
+}
+

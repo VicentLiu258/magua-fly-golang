@@ -16,6 +16,8 @@ import (
 type ScheduleUseCase struct {
 	instructorRepo       repository.InstructorRepository
 	instrScheduleRepo    repository.InstructorScheduleRepository
+	staffScheduleRepo    repository.StaffScheduleRepository
+	userRepo             repository.UserRepository
 	bookingRepo          repository.BookingRepository
 	planRepo             repository.TrainingPlanRepository
 	aircraftAvailRepo    repository.AircraftAvailabilityRepository
@@ -25,6 +27,8 @@ type ScheduleUseCase struct {
 func NewScheduleUseCase(
 	instructorRepo repository.InstructorRepository,
 	instrScheduleRepo repository.InstructorScheduleRepository,
+	staffScheduleRepo repository.StaffScheduleRepository,
+	userRepo repository.UserRepository,
 	bookingRepo repository.BookingRepository,
 	planRepo repository.TrainingPlanRepository,
 	aircraftAvailRepo repository.AircraftAvailabilityRepository,
@@ -32,6 +36,8 @@ func NewScheduleUseCase(
 	return &ScheduleUseCase{
 		instructorRepo:    instructorRepo,
 		instrScheduleRepo: instrScheduleRepo,
+		staffScheduleRepo: staffScheduleRepo,
+		userRepo:          userRepo,
 		bookingRepo:       bookingRepo,
 		planRepo:          planRepo,
 		aircraftAvailRepo: aircraftAvailRepo,
@@ -63,33 +69,39 @@ func defaultScheduleConfig() scheduleConfig {
 	}
 }
 
-// GetInstructorGrid returns the instructor × time grid for a given date.
-func (u *ScheduleUseCase) GetInstructorGrid(ctx context.Context, date time.Time) (*domain.InstructorGridResponse, error) {
-	cfg := defaultScheduleConfig()
-
+// prepareSlotTimeline 与教员网格、工作人员网格共用格点定义。
+func prepareSlotTimeline(cfg scheduleConfig) (slotCount int, slots []string, slotStarts []time.Duration, err error) {
 	if cfg.slotMinutes <= 0 {
-		return nil, fmt.Errorf("invalid slotMinutes")
+		return 0, nil, nil, fmt.Errorf("invalid slotMinutes")
 	}
-
-	// Build slots.
 	totalMinutes := int((cfg.dayEnd - cfg.dayStart).Minutes())
 	if totalMinutes <= 0 {
-		return nil, fmt.Errorf("invalid day window")
+		return 0, nil, nil, fmt.Errorf("invalid day window")
 	}
-	slotCount := totalMinutes / cfg.slotMinutes
-	if slotCount <= 0 {
-		return nil, fmt.Errorf("no slots in config")
+	n := totalMinutes / cfg.slotMinutes
+	if n <= 0 {
+		return 0, nil, nil, fmt.Errorf("no slots in config")
 	}
-
-	slots := make([]string, 0, slotCount)
-	slotStarts := make([]time.Duration, 0, slotCount)
-	for i := 0; i < slotCount; i++ {
+	slots = make([]string, 0, n)
+	slotStarts = make([]time.Duration, 0, n)
+	for i := 0; i < n; i++ {
 		minutesFromStart := i * cfg.slotMinutes
 		t := cfg.dayStart + time.Duration(minutesFromStart)*time.Minute
 		h := int(t.Hours())
 		m := int(t.Minutes()) % 60
 		slots = append(slots, fmt.Sprintf("%02d:%02d", h, m))
 		slotStarts = append(slotStarts, t)
+	}
+	return n, slots, slotStarts, nil
+}
+
+// GetInstructorGrid returns the instructor × time grid for a given date.
+func (u *ScheduleUseCase) GetInstructorGrid(ctx context.Context, date time.Time) (*domain.InstructorGridResponse, error) {
+	cfg := defaultScheduleConfig()
+
+	slotCount, slots, slotStarts, err := prepareSlotTimeline(cfg)
+	if err != nil {
+		return nil, err
 	}
 
 	// Fetch instructors.

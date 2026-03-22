@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/repository"
@@ -66,4 +67,33 @@ func (r *UserRepo) GetByPhone(ctx context.Context, phone string) (*domain.User, 
 	}
 	u.Role = domain.UserRole(roleStr)
 	return &u, nil
+}
+
+func (r *UserRepo) ListByRoles(ctx context.Context, roles []domain.UserRole) ([]*domain.User, error) {
+	if len(roles) == 0 {
+		return nil, fmt.Errorf("roles required")
+	}
+	roleStrs := make([]string, len(roles))
+	for i, r := range roles {
+		roleStrs[i] = string(r)
+	}
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT id::text, username, password_hash, COALESCE(phone,''), COALESCE(email,''), role::text, COALESCE(avatar_url,''), created_at, updated_at
+		FROM users WHERE role::text = ANY($1::text[])
+		ORDER BY role, username`, roleStrs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []*domain.User
+	for rows.Next() {
+		var u domain.User
+		var roleStr string
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Phone, &u.Email, &roleStr, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		u.Role = domain.UserRole(roleStr)
+		list = append(list, &u)
+	}
+	return list, rows.Err()
 }

@@ -65,6 +65,17 @@ TIMESTAMPTZ updated_at
         TIMESTAMPTZ updated_at
     }
 
+    staff_schedules {
+        UUID id PK
+        UUID user_id FK
+        DATE date
+        instructor_duty_status duty_status
+        TEXT remark
+        JSONB duty_windows
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
     training_plans {
         UUID id PK
         UUID student_id FK
@@ -260,6 +271,7 @@ TIMESTAMPTZ updated_at
     aircraft ||--o{ training_records : "aircraft_id"
 
     instructors ||--o{ instructor_schedules : "instructor_id"
+    users ||--o{ staff_schedules : "user_id"
     instructors ||--o{ training_plans : "instructor_id"
     instructors ||--o{ bookings : "instructor_id"
     instructors ||--o{ training_records : "instructor_id"
