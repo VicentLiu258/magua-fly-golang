@@ -58,8 +58,9 @@ TIMESTAMPTZ updated_at
         UUID id PK
         UUID instructor_id FK
         DATE date
-        TIME start_time
-        TIME end_time
+        instructor_duty_status duty_status
+        TEXT remark
+        JSONB duty_windows
         TIMESTAMPTZ created_at
         TIMESTAMPTZ updated_at
     }

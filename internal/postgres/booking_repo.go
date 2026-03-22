@@ -125,6 +125,31 @@ func (r *BookingRepo) ListByAircraftAndDateRange(ctx context.Context, aircraftID
 	return list, rows.Err()
 }
 
+func (r *BookingRepo) ListByDateRange(ctx context.Context, from, to time.Time) ([]*domain.Booking, error) {
+	fromD := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, from.Location())
+	toD := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, to.Location())
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
+		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
+		FROM bookings
+		WHERE plan_date >= $1::date AND plan_date <= $2::date
+		ORDER BY plan_date, instructor_id, start_time`, fromD, toD)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []*domain.Booking
+	for rows.Next() {
+		var b domain.Booking
+		if err := rows.Scan(&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime,
+			&b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, &b)
+	}
+	return list, rows.Err()
+}
+
 func (r *BookingRepo) ListByDate(ctx context.Context, date time.Time) ([]*domain.Booking, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,

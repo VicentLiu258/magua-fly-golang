@@ -1,6 +1,39 @@
 package domain
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// InstructorDutyStatus 教员日出勤状态（与 instructor_schedules.duty_status 一致）。
+type InstructorDutyStatus string
+
+const (
+	InstructorDutyMorning   InstructorDutyStatus = "morning"
+	InstructorDutyAfternoon InstructorDutyStatus = "afternoon"
+	InstructorDutyFullDay   InstructorDutyStatus = "full_day"
+	InstructorDutyLeave     InstructorDutyStatus = "leave"
+	InstructorDutyRest      InstructorDutyStatus = "rest"
+	InstructorDutyCustom    InstructorDutyStatus = "custom"
+)
+
+// DutyWindowJSON 对应 duty_windows 数组元素：HH:MM。
+type DutyWindowJSON struct {
+	Start string `json:"start"`
+	End   string `json:"end"`
+}
+
+// ParseDutyWindowsJSON 解析 duty_windows JSON 数组。
+func ParseDutyWindowsJSON(raw []byte) ([]DutyWindowJSON, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	var w []DutyWindowJSON
+	if err := json.Unmarshal(raw, &w); err != nil {
+		return nil, err
+	}
+	return w, nil
+}
 
 // Aircraft represents an aircraft.
 type Aircraft struct {
@@ -37,15 +70,56 @@ type AircraftAvailability struct {
 	UpdatedAt           time.Time          `json:"updated_at"`
 }
 
-// InstructorSchedule is a duty slot for an instructor.
+// InstructorSchedule is one row per instructor per calendar day (duty).
 type InstructorSchedule struct {
-	ID           string    `json:"id"`
-	InstructorID string    `json:"instructor_id"`
-	Date         time.Time `json:"date"`
-	StartTime    time.Time `json:"start_time"`
-	EndTime      time.Time `json:"end_time"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              string               `json:"id"`
+	InstructorID    string               `json:"instructor_id"`
+	Date            time.Time            `json:"date"`
+	DutyStatus      InstructorDutyStatus `json:"duty_status"`
+	Remark          string               `json:"remark,omitempty"`
+	DutyWindowsJSON []byte               `json:"duty_windows,omitempty"` // null → 由 duty_status 推导
+	CreatedAt       time.Time            `json:"created_at"`
+	UpdatedAt       time.Time            `json:"updated_at"`
+}
+
+// DutyTaskBundle 列表接口中带飞/地面任务聚合结构。
+type DutyTaskBundle struct {
+	Items        []DutyTaskItem `json:"items"`
+	TotalMinutes int            `json:"total_minutes"`
+}
+
+// DutyTaskItem 单条任务（带飞或地面，字段一致便于前端复用）。
+type DutyTaskItem struct {
+	Source    string `json:"source"` // booking | training_plan | ground (预留)
+	RefID     string `json:"ref_id"`
+	StartTime string `json:"start_time"`
+	EndTime   string `json:"end_time"`
+	Minutes   int    `json:"minutes"`
+	StudentID string `json:"student_id,omitempty"`
+	AircraftID string `json:"aircraft_id,omitempty"`
+	Title     string `json:"title,omitempty"`
+}
+
+// ResolvedDutyWindow 响应中解析后的执勤窗口（分钟数从 00:00 起算，用于展示）。
+type ResolvedDutyWindow struct {
+	Start string `json:"start"` // HH:MM
+	End   string `json:"end"`   // HH:MM
+}
+
+// InstructorDutyListItem 教员排班列表一行。
+type InstructorDutyListItem struct {
+	InstructorID     string               `json:"instructor_id"`
+	InstructorName   string               `json:"instructor_name"`
+	Date             string               `json:"date"` // YYYY-MM-DD
+	DutyStatus       InstructorDutyStatus `json:"duty_status"`
+	Remark           string               `json:"remark,omitempty"`
+	DutyWindows      []DutyWindowJSON     `json:"duty_windows,omitempty"`   // 库内原始或空
+	ResolvedWindows  []ResolvedDutyWindow `json:"resolved_windows"`         // 推导/合并后
+	FlightTasks      DutyTaskBundle       `json:"flight_tasks"`
+	GroundCourses    DutyTaskBundle       `json:"ground_courses"`
+	ScheduleID       string               `json:"schedule_id,omitempty"`
+	CreatedAt        time.Time            `json:"created_at,omitempty"`
+	UpdatedAt        time.Time            `json:"updated_at,omitempty"`
 }
 
 // PlanSource indicates how a training plan was created.

@@ -54,6 +54,9 @@ func Router(
 		authGroup.POST("/api/v1/bookings/pending", booking.ListPending)
 		authGroup.POST("/api/v1/bookings/review", booking.Review)
 		authGroup.POST("/api/v1/schedules/instructor-grid", schedule.InstructorGrid)
+		authGroup.POST("/api/v1/schedules/instructor-duties/list", schedule.InstructorDutiesList)
+		authGroup.POST("/api/v1/schedules/instructor-duties/upsert", schedule.InstructorDutiesUpsert)
+		authGroup.POST("/api/v1/schedules/instructor-duties/bulk", schedule.InstructorDutiesBulk)
 
 		// 训练数据录入与管理（均为 POST）
 		authGroup.POST("/api/v1/config/training-record-fields", training.ConfigTrainingRecordFields)

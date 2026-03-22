@@ -301,7 +301,7 @@ POST /api/v1/students/list?limit=20&offset=0
   "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
   "date": "2026-03-15",
   "start_time": "09:00",
-  "end_time": "21:00",
+  "end_time": "19:00",
   "status": "available" // available | maintenance | blocked
 }
 ```
@@ -387,7 +387,7 @@ POST /api/v1/students/list?limit=20&offset=0
   "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
   "kind": "manual",
   "scheduled_start_at": "2026-03-21T08:00:00+08:00",
-  "scheduled_end_at": "2026-03-21T21:00:00+08:00",
+  "scheduled_end_at": "2026-03-21T19:00:00+08:00",
   "hangar_location": "一号机库",
   "notes": "明日进机库检修（机时定检参考见机务记录）",
   "sync_schedule": true
@@ -464,6 +464,7 @@ POST /api/v1/students/list?limit=20&offset=0
 - `student_id` 必须是 `students.id`（不是 `users.id`）。
 - `instructor_id` 必须是 `instructors.id`。
 - `aircraft_id` 必须是 `aircraft.id`。
+- 教员当日须已有排班，且 `[start_time, end_time)` 完全落在某一执勤窗口内（与 §5.5 规则一致）；否则 `400`。
 
 **成功响应**：`data` 为 `booking` 记录。
 
@@ -499,7 +500,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ### 5.4 教员 × 时间排期网格 `POST /api/v1/schedules/instructor-grid`
 
-详见 `doc/schedule_api.md` 第 2 节，这里只列接口。
+网格中 `available` 时段由教员**日排班**解析得到：业务日默认为 **09:00–19:00**、上下午以 **14:00** 分界（`morning` / `afternoon` 推导规则），与 `duty_status` / `duty_windows` 的解析规则一致（见 §5.5）。教员当日**无排班记录**时，该教员时间轴全部为 `off`。`19:00` 之后无格点；历史预约若结束时间晚于 `19:00`，网格仅覆盖至当日最后一格（半开区间与 `dayEnd` 对齐）。
 
 **补充**：当某日某飞机存在 `aircraft_availability.status = maintenance` 且与预约时段重叠时，对应格子的 `status` 为 `aircraft_unavailable`（仍带原 `bookingId` / `aircraftId` / `studentId`，表示该预约与维护冲突需在业务上处理）。维护时段来源见 §4.8～4.11（人工维护窗），**与** §4.6 **机时参考提醒无关**。
 
@@ -519,7 +520,7 @@ POST /api/v1/students/list?limit=20&offset=0
     "date": "2026-03-15",
     "slotMinutes": 30,
     "dayStart": "09:00",
-    "dayEnd": "21:00",
+    "dayEnd": "19:00",
     "slots": ["09:00", "09:30", "..."],
     "instructors": [
       {
@@ -548,6 +549,64 @@ POST /api/v1/students/list?limit=20&offset=0
   }
 }
 ```
+
+### 5.5 教员日排班
+
+`instructor_schedules` 每教员每自然日**最多一行**。`duty_status` 取值：`morning`（上午出勤）、`afternoon`（下午出勤）、`full_day`（全天）、`leave`（请假）、`rest`（休息）、`custom`（自定义多段，须提供 `duty_windows`）。`duty_windows` 为 `null` 时，由 `duty_status` 与业务日 **09:00–19:00**、**14:00** 上下午分界推导执勤窗口；非空时为 JSON 数组 `[{"start":"HH:MM","end":"HH:MM"},...]`，并裁剪到业务日内。
+
+学员创建预约 `POST /api/v1/bookings` 时，预约时段须**完全落在**教员当日某一执勤半开区间内；否则返回 `400`。教员当日无排班记录时不可预约。
+
+#### 5.5.1 排班列表 `POST /api/v1/schedules/instructor-duties/list`
+
+**请求体**：
+
+```json
+{
+  "from_date": "2026-03-01",
+  "to_date": "2026-03-31",
+  "instructor_ids": []
+}
+```
+
+`instructor_ids` 省略或空数组表示不限教员。
+
+**响应 `data.items[]`**：每条对应库中已有的一行排班，包含 `instructor_name`、`duty_status`、`remark`、`duty_windows`（库内原始值）、`resolved_windows`（解析后的展示窗口）、`flight_tasks`（由当日的 `bookings` 与 `training_plans` 聚合，相同学员/起止时刻去重，优先保留预约）、`ground_courses`（当前为空数组，结构与 `flight_tasks` 一致，预留地面课）。
+
+#### 5.5.2 单日写入/更新 `POST /api/v1/schedules/instructor-duties/upsert`
+
+**请求体**：
+
+```json
+{
+  "instructor_id": "550e8400-e29b-41d4-a716-446655440000",
+  "date": "2026-03-15",
+  "duty_status": "full_day",
+  "remark": "可选",
+  "duty_windows": [{ "start": "09:00", "end": "14:00" }]
+}
+```
+
+`duty_windows` 可省略；`duty_status` 为 `custom` 时须提供非空 `duty_windows`。
+
+#### 5.5.3 按区间批量写入 `POST /api/v1/schedules/instructor-duties/bulk`
+
+**请求体**：
+
+```json
+{
+  "instructor_id": "550e8400-e29b-41d4-a716-446655440000",
+  "from_date": "2026-03-01",
+  "to_date": "2026-03-31",
+  "weekdays": [1, 2, 3, 4, 5],
+  "duty_status": "full_day",
+  "remark": "",
+  "replace_existing": true
+}
+```
+
+`weekdays` 使用 **Go `time.Weekday`**：**0=周日 … 6=周六**。`replace_existing` 为 `false` 时跳过已有排班的日期；为 `true` 时覆盖。
+
+**响应**：`data.upserted` 为实际写入的天数。
 
 ---
 

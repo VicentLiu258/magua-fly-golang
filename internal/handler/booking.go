@@ -9,6 +9,7 @@ import (
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/middleware"
 	"magua-fly-golang/internal/repository"
+	"magua-fly-golang/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,14 +19,16 @@ type BookingHandler struct {
 	bookingRepo repository.BookingRepository
 	planRepo    repository.TrainingPlanRepository
 	taskRepo    repository.TaskRepository
+	scheduleUC  *usecase.ScheduleUseCase
 }
 
 // NewBookingHandler creates a BookingHandler.
-func NewBookingHandler(bookingRepo repository.BookingRepository, planRepo repository.TrainingPlanRepository, taskRepo repository.TaskRepository) *BookingHandler {
+func NewBookingHandler(bookingRepo repository.BookingRepository, planRepo repository.TrainingPlanRepository, taskRepo repository.TaskRepository, scheduleUC *usecase.ScheduleUseCase) *BookingHandler {
 	return &BookingHandler{
 		bookingRepo: bookingRepo,
 		planRepo:    planRepo,
 		taskRepo:    taskRepo,
+		scheduleUC:  scheduleUC,
 	}
 }
 
@@ -80,6 +83,12 @@ func (h *BookingHandler) Create(c *gin.Context) {
 		StartTime:    startTime,
 		EndTime:      endTime,
 		Status:       domain.BookingPending,
+	}
+	if h.scheduleUC != nil {
+		if err := h.scheduleUC.ValidateInstructorBookingWindow(c.Request.Context(), body.InstructorID, planDate, startTime, endTime); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+			return
+		}
 	}
 	if err := h.bookingRepo.Create(c.Request.Context(), b); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})

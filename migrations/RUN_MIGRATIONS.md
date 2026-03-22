@@ -90,6 +90,30 @@ docker exec -i docker-postgres-1 psql -U postgres -d maguafly < ./migrations/011
 
 ---
 
+## 012：教员日排班（duty_status / duty_windows）
+
+在 `008_uuid_schema` 之后执行 `012_instructor_duty.up.sql`。应用启动时若配置了 `migrate` 会自动执行。
+
+- 新增枚举 `instructor_duty_status`；
+- `instructor_schedules` 改为每教员每自然日一行：`duty_status`、`remark`、`duty_windows`（JSONB），去掉 `start_time`/`end_time`；
+- 旧数据同日多段合并为 `duty_status = custom` 与 `duty_windows` 数组。
+
+回滚：`012_instructor_duty.down.sql`（会丢失自定义多段语义，仅保留首段时间）。
+
+---
+
+## 013：业务日结束时间 19:00
+
+执行 `013_business_day_end_19h.up.sql`（应用 migrate 会自动跑）。与 `internal/usecase/schedule.go` 中业务日 **09:00–19:00** 一致；并将超出该窗口的 **pending** 预约批量标记为 `rejected`。`down` 仅恢复列注释，不撤销对 `bookings` 的更新。
+
+---
+
+## 014：上下午分界 14:00
+
+执行 `014_half_day_split_14h.up.sql`：更新 `instructor_schedules.duty_windows` 列注释，与代码中 **14:00** 上/下午分界一致（`morning` / `afternoon` 推导）。业务逻辑以应用代码为准。
+
+---
+
 ## 常见问题
 
 - **001 报错 `relation "users_username_unique" already exists` 或 unique 冲突**  

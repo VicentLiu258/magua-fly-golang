@@ -112,8 +112,8 @@ func main() {
 	)
 	contractFilesHandler := handler.NewContractFilesHandler(contractFilesUC)
 
-	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan(), pgDB.Task())
-	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking(), pgDB.AircraftAvailability())
+	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.Booking(), pgDB.TrainingPlan(), pgDB.AircraftAvailability())
+	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan(), pgDB.Task(), scheduleUC)
 	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
 
 	router := handler.Router(

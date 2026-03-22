@@ -44,6 +44,10 @@ type AircraftRepository interface {
 type InstructorScheduleRepository interface {
 	// ListByDate returns all schedules for a given date.
 	ListByDate(ctx context.Context, date time.Time) ([]*domain.InstructorSchedule, error)
+	// ListByDateRange returns schedules in [from, to] inclusive by date; instructorIDs empty means all.
+	ListByDateRange(ctx context.Context, from, to time.Time, instructorIDs []string) ([]*domain.InstructorSchedule, error)
+	GetByInstructorAndDate(ctx context.Context, instructorID string, date time.Time) (*domain.InstructorSchedule, error)
+	UpsertDay(ctx context.Context, s *domain.InstructorSchedule) error
 }
 
 // AircraftAvailabilityRepository defines aircraft availability persistence.
@@ -78,6 +82,8 @@ type BookingRepository interface {
 	UpdateStatus(ctx context.Context, id string, status domain.BookingStatus, rejectReason string, reviewerID string) error
 	// ListByDate returns all bookings on a specific plan date.
 	ListByDate(ctx context.Context, date time.Time) ([]*domain.Booking, error)
+	// ListByDateRange returns bookings with plan_date in [from, to] inclusive (calendar dates).
+	ListByDateRange(ctx context.Context, from, to time.Time) ([]*domain.Booking, error)
 	// ListByAircraftAndDateRange 某飞机在日期区间内的预约（用于维护冲突处理）
 	ListByAircraftAndDateRange(ctx context.Context, aircraftID string, from, to time.Time) ([]*domain.Booking, error)
 }
