@@ -266,6 +266,60 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": resp})
 }
 
+// AdminContractsListByStudent 按学员查询合同列表 POST /api/v1/admin/contracts/list-by-student
+func (h *StudentHandler) AdminContractsListByStudent(c *gin.Context) {
+	var body struct {
+		StudentID string `json:"student_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	ctx := c.Request.Context()
+	s, err := h.studentRepo.GetByID(ctx, body.StudentID)
+	if err != nil || s == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "student not found", "data": nil})
+		return
+	}
+	list, err := h.contractRepo.ListByStudent(ctx, body.StudentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	var items []gin.H
+	for _, ct := range list {
+		item := gin.H{
+			"id":            ct.ID,
+			"contract_no":   ct.ContractNo,
+			"total_minutes": ct.TotalMinutes,
+			"price_total":   ct.PriceTotal,
+			"currency":      ct.Currency,
+			"status":        ct.Status,
+		}
+		if ct.SignDate != nil {
+			item["sign_date"] = ct.SignDate.Format("2006-01-02")
+		} else {
+			item["sign_date"] = nil
+		}
+		if ct.StartDate != nil {
+			item["start_date"] = ct.StartDate.Format("2006-01-02")
+		} else {
+			item["start_date"] = nil
+		}
+		if ct.EndDate != nil {
+			item["end_date"] = ct.EndDate.Format("2006-01-02")
+		} else {
+			item["end_date"] = nil
+		}
+		items = append(items, item)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "ok",
+		"data": gin.H{"items": items},
+	})
+}
+
 // AdminSave 后台学员创建 / 更新 POST /api/v1/admin/students/save
 func (h *StudentHandler) AdminSave(c *gin.Context) {
 	var body struct {
