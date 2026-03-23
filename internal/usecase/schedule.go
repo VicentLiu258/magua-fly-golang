@@ -61,11 +61,11 @@ type scheduleConfig struct {
 }
 
 func defaultScheduleConfig() scheduleConfig {
-	// 09:00–19:00, 30 min per slot。
+	// 09:00–19:00, 15 min per slot（教员排期网格、工作人员考勤网格、执勤/预约校验共用）。
 	return scheduleConfig{
 		dayStart:    defaultBusinessDayStart,
 		dayEnd:      defaultBusinessDayEnd,
-		slotMinutes: 30,
+		slotMinutes: 15,
 	}
 }
 

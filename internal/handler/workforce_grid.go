@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// WorkforceGrid POST /api/v1/schedules/workforce-grid — staff + instructor 考勤网格（无预约层）。
+// WorkforceGrid POST /api/v1/schedules/workforce-grid — staff + maintenance + instructor 考勤网格（无预约层）。
 func (h *ScheduleHandler) WorkforceGrid(c *gin.Context) {
 	var body struct {
 		Date string `json:"date" binding:"required"`

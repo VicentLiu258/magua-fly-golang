@@ -65,7 +65,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
-	if req.Role != domain.RoleAdmin && req.Role != domain.RoleStaff && req.Role != domain.RoleInstructor && req.Role != domain.RoleStudent {
+	switch req.Role {
+	case domain.RoleAdmin, domain.RoleStaff, domain.RoleMaintenance, domain.RoleInstructor, domain.RoleStudent:
+	default:
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid role", "data": nil})
 		return
 	}

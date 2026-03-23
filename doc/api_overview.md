@@ -110,7 +110,7 @@
   "password": "secret",
   "phone": "13800000000",
   "email": "s1@example.com",
-  "role": "student" // admin | staff | instructor | student
+  "role": "student" // admin | staff | maintenance | instructor | student
 }
 ```
 
@@ -119,6 +119,7 @@
 - 创建一条 `users` 记录。
 - 若 `role = "student"`，自动在 `students` 表创建一条记录并关联 `user_id`。
 - 若 `role = "instructor"`，自动在 `instructors` 表创建一条记录并关联 `user_id`。
+- 若 `role = "maintenance"`（机务），仅创建 `users`，**不**创建 `instructors`（不上机、无教员档案）；日排班与 `staff` 相同，使用 `staff_schedules`（见 §5.6）。
 
 **成功响应**：
 
@@ -500,7 +501,7 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ### 5.4 教员 × 时间排期网格 `POST /api/v1/schedules/instructor-grid`
 
-网格中 `available` 时段由教员**日排班**解析得到：业务日默认为 **09:00–19:00**、上下午以 **14:00** 分界（`morning` / `afternoon` 推导规则），与 `duty_status` / `duty_windows` 的解析规则一致（见 §5.5）。教员当日**无排班记录**时，该教员时间轴全部为 `off`。`19:00` 之后无格点；历史预约若结束时间晚于 `19:00`，网格仅覆盖至当日最后一格（半开区间与 `dayEnd` 对齐）。
+网格中 `available` 时段由教员**日排班**解析得到：业务日默认为 **09:00–19:00**、时间轴 **15 分钟** 一格（`slotMinutes: 15`）、上下午以 **14:00** 分界（`morning` / `afternoon` 推导规则），与 `duty_status` / `duty_windows` 的解析规则一致（见 §5.5）。教员当日**无排班记录**时，该教员时间轴全部为 `off`。`19:00` 之后无格点；历史预约若结束时间晚于 `19:00`，网格仅覆盖至当日最后一格（半开区间与 `dayEnd` 对齐）。
 
 **补充**：当某日某飞机存在 `aircraft_availability.status = maintenance` 且与预约时段重叠时，对应格子的 `status` 为 `aircraft_unavailable`（仍带原 `bookingId` / `aircraftId` / `studentId`，表示该预约与维护冲突需在业务上处理）。维护时段来源见 §4.8～4.11（人工维护窗），**与** §4.6 **机时参考提醒无关**。
 
@@ -518,10 +519,10 @@ POST /api/v1/students/list?limit=20&offset=0
   "msg": "ok",
   "data": {
     "date": "2026-03-15",
-    "slotMinutes": 30,
+    "slotMinutes": 15,
     "dayStart": "09:00",
     "dayEnd": "19:00",
-    "slots": ["09:00", "09:30", "..."],
+    "slots": ["09:00", "09:15", "..."],
     "instructors": [
       {
         "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -531,13 +532,13 @@ POST /api/v1/students/list?limit=20&offset=0
           {
             "slotIndex": 0,
             "startTime": "09:00",
-            "endTime": "09:30",
+            "endTime": "09:15",
             "status": "available"
           },
           {
             "slotIndex": 1,
-            "startTime": "09:30",
-            "endTime": "10:00",
+            "startTime": "09:15",
+            "endTime": "09:30",
             "status": "booked",
             "bookingId": "550e8400-e29b-41d4-a716-446655440010",
             "aircraftId": "550e8400-e29b-41d4-a716-446655440003",
@@ -610,11 +611,11 @@ POST /api/v1/students/list?limit=20&offset=0
 
 ### 5.6 工作人员考勤网格与 staff 排班
 
-面向地勤、行政等 **staff** 账号的考勤排班；**教员**行仍读取 `instructor_schedules`（与 §5.4 规则一致），**不可预约**、无 `bookings` 覆盖层。
+面向地勤、行政 **staff** 与 **机务 maintenance** 的考勤排班；**教员**行仍读取 `instructor_schedules`（与 §5.4 规则一致），**不可预约**、无 `bookings` 覆盖层。
 
 #### 5.6.1 全员考勤网格 `POST /api/v1/schedules/workforce-grid`
 
-返回 **role 为 `staff` 与 `instructor` 的用户**（不含 `admin`、`student`），格点定义与教员网格相同（`dayStart`/`dayEnd`/`slots`/`slotMinutes`）。
+返回 **role 为 `staff`、`maintenance` 与 `instructor` 的用户**（不含 `admin`、`student`），格点定义与教员网格相同（`dayStart`/`dayEnd`/`slots`/`slotMinutes`）。
 
 **请求体**：
 
@@ -625,13 +626,13 @@ POST /api/v1/students/list?limit=20&offset=0
 **响应 `data`**：
 
 - `workers[]`：每人一行。
-  - `userId`、`role`（`staff` | `instructor`）、`username`、`name`（教员取 `instructors.name`，staff 取 `username`）、`instructorId`（仅教员有）、`displayColor`（教员可选）、`timeline[]`。
+  - `userId`、`role`（`staff` | `maintenance` | `instructor`）、`username`、`name`（教员取 `instructors.name`，staff/maintenance 取 `username`）、`instructorId`（仅教员有）、`displayColor`（教员可选）、`timeline[]`。
   - `timeline[].status` 仅为 `off` 或 `available`（考勤在岗），**无** `booked` / `aircraft_unavailable`。
-- 教员行的执勤窗口来自 **`instructor_schedules`**；纯 staff 行来自 **`staff_schedules`**（按 `users.id`）。
+- 教员行的执勤窗口来自 **`instructor_schedules`**；staff / 机务行来自 **`staff_schedules`**（按 `users.id`）。
 
 #### 5.6.2 staff 排班列表 `POST /api/v1/schedules/staff-duties/list`
 
-仅列出 **`staff_schedules`** 中记录（`user_id` 对应 `role=staff` 的用户）。
+仅列出 **`staff_schedules`** 中记录（`user_id` 对应 `role=staff` 或 `role=maintenance` 的用户）。
 
 **请求体**：`from_date`、`to_date`、`user_ids`（可选，空表示不限）。
 
@@ -639,11 +640,11 @@ POST /api/v1/students/list?limit=20&offset=0
 
 #### 5.6.3 staff 单日 upsert `POST /api/v1/schedules/staff-duties/upsert`
 
-**请求体**：`user_id`（须为 **staff** 角色）、`date`、`duty_status`、`remark`、`duty_windows`（可选，语义同教员）。
+**请求体**：`user_id`（须为 **staff** 或 **maintenance** 角色）、`date`、`duty_status`、`remark`、`duty_windows`（可选，语义同教员）。
 
 #### 5.6.4 staff 批量 `POST /api/v1/schedules/staff-duties/bulk`
 
-**请求体**：`user_id`（staff）、`from_date`、`to_date`、`weekdays`、`duty_status`、`remark`、`replace_existing`（与教员 bulk 一致）。
+**请求体**：`user_id`（staff 或 maintenance）、`from_date`、`to_date`、`weekdays`、`duty_status`、`remark`、`replace_existing`（与教员 bulk 一致）。
 
 ---
 

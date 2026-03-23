@@ -6,11 +6,17 @@ import "time"
 type UserRole string
 
 const (
-	RoleAdmin      UserRole = "admin"
-	RoleStaff      UserRole = "staff"
-	RoleInstructor UserRole = "instructor"
-	RoleStudent    UserRole = "student"
+	RoleAdmin       UserRole = "admin"
+	RoleStaff       UserRole = "staff"
+	RoleMaintenance UserRole = "maintenance" // 机务，地面保障，不上机、无教员档案
+	RoleInstructor  UserRole = "instructor"
+	RoleStudent     UserRole = "student"
 )
+
+// RoleUsesStaffSchedule 是否使用 staff_schedules 做日排班（地面工作人员，含 staff 与机务）。
+func RoleUsesStaffSchedule(r UserRole) bool {
+	return r == RoleStaff || r == RoleMaintenance
+}
 
 // User is the account entity.
 type User struct {

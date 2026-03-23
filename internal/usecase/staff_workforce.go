@@ -8,7 +8,7 @@ import (
 	"magua-fly-golang/internal/domain"
 )
 
-// GetWorkforceGrid 工作人员考勤网格：role 为 staff + instructor（不含 admin/student），仅执勤可用格，无预约层。
+// GetWorkforceGrid 工作人员考勤网格：role 为 staff + maintenance + instructor（不含 admin/student），仅执勤可用格，无预约层。
 func (u *ScheduleUseCase) GetWorkforceGrid(ctx context.Context, date time.Time) (*domain.WorkforceGridResponse, error) {
 	if u.userRepo == nil || u.staffScheduleRepo == nil {
 		return nil, fmt.Errorf("workforce grid not configured")
@@ -20,7 +20,7 @@ func (u *ScheduleUseCase) GetWorkforceGrid(ctx context.Context, date time.Time) 
 	}
 	dayDate := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 
-	users, err := u.userRepo.ListByRoles(ctx, []domain.UserRole{domain.RoleStaff, domain.RoleInstructor})
+	users, err := u.userRepo.ListByRoles(ctx, []domain.UserRole{domain.RoleStaff, domain.RoleMaintenance, domain.RoleInstructor})
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (u *ScheduleUseCase) GetWorkforceGrid(ctx context.Context, date time.Time) 
 			} else {
 				row.Name = usr.Username
 			}
-		case domain.RoleStaff:
+		case domain.RoleStaff, domain.RoleMaintenance:
 			row.Name = usr.Username
 			if list, ok := schedByStaffUser[usr.ID]; ok {
 				for _, s := range list {
@@ -131,7 +131,7 @@ func (u *ScheduleUseCase) GetWorkforceGrid(ctx context.Context, date time.Time) 
 	return result, nil
 }
 
-// ListStaffDuties staff 账号日排班列表（仅 role=staff 的排班表数据；不含教员）。
+// ListStaffDuties staff / 机务 日排班列表（staff_schedules；role 为 staff 或 maintenance；不含教员）。
 func (u *ScheduleUseCase) ListStaffDuties(ctx context.Context, from, to time.Time, userIDs []string) ([]domain.StaffDutyListItem, error) {
 	if u.staffScheduleRepo == nil || u.userRepo == nil {
 		return nil, fmt.Errorf("staff duties not configured")
@@ -153,7 +153,7 @@ func (u *ScheduleUseCase) ListStaffDuties(ctx context.Context, from, to time.Tim
 		if err != nil {
 			return nil, err
 		}
-		if uu.Role != domain.RoleStaff {
+		if !domain.RoleUsesStaffSchedule(uu.Role) {
 			continue
 		}
 		intervals, err := resolveInstructorDutyIntervals(cfg, row.DutyStatus, row.DutyWindowsJSON)
@@ -179,7 +179,7 @@ func (u *ScheduleUseCase) ListStaffDuties(ctx context.Context, from, to time.Tim
 	return out, nil
 }
 
-// UpsertStaffDuty 仅允许 user 为 staff 角色。
+// UpsertStaffDuty 仅允许 user 为 staff 或 maintenance（共用 staff_schedules）。
 func (u *ScheduleUseCase) UpsertStaffDuty(ctx context.Context, s *domain.StaffSchedule) error {
 	if u.staffScheduleRepo == nil || u.userRepo == nil {
 		return fmt.Errorf("staff duties not configured")
@@ -191,8 +191,8 @@ func (u *ScheduleUseCase) UpsertStaffDuty(ctx context.Context, s *domain.StaffSc
 	if err != nil {
 		return err
 	}
-	if uu.Role != domain.RoleStaff {
-		return fmt.Errorf("staff 排班仅适用于 role=staff 的用户")
+	if !domain.RoleUsesStaffSchedule(uu.Role) {
+		return fmt.Errorf("staff 排班仅适用于 role=staff 或 role=maintenance 的用户")
 	}
 	s.Date = time.Date(s.Date.Year(), s.Date.Month(), s.Date.Day(), 0, 0, 0, 0, s.Date.Location())
 	if err := validateStaffDutyPayload(s); err != nil {
@@ -229,8 +229,8 @@ func (u *ScheduleUseCase) BulkStaffDuties(ctx context.Context, userID string, fr
 	if err != nil {
 		return 0, err
 	}
-	if uu.Role != domain.RoleStaff {
-		return 0, fmt.Errorf("staff 排班仅适用于 role=staff 的用户")
+	if !domain.RoleUsesStaffSchedule(uu.Role) {
+		return 0, fmt.Errorf("staff 排班仅适用于 role=staff 或 role=maintenance 的用户")
 	}
 	fromD := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, from.Location())
 	toD := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, to.Location())

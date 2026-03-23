@@ -59,7 +59,7 @@
 ```
 
 - **字段说明**：
-  - `role`：可选值 `admin | staff | instructor | student`
+  - `role`：可选值 `admin | staff | maintenance | instructor | student`
 
 - **响应体（201 Created）**：
 

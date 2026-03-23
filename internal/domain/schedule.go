@@ -180,7 +180,7 @@ const (
 	SlotAircraftUnavailable SlotStatus = "aircraft_unavailable"
 )
 
-// TimeSlot is one half-hour block on the timeline.
+// TimeSlot is one grid cell on the timeline; width is given by InstructorGridResponse.SlotMinutes / WorkforceGridResponse.SlotMinutes.
 type TimeSlot struct {
 	Index      int     `json:"slotIndex"`
 	StartTime  string  `json:"startTime"`           // "09:00"
@@ -209,7 +209,7 @@ type InstructorGridResponse struct {
 	Instructors []InstructorTimeline `json:"instructors"`
 }
 
-// StaffSchedule 工作人员日排班（users.id，角色为 staff），字段语义与 InstructorSchedule 一致，不可预约。
+// StaffSchedule 地面工作人员日排班（users.id，角色为 staff 或 maintenance），字段语义与 InstructorSchedule 一致，不可预约。
 type StaffSchedule struct {
 	ID              string               `json:"id"`
 	UserID          string               `json:"user_id"`
@@ -221,7 +221,7 @@ type StaffSchedule struct {
 	UpdatedAt       time.Time            `json:"updated_at"`
 }
 
-// WorkforceMemberRow 工作人员网格一行（含教员 + 纯 staff，不含 admin/student）。
+// WorkforceMemberRow 工作人员网格一行（含教员 + staff + 机务 maintenance，不含 admin/student）。
 type WorkforceMemberRow struct {
 	UserID       string    `json:"userId"`
 	Role         UserRole  `json:"role"`
