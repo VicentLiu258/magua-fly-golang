@@ -78,8 +78,8 @@ func summarizeAirworthiness(a *domain.Aircraft) *domain.AirworthinessSummary {
 // MaintenanceWindowsList POST 列出维护时间窗
 func (h *AircraftHandler) MaintenanceWindowsList(c *gin.Context) {
 	var body struct {
-		AircraftID string  `json:"aircraft_id" binding:"required"`
-		FromDate   *string `json:"from_date"` // YYYY-MM-DD optional
+		AircraftID string  `json:"aircraft_id"` // 可选；省略表示所有飞机
+		FromDate   *string `json:"from_date"`   // YYYY-MM-DD optional
 		ToDate     *string `json:"to_date"`
 		Status     *string `json:"status"` // planned | in_progress | completed | cancelled
 	}

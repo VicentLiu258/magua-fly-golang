@@ -75,9 +75,14 @@ func (r *AircraftMaintenanceRepo) ListByAircraft(ctx context.Context, aircraftID
 		SELECT id::text, aircraft_id::text, kind, scheduled_start_at, scheduled_end_at, status::text,
 		       hangar_location, notes, created_at, updated_at
 		FROM aircraft_maintenance_windows
-		WHERE aircraft_id = $1::uuid`
-	args := []interface{}{aircraftID}
-	idx := 2
+		WHERE 1=1`
+	var args []interface{}
+	idx := 1
+	if aircraftID != "" {
+		q += fmt.Sprintf(` AND aircraft_id = $%d::uuid`, idx)
+		args = append(args, aircraftID)
+		idx++
+	}
 	if from != nil {
 		q += fmt.Sprintf(` AND scheduled_end_at >= $%d`, idx)
 		args = append(args, *from)

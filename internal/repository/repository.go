@@ -74,6 +74,7 @@ type AircraftMaintenanceRepository interface {
 	Create(ctx context.Context, w *domain.MaintenanceWindow) error
 	GetByID(ctx context.Context, id string) (*domain.MaintenanceWindow, error)
 	Update(ctx context.Context, w *domain.MaintenanceWindow) error
+	// ListByAircraft aircraftID 为空时不过滤飞机（返回全部）；from/to/status 仍按原逻辑可选
 	ListByAircraft(ctx context.Context, aircraftID string, from, to *time.Time, status *domain.MaintenanceWindowStatus) ([]*domain.MaintenanceWindow, error)
 }
 

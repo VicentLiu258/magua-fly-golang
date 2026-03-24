@@ -161,19 +161,29 @@ func syncBookingsForMaintenance(ctx context.Context, tx pgx.Tx, aircraftID strin
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
+	var candidates []domain.Booking
+	for rows.Next() {
+		var b domain.Booking
+		if err := rows.Scan(&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime, &b.Status); err != nil {
+			rows.Close()
+			return nil, nil, err
+		}
+		candidates = append(candidates, b)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, nil, err
+	}
+	rows.Close()
 
 	var reviewer interface{}
 	if reviewerID != "" {
 		reviewer = reviewerID
 	}
 
-	for rows.Next() {
-		var b domain.Booking
-		if err := rows.Scan(&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime, &b.Status); err != nil {
-			return nil, nil, err
-		}
-		if !bookingOverlapsMaintenance(&b, winStart, winEnd) {
+	for i := range candidates {
+		b := &candidates[i]
+		if !bookingOverlapsMaintenance(b, winStart, winEnd) {
 			continue
 		}
 		if b.Status == domain.BookingApproved {
@@ -204,7 +214,7 @@ func syncBookingsForMaintenance(ctx context.Context, tx pgx.Tx, aircraftID strin
 		}
 		affected = append(affected, b.ID)
 	}
-	return affected, planIDs, rows.Err()
+	return affected, planIDs, nil
 }
 
 // UpdateMaintenanceWindowWithSync 更新维护窗时间/备注并替换 availability，重新执行排班同步
