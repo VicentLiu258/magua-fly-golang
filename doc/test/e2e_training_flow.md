@@ -363,10 +363,13 @@
 
 - **检查点**：
   - `code = 200`
-  - `data.items` 中的每个科目包含：
+  - 可选在 Body 中增加 `syllabus_outline_id` 或 `outline_category`（五类：`spl_local` / `spl_transition` / `spl_night` / `ppl_basic` / `ppl_night`），二者勿同传。
+  - `data.items` 中的每个一级科目包含：
+    - `syllabus_outline_id`
+    - `secondaries`（二级科目数组，可为空数组）
     - `is_graduated`
     - `status`（`completed` / `in_progress` / `not_started`）
-  - 选出 1～2 个拟作为下次训练重点的 `syllabus_subject_id`，组成数组 `SYLLABUS_SUBJECT_IDS`。
+  - 选出 1～2 个拟作为下次训练重点的 `syllabus_subject_id`（一级科目），组成数组 `SYLLABUS_SUBJECT_IDS`。
 
 ### 7.2 设置本课科目（可选）
 

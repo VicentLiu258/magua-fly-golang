@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // ImportSource for training record.
 type ImportSource string
@@ -98,14 +101,83 @@ type TrainingArchive struct {
 	UpdatedAt                     time.Time  `json:"updated_at"`
 }
 
-// SyllabusSubject is a subject in the training outline.
-type SyllabusSubject struct {
+// SyllabusOutlineCategory 训练大纲类别（与 syllabus_outlines.category CHECK 一致）
+type SyllabusOutlineCategory string
+
+const (
+	SyllabusCatSPLLocal      SyllabusOutlineCategory = "spl_local"       // SPL本场
+	SyllabusCatSPLTransition SyllabusOutlineCategory = "spl_transition" // SPL转场
+	SyllabusCatSPLNight      SyllabusOutlineCategory = "spl_night"      // SPL夜航
+	SyllabusCatPPLBasic      SyllabusOutlineCategory = "ppl_basic"      // PPL基本
+	SyllabusCatPPLNight      SyllabusOutlineCategory = "ppl_night"      // PPL夜航
+)
+
+// ParseSyllabusOutlineCategory 校验类别字符串
+func ParseSyllabusOutlineCategory(s string) (SyllabusOutlineCategory, error) {
+	c := SyllabusOutlineCategory(s)
+	switch c {
+	case SyllabusCatSPLLocal, SyllabusCatSPLTransition, SyllabusCatSPLNight, SyllabusCatPPLBasic, SyllabusCatPPLNight:
+		return c, nil
+	default:
+		return "", fmt.Errorf("invalid syllabus outline category: %q", s)
+	}
+}
+
+// SyllabusOutline 训练大纲实例（某类别下可多版本/多条）
+type SyllabusOutline struct {
 	ID        string    `json:"id"`
-	Code      string    `json:"code"`
+	Category  string    `json:"category"`
 	Name      string    `json:"name"`
 	SortOrder int       `json:"sort_order"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// SyllabusSubject is a level-1 subject under a syllabus outline.
+type SyllabusSubject struct {
+	ID                string    `json:"id"`
+	SyllabusOutlineID string    `json:"syllabus_outline_id"`
+	Code              string    `json:"code"`
+	Name              string    `json:"name"`
+	SortOrder         int       `json:"sort_order"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+// SyllabusSubjectListFilter 一级科目列表过滤（nil 表示不过滤）
+type SyllabusSubjectListFilter struct {
+	OutlineID *string
+	Category  *string
+}
+
+// SyllabusSubjectSecondary 一级科目下的二级科目
+type SyllabusSubjectSecondary struct {
+	ID                  string    `json:"id"`
+	SyllabusSubjectID   string    `json:"syllabus_subject_id"`
+	SeqNo               int       `json:"seq_no"`
+	Name                string    `json:"name"`
+	Description         string    `json:"description,omitempty"`
+	CompletionStandard  string    `json:"completion_standard,omitempty"`
+	SortOrder           int       `json:"sort_order"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+}
+
+// SyllabusImportSecondaryRow 大纲导入时的二级科目行
+type SyllabusImportSecondaryRow struct {
+	SeqNo              int
+	Name               string
+	Description        string
+	CompletionStandard string
+	SortOrder          int
+}
+
+// SyllabusImportSubjectRow 大纲导入时的一级科目行
+type SyllabusImportSubjectRow struct {
+	Code        string
+	Name        string
+	SortOrder   int
+	Secondaries []SyllabusImportSecondaryRow
 }
 
 // TrainingArchiveSubject links an archive to subjects with evaluation.
@@ -159,6 +231,7 @@ type TrainingRecordView struct {
 // SyllabusSubjectWithGraduated 带已结业标记的科目（用于科目选择界面）
 type SyllabusSubjectWithGraduated struct {
 	SyllabusSubject
-	IsGraduated bool   `json:"is_graduated"`
-	Status      string `json:"status,omitempty"`
+	IsGraduated bool                        `json:"is_graduated"`
+	Status      string                      `json:"status,omitempty"`
+	Secondaries []*SyllabusSubjectSecondary `json:"secondaries,omitempty"`
 }

@@ -14,16 +14,22 @@ import (
 // ErrTrainingRecordNotFound 表示指定的 training_record_id 不存在，创建档案前需先有对应训练记录。
 var ErrTrainingRecordNotFound = errors.New("training_record_id 不存在，请先创建训练记录或使用已有的记录 ID")
 
+// ErrInvalidSyllabusOutlineCategory 大纲类别非法（与 syllabus_outlines CHECK 不一致）
+var ErrInvalidSyllabusOutlineCategory = errors.New("invalid syllabus outline category")
+
 // TrainingUseCase 训练记录、导入认领、视图、档案与科目
 type TrainingUseCase struct {
-	recordRepo     repository.TrainingRecordRepository
-	archiveRepo    repository.TrainingArchiveRepository
-	rawImportRepo  repository.RawFlightImportRepository
-	viewRepo       repository.TrainingRecordViewRepository
-	syllabusRepo   repository.SyllabusSubjectRepository
-	archiveSubjRepo repository.TrainingArchiveSubjectRepository
-	nextSubjRepo   repository.NextTrainingSubjectRepository
-	taskRepo       repository.TaskRepository
+	recordRepo       repository.TrainingRecordRepository
+	archiveRepo      repository.TrainingArchiveRepository
+	rawImportRepo    repository.RawFlightImportRepository
+	viewRepo         repository.TrainingRecordViewRepository
+	syllabusRepo     repository.SyllabusSubjectRepository
+	outlineRepo      repository.SyllabusOutlineRepository
+	secondaryRepo    repository.SyllabusSubjectSecondaryRepository
+	syllabusTreeRepo repository.SyllabusTreeRepository
+	archiveSubjRepo  repository.TrainingArchiveSubjectRepository
+	nextSubjRepo     repository.NextTrainingSubjectRepository
+	taskRepo         repository.TaskRepository
 }
 
 // NewTrainingUseCase 创建 TrainingUseCase
@@ -33,20 +39,47 @@ func NewTrainingUseCase(
 	rawImportRepo repository.RawFlightImportRepository,
 	viewRepo repository.TrainingRecordViewRepository,
 	syllabusRepo repository.SyllabusSubjectRepository,
+	outlineRepo repository.SyllabusOutlineRepository,
+	secondaryRepo repository.SyllabusSubjectSecondaryRepository,
+	syllabusTreeRepo repository.SyllabusTreeRepository,
 	archiveSubjRepo repository.TrainingArchiveSubjectRepository,
 	nextSubjRepo repository.NextTrainingSubjectRepository,
 	taskRepo repository.TaskRepository,
 ) *TrainingUseCase {
 	return &TrainingUseCase{
-		recordRepo:      recordRepo,
-		archiveRepo:     archiveRepo,
-		rawImportRepo:   rawImportRepo,
-		viewRepo:        viewRepo,
-		syllabusRepo:    syllabusRepo,
-		archiveSubjRepo: archiveSubjRepo,
-		nextSubjRepo:    nextSubjRepo,
-		taskRepo:        taskRepo,
+		recordRepo:       recordRepo,
+		archiveRepo:      archiveRepo,
+		rawImportRepo:    rawImportRepo,
+		viewRepo:         viewRepo,
+		syllabusRepo:     syllabusRepo,
+		outlineRepo:      outlineRepo,
+		secondaryRepo:    secondaryRepo,
+		syllabusTreeRepo: syllabusTreeRepo,
+		archiveSubjRepo:  archiveSubjRepo,
+		nextSubjRepo:     nextSubjRepo,
+		taskRepo:         taskRepo,
 	}
+}
+
+// AdminCreateSyllabusSecondaryInput 创建一级科目时可选的二级行
+type AdminCreateSyllabusSecondaryInput struct {
+	SeqNo               int    `json:"seq_no"`
+	Name                string `json:"name" binding:"required"`
+	Description         string `json:"description"`
+	CompletionStandard  string `json:"completion_standard"`
+	SortOrder           int    `json:"sort_order"`
+}
+
+// AdminCreateSyllabusSubjectInput 后台创建一级科目（须绑定大纲）
+type AdminCreateSyllabusSubjectInput struct {
+	SyllabusOutlineID *string                            `json:"syllabus_outline_id"`
+	OutlineCategory   *string                            `json:"outline_category"`
+	OutlineName       *string                            `json:"outline_name"`
+	OutlineSortOrder  int                                `json:"outline_sort_order"`
+	Code              string                             `json:"code" binding:"required"`
+	Name              string                             `json:"name" binding:"required"`
+	SortOrder         int                                `json:"sort_order"`
+	Secondaries       []AdminCreateSyllabusSecondaryInput `json:"secondaries"`
 }
 
 // CreateRecord 创建训练记录（基础录入）
@@ -326,15 +359,40 @@ func (u *TrainingUseCase) createNextFlightTaskFromArchive(ctx context.Context, a
 	return u.taskRepo.Create(ctx, task)
 }
 
-// ListSyllabusSubjects 全部大纲科目，可选带学员已结业标记
-func (u *TrainingUseCase) ListSyllabusSubjects(ctx context.Context, studentID *string) ([]*domain.SyllabusSubjectWithGraduated, error) {
-	list, err := u.syllabusRepo.List(ctx)
+// ListSyllabusSubjects 大纲下一级科目（可选按大纲 ID 或类别过滤），带二级列表；可选带学员已结业标记
+func (u *TrainingUseCase) ListSyllabusSubjects(ctx context.Context, studentID *string, syllabusOutlineID *string, outlineCategory *string) ([]*domain.SyllabusSubjectWithGraduated, error) {
+	var listFilter *domain.SyllabusSubjectListFilter
+	if syllabusOutlineID != nil && *syllabusOutlineID != "" {
+		listFilter = &domain.SyllabusSubjectListFilter{OutlineID: syllabusOutlineID}
+	} else if outlineCategory != nil && *outlineCategory != "" {
+		if _, err := domain.ParseSyllabusOutlineCategory(*outlineCategory); err != nil {
+			return nil, fmt.Errorf("%w (%v)", ErrInvalidSyllabusOutlineCategory, err)
+		}
+		c := *outlineCategory
+		listFilter = &domain.SyllabusSubjectListFilter{Category: &c}
+	}
+
+	list, err := u.syllabusRepo.List(ctx, listFilter)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(list))
+	for i := range list {
+		ids[i] = list[i].ID
+	}
+	secMap, err := u.secondaryRepo.ListGroupedBySubjectID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]*domain.SyllabusSubjectWithGraduated, len(list))
 	for i := range list {
-		out[i] = &domain.SyllabusSubjectWithGraduated{SyllabusSubject: *list[i]}
+		out[i] = &domain.SyllabusSubjectWithGraduated{
+			SyllabusSubject: *list[i],
+			Secondaries:     secMap[list[i].ID],
+		}
+		if out[i].Secondaries == nil {
+			out[i].Secondaries = []*domain.SyllabusSubjectSecondary{}
+		}
 	}
 	// 若未传学员 ID，则仅返回基础科目信息
 	if studentID == nil {
@@ -387,9 +445,106 @@ func (u *TrainingUseCase) ListSyllabusSubjects(ctx context.Context, studentID *s
 	return out, nil
 }
 
-// CreateSyllabusSubject 创建大纲科目（后台/教员使用）
-func (u *TrainingUseCase) CreateSyllabusSubject(ctx context.Context, s *domain.SyllabusSubject) error {
-	return u.syllabusRepo.Create(ctx, s)
+// ListSyllabusOutlines 训练大纲列表（后台选题）
+func (u *TrainingUseCase) ListSyllabusOutlines(ctx context.Context) ([]*domain.SyllabusOutline, error) {
+	return u.outlineRepo.List(ctx)
+}
+
+// GetSyllabusOutlineByID 获取单条大纲
+func (u *TrainingUseCase) GetSyllabusOutlineByID(ctx context.Context, id string) (*domain.SyllabusOutline, error) {
+	return u.outlineRepo.GetByID(ctx, id)
+}
+
+// CreateSyllabusSubjectAdmin 创建一级科目：须指定已有 syllabus_outline_id，或 outline_category+outline_name 新建大纲
+func (u *TrainingUseCase) CreateSyllabusSubjectAdmin(ctx context.Context, in *AdminCreateSyllabusSubjectInput) (*domain.SyllabusSubject, []*domain.SyllabusSubjectSecondary, error) {
+	hasOutlineID := in.SyllabusOutlineID != nil && *in.SyllabusOutlineID != ""
+	hasNewOutline := in.OutlineCategory != nil && *in.OutlineCategory != "" && in.OutlineName != nil && *in.OutlineName != ""
+	if hasOutlineID && hasNewOutline {
+		return nil, nil, fmt.Errorf("syllabus_outline_id 与 outline_category/outline_name 不能同时指定")
+	}
+	if !hasOutlineID && !hasNewOutline {
+		return nil, nil, fmt.Errorf("需提供 syllabus_outline_id 或 outline_category+outline_name")
+	}
+	if hasOutlineID {
+		if _, err := u.outlineRepo.GetByID(ctx, *in.SyllabusOutlineID); err != nil {
+			return nil, nil, fmt.Errorf("大纲不存在: %w", err)
+		}
+	}
+	var outline *domain.SyllabusOutline
+	var outlineIDPtr *string
+	if hasNewOutline {
+		cat, err := domain.ParseSyllabusOutlineCategory(*in.OutlineCategory)
+		if err != nil {
+			return nil, nil, err
+		}
+		outline = &domain.SyllabusOutline{
+			Category:  string(cat),
+			Name:      *in.OutlineName,
+			SortOrder: in.OutlineSortOrder,
+		}
+		outlineIDPtr = nil
+	} else {
+		outlineIDPtr = in.SyllabusOutlineID
+	}
+	subject := &domain.SyllabusSubject{
+		Code:      in.Code,
+		Name:      in.Name,
+		SortOrder: in.SortOrder,
+	}
+	var secs []*domain.SyllabusSubjectSecondary
+	for _, x := range in.Secondaries {
+		secs = append(secs, &domain.SyllabusSubjectSecondary{
+			SeqNo:              x.SeqNo,
+			Name:               x.Name,
+			Description:        x.Description,
+			CompletionStandard: x.CompletionStandard,
+			SortOrder:          x.SortOrder,
+		})
+	}
+	if err := u.syllabusTreeRepo.CreateSubjectUnderOutline(ctx, outlineIDPtr, outline, subject, secs); err != nil {
+		return nil, nil, err
+	}
+	list, err := u.secondaryRepo.ListBySubjectID(ctx, subject.ID)
+	if err != nil {
+		return subject, nil, err
+	}
+	return subject, list, nil
+}
+
+// ImportSyllabusOutline 导入整棵大纲树（总是新建一条大纲记录）
+func (u *TrainingUseCase) ImportSyllabusOutline(ctx context.Context, category, name string, sortOrder int, subjects []domain.SyllabusImportSubjectRow) (*domain.SyllabusOutline, error) {
+	cat, err := domain.ParseSyllabusOutlineCategory(category)
+	if err != nil {
+		return nil, err
+	}
+	o := &domain.SyllabusOutline{Category: string(cat), Name: name, SortOrder: sortOrder}
+	return u.syllabusTreeRepo.ImportOutlineTree(ctx, o, subjects)
+}
+
+// CreateSyllabusSubjectSecondary 新增二级科目
+func (u *TrainingUseCase) CreateSyllabusSubjectSecondary(ctx context.Context, row *domain.SyllabusSubjectSecondary) error {
+	if _, err := u.syllabusRepo.GetByID(ctx, row.SyllabusSubjectID); err != nil {
+		return fmt.Errorf("一级科目不存在: %w", err)
+	}
+	return u.secondaryRepo.Create(ctx, row)
+}
+
+// UpdateSyllabusSubjectSecondary 更新二级科目
+func (u *TrainingUseCase) UpdateSyllabusSubjectSecondary(ctx context.Context, row *domain.SyllabusSubjectSecondary) error {
+	return u.secondaryRepo.Update(ctx, row)
+}
+
+// DeleteSyllabusSubjectSecondary 删除二级科目
+func (u *TrainingUseCase) DeleteSyllabusSubjectSecondary(ctx context.Context, id string) error {
+	return u.secondaryRepo.Delete(ctx, id)
+}
+
+// ReorderSyllabusSubjectSecondaries 按 ordered_ids 重写 sort_order
+func (u *TrainingUseCase) ReorderSyllabusSubjectSecondaries(ctx context.Context, syllabusSubjectID string, orderedIDs []string) error {
+	if _, err := u.syllabusRepo.GetByID(ctx, syllabusSubjectID); err != nil {
+		return fmt.Errorf("一级科目不存在: %w", err)
+	}
+	return u.secondaryRepo.Reorder(ctx, syllabusSubjectID, orderedIDs)
 }
 
 // GetSyllabusSubject 获取单个大纲科目

@@ -126,13 +126,36 @@ type TrainingArchiveRepository interface {
 	Update(ctx context.Context, a *domain.TrainingArchive) error
 }
 
-// SyllabusSubjectRepository defines syllabus subject persistence.
+// SyllabusOutlineRepository 训练大纲实例
+type SyllabusOutlineRepository interface {
+	GetByID(ctx context.Context, id string) (*domain.SyllabusOutline, error)
+	List(ctx context.Context) ([]*domain.SyllabusOutline, error)
+	Create(ctx context.Context, o *domain.SyllabusOutline) error
+}
+
+// SyllabusSubjectRepository defines syllabus subject (level-1) persistence.
 type SyllabusSubjectRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.SyllabusSubject, error)
-	List(ctx context.Context) ([]*domain.SyllabusSubject, error)
+	List(ctx context.Context, filter *domain.SyllabusSubjectListFilter) ([]*domain.SyllabusSubject, error)
 	Create(ctx context.Context, s *domain.SyllabusSubject) error
 	Update(ctx context.Context, s *domain.SyllabusSubject) error
 	Delete(ctx context.Context, id string) error
+}
+
+// SyllabusSubjectSecondaryRepository 二级科目
+type SyllabusSubjectSecondaryRepository interface {
+	ListBySubjectID(ctx context.Context, syllabusSubjectID string) ([]*domain.SyllabusSubjectSecondary, error)
+	ListGroupedBySubjectID(ctx context.Context, syllabusSubjectIDs []string) (map[string][]*domain.SyllabusSubjectSecondary, error)
+	Create(ctx context.Context, row *domain.SyllabusSubjectSecondary) error
+	Update(ctx context.Context, row *domain.SyllabusSubjectSecondary) error
+	Delete(ctx context.Context, id string) error
+	Reorder(ctx context.Context, syllabusSubjectID string, orderedIDs []string) error
+}
+
+// SyllabusTreeRepository 事务性大纲树写入（导入、创建大纲+科目+二级）
+type SyllabusTreeRepository interface {
+	ImportOutlineTree(ctx context.Context, outline *domain.SyllabusOutline, subjects []domain.SyllabusImportSubjectRow) (*domain.SyllabusOutline, error)
+	CreateSubjectUnderOutline(ctx context.Context, outlineID *string, outline *domain.SyllabusOutline, subject *domain.SyllabusSubject, secondaries []*domain.SyllabusSubjectSecondary) error
 }
 
 // RawFlightImportRepository defines raw flight import persistence.

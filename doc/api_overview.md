@@ -1054,21 +1054,28 @@ POST /api/v1/students/list?limit=20&offset=0
 
 #### 7.7.1 大纲科目列表 `POST /api/v1/syllabus-subjects/list`
 
-**请求体**（可选带学员 ID，用于标记该学员已结业科目）：
+**请求体**：
+
+- `student_id`（可选）：传入时按档案聚合一级科目的结业状态（`is_graduated` / `status`）。
+- `syllabus_outline_id`（可选）：只返回该大纲下的一级科目。
+- `outline_category`（可选）：按大纲类别过滤一级科目；与 `syllabus_outline_id` 勿同时使用。
+
+大纲类别取值（与库内一致）：`spl_local`（SPL本场）、`spl_transition`（SPL转场）、`spl_night`（SPL夜航）、`ppl_basic`（PPL基本）、`ppl_night`（PPL夜航）。
 
 ```json
 {
-  "student_id": "550e8400-e29b-41d4-a716-446655440001"
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
+  "syllabus_outline_id": "00000001-0000-4000-8000-000000000001"
 }
 ```
 
-或不传 `student_id`：
+或不传筛选（返回全部一级科目）：
 
 ```json
 {}
 ```
 
-**成功响应**：
+**成功响应**：每项为一级科目，含 `syllabus_outline_id`、嵌套 `secondaries`（按 `sort_order` 排序；无则为 `[]`）。档案与结业统计仍只关联一级科目 `id`。
 
 ```json
 {
@@ -1078,21 +1085,27 @@ POST /api/v1/students/list?limit=20&offset=0
     "items": [
       {
         "id": "550e8400-e29b-41d4-a716-446655440000",
+        "syllabus_outline_id": "00000001-0000-4000-8000-000000000001",
         "code": "SUB-01",
         "name": "起落",
         "sort_order": 1,
         "created_at": "2026-01-01T00:00:00Z",
         "updated_at": "2026-01-01T00:00:00Z",
-        "is_graduated": false
-      },
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440002",
-        "code": "SUB-02",
-        "name": "带飞",
-        "sort_order": 2,
-        "created_at": "2026-01-01T00:00:00Z",
-        "updated_at": "2026-01-01T00:00:00Z",
-        "is_graduated": true
+        "is_graduated": false,
+        "status": "not_started",
+        "secondaries": [
+          {
+            "id": "550e8400-e29b-41d4-a716-446655440010",
+            "syllabus_subject_id": "550e8400-e29b-41d4-a716-446655440000",
+            "seq_no": 1,
+            "name": "本场起落",
+            "description": "",
+            "completion_standard": "连续稳定完成",
+            "sort_order": 0,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
+          }
+        ]
       }
     ]
   }
@@ -1248,14 +1261,39 @@ POST /api/v1/students/list?limit=20&offset=0
 }
 ```
 
-#### 7.7.6 创建大纲科目（后台）`POST /api/v1/syllabus-subjects/admin/create`
+#### 7.7.6 创建一级科目（后台）`POST /api/v1/syllabus-subjects/admin/create`
 
-- **说明**：用于后台或教员创建新的训练大纲科目。
+- **说明**：创建某大纲下的一级科目。必须二选一：指定已有 `syllabus_outline_id`，或同时传 `outline_category` + `outline_name` 以新建一条大纲记录再挂科目。
+- 可选 `secondaries`：同时创建二级科目。
+- 同一大纲下 `code` 唯一。
 
-**请求体**：
+**请求体示例（已有大纲）**：
 
 ```json
 {
+  "syllabus_outline_id": "00000001-0000-4000-8000-000000000001",
+  "code": "SUB-01",
+  "name": "起落",
+  "sort_order": 1,
+  "secondaries": [
+    {
+      "seq_no": 1,
+      "name": "本场起落",
+      "description": "科目描述",
+      "completion_standard": "完成标准",
+      "sort_order": 0
+    }
+  ]
+}
+```
+
+**请求体示例（新建大纲）**：
+
+```json
+{
+  "outline_category": "spl_local",
+  "outline_name": "2025 SPL本场",
+  "outline_sort_order": 0,
   "code": "SUB-01",
   "name": "起落",
   "sort_order": 1
@@ -1269,35 +1307,41 @@ POST /api/v1/students/list?limit=20&offset=0
   "code": 200,
   "msg": "ok",
   "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "code": "SUB-01",
-    "name": "起落",
-    "sort_order": 1,
-    "created_at": "2026-03-16T00:00:00Z",
-    "updated_at": "2026-03-16T00:00:00Z"
+    "subject": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "syllabus_outline_id": "00000001-0000-4000-8000-000000000001",
+      "code": "SUB-01",
+      "name": "起落",
+      "sort_order": 1,
+      "created_at": "2026-03-16T00:00:00Z",
+      "updated_at": "2026-03-16T00:00:00Z"
+    },
+    "secondaries": []
   }
 }
 ```
 
-#### 7.7.7 更新大纲科目（后台）`POST /api/v1/syllabus-subjects/admin/update`
+#### 7.7.7 更新一级科目（后台）`POST /api/v1/syllabus-subjects/admin/update`
 
 **请求体**：
 
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
+  "syllabus_outline_id": "00000001-0000-4000-8000-000000000001",
   "code": "SUB-01",
   "name": "起落（更新后）",
   "sort_order": 2
 }
 ```
 
-- `id`：必填，待更新科目的 UUID。
+- `id`：必填。
+- `syllabus_outline_id`：可选，修改所属大纲。
 - 其他字段可选，未提供的字段保持原值。
 
-**成功响应**：返回更新后的完整科目对象，结构同创建接口。
+**成功响应**：返回更新后的完整一级科目对象（含 `syllabus_outline_id`）。
 
-#### 7.7.8 删除大纲科目（后台）`POST /api/v1/syllabus-subjects/admin/delete`
+#### 7.7.8 删除一级科目（后台）`POST /api/v1/syllabus-subjects/admin/delete`
 
 **请求体**：
 
@@ -1316,6 +1360,70 @@ POST /api/v1/students/list?limit=20&offset=0
   "data": {
     "status": "deleted"
   }
+}
+```
+
+#### 7.7.9 大纲列表 `POST /api/v1/syllabus-outlines/list`
+
+返回所有训练大纲实例（`id`、`category`、`name`、`sort_order` 等）。
+
+**请求体**：`{}`
+
+#### 7.7.10 导入大纲树（后台）`POST /api/v1/syllabus-outlines/admin/import`
+
+单事务新建一条大纲，并批量创建其下一级科目与二级科目（总是新增一条大纲记录，不覆盖已有数据）。
+
+**请求体**：
+
+```json
+{
+  "category": "spl_local",
+  "name": "SPL本场 导入版",
+  "sort_order": 0,
+  "subjects": [
+    {
+      "code": "01",
+      "name": "地面准备",
+      "sort_order": 0,
+      "secondaries": [
+        {
+          "seq_no": 1,
+          "name": "检查单",
+          "description": "",
+          "completion_standard": "独立完成",
+          "sort_order": 0
+        }
+      ]
+    }
+  ]
+}
+```
+
+**成功响应**：返回新建的大纲对象。
+
+#### 7.7.11 创建二级科目（后台）`POST /api/v1/syllabus-subject-secondaries/admin/create`
+
+**请求体**：`syllabus_subject_id`、`seq_no`、`name` 必填；可选 `description`、`completion_standard`、`sort_order`。
+
+#### 7.7.12 更新二级科目（后台）`POST /api/v1/syllabus-subject-secondaries/admin/update`
+
+**请求体**：`id` 必填；其余字段为要更新的内容。
+
+#### 7.7.13 删除二级科目（后台）`POST /api/v1/syllabus-subject-secondaries/admin/delete`
+
+**请求体**：`{ "id": "uuid" }`
+
+#### 7.7.14 二级科目排序（后台）`POST /api/v1/syllabus-subject-secondaries/admin/reorder`
+
+**请求体**：`syllabus_subject_id` 与 `ordered_ids`（该一级科目下全部二级科目 id，按新顺序排列）。事务内重写 `sort_order`。
+
+```json
+{
+  "syllabus_subject_id": "550e8400-e29b-41d4-a716-446655440000",
+  "ordered_ids": [
+    "550e8400-e29b-41d4-a716-446655440020",
+    "550e8400-e29b-41d4-a716-446655440021"
+  ]
 }
 ```
 

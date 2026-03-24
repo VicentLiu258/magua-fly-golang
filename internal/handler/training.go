@@ -733,11 +733,21 @@ func (h *TrainingHandler) SignArchive(c *gin.Context) {
 // ListSyllabusSubjects POST /api/v1/syllabus-subjects/list
 func (h *TrainingHandler) ListSyllabusSubjects(c *gin.Context) {
 	var body struct {
-		StudentID *string `json:"student_id"`
+		StudentID         *string `json:"student_id"`
+		SyllabusOutlineID *string `json:"syllabus_outline_id"`
+		OutlineCategory   *string `json:"outline_category"`
 	}
 	c.ShouldBindJSON(&body)
-	list, err := h.uc.ListSyllabusSubjects(c.Request.Context(), body.StudentID)
+	if body.SyllabusOutlineID != nil && *body.SyllabusOutlineID != "" && body.OutlineCategory != nil && *body.OutlineCategory != "" {
+		respErr(c, http.StatusBadRequest, "syllabus_outline_id 与 outline_category 请勿同时传递")
+		return
+	}
+	list, err := h.uc.ListSyllabusSubjects(c.Request.Context(), body.StudentID, body.SyllabusOutlineID, body.OutlineCategory)
 	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidSyllabusOutlineCategory) {
+			respErr(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		respErr(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -745,49 +755,45 @@ func (h *TrainingHandler) ListSyllabusSubjects(c *gin.Context) {
 }
 
 // AdminCreateSyllabusSubject POST /api/v1/syllabus-subjects/admin/create
-// 用于后台或教员创建新的大纲科目。
+// 创建一级科目：须指定 syllabus_outline_id，或 outline_category+outline_name 新建大纲；可选 secondaries。
 func (h *TrainingHandler) AdminCreateSyllabusSubject(c *gin.Context) {
-	var body struct {
-		Code      string `json:"code" binding:"required"`
-		Name      string `json:"name" binding:"required"`
-		SortOrder int    `json:"sort_order"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
+	var in usecase.AdminCreateSyllabusSubjectInput
+	if err := c.ShouldBindJSON(&in); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	if body.SortOrder == 0 {
-		body.SortOrder = 0
-	}
-	s := &domain.SyllabusSubject{
-		Code:      body.Code,
-		Name:      body.Name,
-		SortOrder: body.SortOrder,
-	}
-	if err := h.uc.CreateSyllabusSubject(c.Request.Context(), s); err != nil {
-		respErr(c, http.StatusInternalServerError, err.Error())
+	subject, secs, err := h.uc.CreateSyllabusSubjectAdmin(c.Request.Context(), &in)
+	if err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	respOK(c, s)
+	respOK(c, gin.H{"subject": subject, "secondaries": secs})
 }
 
 // AdminUpdateSyllabusSubject POST /api/v1/syllabus-subjects/admin/update
 func (h *TrainingHandler) AdminUpdateSyllabusSubject(c *gin.Context) {
 	var body struct {
-		ID        string `json:"id" binding:"required"`
-		Code      string `json:"code"`
-		Name      string `json:"name"`
-		SortOrder *int   `json:"sort_order"`
+		ID                string  `json:"id" binding:"required"`
+		SyllabusOutlineID *string `json:"syllabus_outline_id"`
+		Code              string  `json:"code"`
+		Name              string  `json:"name"`
+		SortOrder         *int    `json:"sort_order"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	// 先读取现有科目
 	existing, err := h.uc.GetSyllabusSubject(c.Request.Context(), body.ID)
 	if err != nil || existing == nil {
 		respErr(c, http.StatusNotFound, "not found")
 		return
+	}
+	if body.SyllabusOutlineID != nil && *body.SyllabusOutlineID != "" {
+		if _, err := h.uc.GetSyllabusOutlineByID(c.Request.Context(), *body.SyllabusOutlineID); err != nil {
+			respErr(c, http.StatusBadRequest, "syllabus_outline_id 无效")
+			return
+		}
+		existing.SyllabusOutlineID = *body.SyllabusOutlineID
 	}
 	if body.Code != "" {
 		existing.Code = body.Code
@@ -819,6 +825,129 @@ func (h *TrainingHandler) AdminDeleteSyllabusSubject(c *gin.Context) {
 		return
 	}
 	respOK(c, gin.H{"status": "deleted"})
+}
+
+// ListSyllabusOutlines POST /api/v1/syllabus-outlines/list
+func (h *TrainingHandler) ListSyllabusOutlines(c *gin.Context) {
+	list, err := h.uc.ListSyllabusOutlines(c.Request.Context())
+	if err != nil {
+		respErr(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respOK(c, gin.H{"items": list})
+}
+
+// AdminImportSyllabusOutline POST /api/v1/syllabus-outlines/admin/import
+func (h *TrainingHandler) AdminImportSyllabusOutline(c *gin.Context) {
+	var body struct {
+		Category  string `json:"category" binding:"required"`
+		Name      string `json:"name" binding:"required"`
+		SortOrder int    `json:"sort_order"`
+		Subjects  []struct {
+			Code      string `json:"code" binding:"required"`
+			Name      string `json:"name" binding:"required"`
+			SortOrder int    `json:"sort_order"`
+			Secondaries []struct {
+				SeqNo               int    `json:"seq_no"`
+				Name                string `json:"name" binding:"required"`
+				Description         string `json:"description"`
+				CompletionStandard  string `json:"completion_standard"`
+				SortOrder           int    `json:"sort_order"`
+			} `json:"secondaries"`
+		} `json:"subjects" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	rows := make([]domain.SyllabusImportSubjectRow, 0, len(body.Subjects))
+	for _, s := range body.Subjects {
+		r := domain.SyllabusImportSubjectRow{
+			Code: s.Code, Name: s.Name, SortOrder: s.SortOrder,
+		}
+		for _, sec := range s.Secondaries {
+			r.Secondaries = append(r.Secondaries, domain.SyllabusImportSecondaryRow{
+				SeqNo: sec.SeqNo, Name: sec.Name, Description: sec.Description,
+				CompletionStandard: sec.CompletionStandard, SortOrder: sec.SortOrder,
+			})
+		}
+		rows = append(rows, r)
+	}
+	outline, err := h.uc.ImportSyllabusOutline(c.Request.Context(), body.Category, body.Name, body.SortOrder, rows)
+	if err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	respOK(c, outline)
+}
+
+// AdminCreateSyllabusSubjectSecondary POST /api/v1/syllabus-subject-secondaries/admin/create
+func (h *TrainingHandler) AdminCreateSyllabusSubjectSecondary(c *gin.Context) {
+	var row domain.SyllabusSubjectSecondary
+	if err := c.ShouldBindJSON(&row); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if row.SyllabusSubjectID == "" || row.Name == "" {
+		respErr(c, http.StatusBadRequest, "syllabus_subject_id and name required")
+		return
+	}
+	if err := h.uc.CreateSyllabusSubjectSecondary(c.Request.Context(), &row); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	respOK(c, &row)
+}
+
+// AdminUpdateSyllabusSubjectSecondary POST /api/v1/syllabus-subject-secondaries/admin/update
+func (h *TrainingHandler) AdminUpdateSyllabusSubjectSecondary(c *gin.Context) {
+	var row domain.SyllabusSubjectSecondary
+	if err := c.ShouldBindJSON(&row); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if row.ID == "" {
+		respErr(c, http.StatusBadRequest, "id required")
+		return
+	}
+	if err := h.uc.UpdateSyllabusSubjectSecondary(c.Request.Context(), &row); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	respOK(c, &row)
+}
+
+// AdminDeleteSyllabusSubjectSecondary POST /api/v1/syllabus-subject-secondaries/admin/delete
+func (h *TrainingHandler) AdminDeleteSyllabusSubjectSecondary(c *gin.Context) {
+	var body struct {
+		ID string `json:"id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.uc.DeleteSyllabusSubjectSecondary(c.Request.Context(), body.ID); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	respOK(c, gin.H{"status": "deleted"})
+}
+
+// AdminReorderSyllabusSubjectSecondaries POST /api/v1/syllabus-subject-secondaries/admin/reorder
+func (h *TrainingHandler) AdminReorderSyllabusSubjectSecondaries(c *gin.Context) {
+	var body struct {
+		SyllabusSubjectID string   `json:"syllabus_subject_id" binding:"required"`
+		OrderedIDs        []string `json:"ordered_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.uc.ReorderSyllabusSubjectSecondaries(c.Request.Context(), body.SyllabusSubjectID, body.OrderedIDs); err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	respOK(c, gin.H{"status": "ok"})
 }
 
 // ListArchiveSubjects POST /api/v1/training-archives/subjects/list
