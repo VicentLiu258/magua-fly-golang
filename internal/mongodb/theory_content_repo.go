@@ -7,6 +7,7 @@ import (
 	"magua-fly-golang/internal/repository"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -26,7 +27,16 @@ func (r *TheoryContentRepo) GetByDocumentID(ctx context.Context, documentID stri
 	var doc repository.TheoryContentDoc
 	err := coll.FindOne(ctx, bson.M{"document_id": documentID}).Decode(&doc)
 	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return &repository.TheoryContentDoc{
+				DocumentID: documentID,
+				Blocks:     []repository.TheoryContentBlock{},
+			}, nil
+		}
 		return nil, err
+	}
+	if doc.Blocks == nil {
+		doc.Blocks = []repository.TheoryContentBlock{}
 	}
 	return &doc, nil
 }
