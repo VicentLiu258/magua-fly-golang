@@ -199,11 +199,17 @@
 
 - **认证**：需要。
 
-**请求体**（使用 query 参数解析，body 可为空）：
+**请求体**（JSON；`Content-Length` 为 0 或仅空白时视为未传，使用默认分页）：
 
-```http
-POST /api/v1/students/list?limit=20&offset=0
+```json
+{
+  "limit": 20,
+  "offset": 0
+}
 ```
+
+- `limit`：默认 `20`，最大 `100`；`<=0` 时使用默认。
+- `offset`：默认 `0`；`<0` 时按 `0` 处理。
 
 **成功响应**：
 
@@ -227,6 +233,87 @@ POST /api/v1/students/list?limit=20&offset=0
   }
 }
 ```
+
+### 4.1.1 职员端学员概要 `POST /api/v1/students/staff-overview`
+
+- **认证**：需要 JWT。
+- **权限**：仅 `admin`、`staff`、`maintenance`、`instructor` 可访问；`student` 返回 `403`，`msg` 形如 `forbidden: student cannot access this resource`。
+- **说明**：供教员/地面职员查看指定学员的训练状态、大纲科目进度、飞行与 `contract_info` 中的权益（学飞积分、亲友体验次数等），**不包含**学员账号的手机、邮箱、用户名。
+
+**请求体**：
+
+```json
+{
+  "student_id": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+**成功响应（结构示例）**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "profile": {
+      "student_id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "张三",
+      "student_no": "S000001"
+    },
+    "training": {
+      "training_progress": "已完成单飞阶段",
+      "training_progress_json": { "phase": "PPL-1" },
+      "pending_task_count": 2,
+      "latest_archive": {
+        "id": "550e8400-e29b-41d4-a716-446655440101",
+        "training_date": "2026-03-15",
+        "stage": "初级训练",
+        "flight_duration_minutes": 92
+      },
+      "upcoming_training": [
+        {
+          "training_date": "2026-03-20",
+          "start_time": "10:00",
+          "end_time": "11:30",
+          "instructor_name": "教员A",
+          "aircraft_name": "塞斯纳 172"
+        }
+      ]
+    },
+    "syllabus_progress": {
+      "completed": 10,
+      "total": 20
+    },
+    "entitlements": {
+      "flight": {
+        "contract_duration_minutes": 3600,
+        "flown_minutes": 1200,
+        "remaining_minutes": 2400
+      },
+      "learning_points": 120,
+      "guest_experience": {
+        "quota": 5,
+        "used": 2,
+        "remaining": 3
+      }
+    }
+  }
+}
+```
+
+- **`contract_info` 权益约定**（写入 `students.contract_info` JSONB，可由 `POST /api/v1/admin/students/save` 的 `contract_info` 字段维护）：
+
+```json
+{
+  "learning_points": 120,
+  "guest_experience": {
+    "quota": 5,
+    "used": 2
+  }
+}
+```
+
+缺字段或非法 JSON 时，解析结果按 `0` 处理；`remaining = max(0, quota - used)`。
 
 ### 4.2 教员列表 `POST /api/v1/instructors/list`
 
@@ -2359,10 +2446,15 @@ POST /api/v1/students/list?limit=20&offset=0
   "contract_duration_minutes": 3600,
   "flown_minutes": 0,
   "training_progress": "",
-  "responsible_instructor_id": "550e8400-e29b-41d4-a716-446655440002"
+  "responsible_instructor_id": "550e8400-e29b-41d4-a716-446655440002",
+  "contract_info": {
+    "learning_points": 120,
+    "guest_experience": { "quota": 5, "used": 0 }
+  }
 }
 ```
 
+- 可选字段 `contract_info`：合法 JSON 对象时写入 `students.contract_info`；请求中**未携带**该字段或值为空白时不修改（更新场景下保留原值）；**携带**且为非空 JSON 时覆盖（创建与更新均支持）。非法 JSON 返回 `400`。
 - 当 `student_id = null` 时，后端将：
   - 在 `users` 表中创建一条 `role = "student"` 的账号记录；
   - 在 `students` 表中创建一条记录并关联 `user_id`；
@@ -2572,7 +2664,7 @@ Content-Disposition: attachment
   "start_date": "2026-04-01",
   "end_date": "2027-04-01",
   "total_minutes": 3600,
-  "price_total": 150000.00,
+  "price_total": 150000.0,
   "currency": "CNY",
   "status": "active",
   "remark": "私商一体训练合同"
@@ -2593,7 +2685,7 @@ Content-Disposition: attachment
     "start_date": "2026-04-01",
     "end_date": "2027-04-01",
     "total_minutes": 3600,
-    "price_total": 150000.00,
+    "price_total": 150000.0,
     "currency": "CNY",
     "status": "active",
     "mongo_file_ids": [],
@@ -2616,7 +2708,7 @@ Content-Disposition: attachment
   "id": "c-uuid-1",
   "end_date": "2027-06-01",
   "total_minutes": 4000,
-  "price_total": 168000.00,
+  "price_total": 168000.0,
   "status": "active",
   "remark": "延长 2 个月，追加 400 分钟"
 }
@@ -2638,7 +2730,7 @@ Content-Disposition: attachment
     "start_date": "2026-04-01",
     "end_date": "2027-06-01",
     "total_minutes": 4000,
-    "price_total": 168000.00,
+    "price_total": 168000.0,
     "currency": "CNY",
     "status": "active",
     "mongo_file_ids": ["file-meta-id-1"],
@@ -2677,7 +2769,7 @@ Content-Disposition: attachment
       "start_date": "2026-04-01",
       "end_date": "2027-06-01",
       "total_minutes": 4000,
-      "price_total": 168000.00,
+      "price_total": 168000.0,
       "currency": "CNY",
       "status": "active",
       "mongo_file_ids": ["file-meta-id-1"],
@@ -2729,7 +2821,7 @@ Content-Disposition: attachment
         "start_date": "2025-04-01",
         "end_date": "2026-03-31",
         "total_minutes": 3000,
-        "price_total": 120000.00,
+        "price_total": 120000.0,
         "currency": "CNY",
         "status": "finished"
       },
@@ -2740,7 +2832,7 @@ Content-Disposition: attachment
         "start_date": "2026-04-01",
         "end_date": "2027-06-01",
         "total_minutes": 4000,
-        "price_total": 168000.00,
+        "price_total": 168000.0,
         "currency": "CNY",
         "status": "active"
       }
@@ -2777,4 +2869,3 @@ Content-Disposition: attachment
   }
 }
 ```
-

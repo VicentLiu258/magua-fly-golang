@@ -60,20 +60,6 @@ func main() {
 	healthHandler := handler.NewHealthHandler(pgDB, mongoClient)
 	authHandler := handler.NewAuthHandler(authUC)
 	smsHandler := handler.NewSmsHandler(authUC)
-	studentHandler := handler.NewStudentHandler(
-		pgDB.Student(),
-		pgDB.User(),
-		pgDB.Task(),
-		pgDB.TrainingArchive(),
-		pgDB.TrainingPlan(),
-		pgDB.Instructor(),
-		pgDB.Aircraft(),
-		pgDB.TheoryAttempt(),
-		pgDB.Contract(),
-	)
-	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
-	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability(), pgDB.AircraftMaintenance(), pgDB)
-	// 训练与任务相关 UseCase / Handler
 	trainingUC := usecase.NewTrainingUseCase(
 		pgDB.TrainingRecord(),
 		pgDB.TrainingArchive(),
@@ -87,6 +73,20 @@ func main() {
 		pgDB.NextTrainingSubject(),
 		pgDB.Task(),
 	)
+	studentHandler := handler.NewStudentHandler(
+		pgDB.Student(),
+		pgDB.User(),
+		pgDB.Task(),
+		pgDB.TrainingArchive(),
+		pgDB.TrainingPlan(),
+		pgDB.Instructor(),
+		pgDB.Aircraft(),
+		pgDB.TheoryAttempt(),
+		pgDB.Contract(),
+		trainingUC,
+	)
+	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
+	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability(), pgDB.AircraftMaintenance(), pgDB)
 	trainingHandler := handler.NewTrainingHandler(trainingUC)
 
 	theoryUC := usecase.NewTheoryUseCase(

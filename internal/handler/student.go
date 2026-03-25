@@ -1,13 +1,18 @@
 package handler
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/middleware"
+	"magua-fly-golang/internal/pkg/studentcontract"
 	"magua-fly-golang/internal/repository"
+	"magua-fly-golang/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,6 +28,7 @@ type StudentHandler struct {
 	aircraftRepo repository.AircraftRepository
 	theoryRepo   repository.TheoryAttemptRepository
 	contractRepo repository.ContractRepository
+	trainingUC   *usecase.TrainingUseCase
 }
 
 // NewStudentHandler creates a StudentHandler.
@@ -36,6 +42,7 @@ func NewStudentHandler(
 	aircraftRepo repository.AircraftRepository,
 	theoryRepo repository.TheoryAttemptRepository,
 	contractRepo repository.ContractRepository,
+	trainingUC *usecase.TrainingUseCase,
 ) *StudentHandler {
 	return &StudentHandler{
 		studentRepo:  studentRepo,
@@ -47,15 +54,39 @@ func NewStudentHandler(
 		aircraftRepo: aircraftRepo,
 		theoryRepo:   theoryRepo,
 		contractRepo: contractRepo,
+		trainingUC:   trainingUC,
 	}
 }
 
 // List returns a paginated list of students.
+// Body: {"limit":20,"offset":0}；空 body 或仅空白时使用默认 limit=20、offset=0。
 func (h *StudentHandler) List(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	if limit <= 0 || limit > 100 {
-		limit = 20
+	limit, offset := 20, 0
+	raw, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	if len(bytes.TrimSpace(raw)) > 0 {
+		var body struct {
+			Limit  int `json:"limit"`
+			Offset int `json:"offset"`
+		}
+		if err := json.Unmarshal(raw, &body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+			return
+		}
+		if body.Limit > 0 {
+			limit = body.Limit
+			if limit > 100 {
+				limit = 100
+			}
+		}
+		if body.Offset > 0 {
+			offset = body.Offset
+		} else if body.Offset < 0 {
+			offset = 0
+		}
 	}
 	list, err := h.studentRepo.List(c.Request.Context(), limit, offset)
 	if err != nil {
@@ -266,6 +297,149 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": resp})
 }
 
+// StaffOverview 职员/教员端学员概要（训练状态、进度、权益）POST /api/v1/students/staff-overview
+func (h *StudentHandler) StaffOverview(c *gin.Context) {
+	claims := middleware.GetGinClaims(c)
+	if claims == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
+		return
+	}
+	if !isStaffLikeRole(claims.Role) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "forbidden: student cannot access this resource", "data": nil})
+		return
+	}
+	var body struct {
+		StudentID string `json:"student_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	ctx := c.Request.Context()
+	s, err := h.studentRepo.GetByID(ctx, body.StudentID)
+	if err != nil || s == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "student not found", "data": nil})
+		return
+	}
+
+	profile := gin.H{
+		"student_id": s.ID,
+		"name":       s.Name,
+		"student_no": s.StudentNo,
+	}
+
+	archives, err := h.archiveRepo.ListByStudent(ctx, s.ID, 1, 0)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	var latestArchive interface{}
+	if len(archives) > 0 {
+		a := archives[0]
+		latestArchive = gin.H{
+			"id":                      a.ID,
+			"training_date":           a.TrainingDate.Format("2006-01-02"),
+			"stage":                   a.Stage,
+			"flight_duration_minutes": a.FlightDurationMinutes,
+		}
+	}
+
+	statusPending := domain.TaskStatusPending
+	tasks, _ := h.taskRepo.ListByStudent(ctx, s.ID, &statusPending)
+	pendingCount := len(tasks)
+
+	var trainingProgressJSON interface{}
+	if len(s.TrainingProgressJSON) > 0 {
+		trainingProgressJSON = json.RawMessage(s.TrainingProgressJSON)
+	}
+
+	now := time.Now()
+	from := now.Format("2006-01-02")
+	to := now.AddDate(0, 0, 7).Format("2006-01-02")
+	plans, _ := h.planRepo.ListByDate(ctx, from, to)
+	type upcomingItem struct {
+		TrainingDate   string `json:"training_date"`
+		StartTime      string `json:"start_time"`
+		EndTime        string `json:"end_time"`
+		InstructorName string `json:"instructor_name"`
+		AircraftName   string `json:"aircraft_name"`
+	}
+	var upcoming []upcomingItem
+	for _, p := range plans {
+		if p.StudentID != s.ID {
+			continue
+		}
+		var insName, acName string
+		if ins, err := h.instrRepo.GetByID(ctx, p.InstructorID); err == nil && ins != nil {
+			insName = ins.Name
+		}
+		if ac, err := h.aircraftRepo.GetByID(ctx, p.AircraftID); err == nil && ac != nil {
+			acName = ac.Name
+		}
+		upcoming = append(upcoming, upcomingItem{
+			TrainingDate:   p.PlanDate.Format("2006-01-02"),
+			StartTime:      p.StartTime.Format("15:04"),
+			EndTime:        p.EndTime.Format("15:04"),
+			InstructorName: insName,
+			AircraftName:   acName,
+		})
+	}
+
+	training := gin.H{
+		"training_progress":         s.TrainingProgress,
+		"training_progress_json":    trainingProgressJSON,
+		"pending_task_count":        pendingCount,
+		"latest_archive":            latestArchive,
+		"upcoming_training":         upcoming,
+	}
+
+	syllabusProgress := gin.H{"completed": 0, "total": 0}
+	if h.trainingUC != nil {
+		sid := s.ID
+		subjects, err := h.trainingUC.ListSyllabusSubjects(ctx, &sid, nil, nil)
+		if err == nil {
+			completed := 0
+			for _, sub := range subjects {
+				if sub.IsGraduated {
+					completed++
+				}
+			}
+			syllabusProgress = gin.H{"completed": completed, "total": len(subjects)}
+		}
+	}
+
+	var remaining *int
+	if s.ContractDurationMinutes != nil {
+		r := *s.ContractDurationMinutes - s.FlownMinutes
+		remaining = &r
+	}
+	ent := studentcontract.ParseEntitlementsFromContractInfo(s.ContractInfo)
+	entitlements := gin.H{
+		"flight": gin.H{
+			"contract_duration_minutes": s.ContractDurationMinutes,
+			"flown_minutes":               s.FlownMinutes,
+			"remaining_minutes":           remaining,
+		},
+		"learning_points": ent.LearningPoints,
+		"guest_experience": gin.H{
+			"quota":     ent.GuestQuota,
+			"used":      ent.GuestUsed,
+			"remaining": ent.GuestRemaining,
+		},
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "ok",
+		"data": gin.H{
+			"profile":            profile,
+			"training":           training,
+			"syllabus_progress":  syllabusProgress,
+			"entitlements":       entitlements,
+		},
+	})
+}
+
 // AdminContractsListByStudent 按学员查询合同列表 POST /api/v1/admin/contracts/list-by-student
 func (h *StudentHandler) AdminContractsListByStudent(c *gin.Context) {
 	var body struct {
@@ -323,17 +497,18 @@ func (h *StudentHandler) AdminContractsListByStudent(c *gin.Context) {
 // AdminSave 后台学员创建 / 更新 POST /api/v1/admin/students/save
 func (h *StudentHandler) AdminSave(c *gin.Context) {
 	var body struct {
-		StudentID               *string `json:"student_id"`
-		Name                    string  `json:"name" binding:"required"`
-		StudentNo               string  `json:"student_no" binding:"required"`
-		Username                string  `json:"username"`
-		Phone                   string  `json:"phone"`
-		Email                   string  `json:"email"`
-		Password                string  `json:"password"`
-		ContractDurationMinutes *int    `json:"contract_duration_minutes"`
-		FlownMinutes            int     `json:"flown_minutes"`
-		TrainingProgress        string  `json:"training_progress"`
-		ResponsibleInstructorID *string `json:"responsible_instructor_id"`
+		StudentID               *string         `json:"student_id"`
+		Name                    string          `json:"name" binding:"required"`
+		StudentNo               string          `json:"student_no" binding:"required"`
+		Username                string          `json:"username"`
+		Phone                   string          `json:"phone"`
+		Email                   string          `json:"email"`
+		Password                string          `json:"password"`
+		ContractDurationMinutes *int            `json:"contract_duration_minutes"`
+		FlownMinutes            int             `json:"flown_minutes"`
+		TrainingProgress        string          `json:"training_progress"`
+		ResponsibleInstructorID *string         `json:"responsible_instructor_id"`
+		ContractInfo            json.RawMessage `json:"contract_info"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
@@ -370,6 +545,10 @@ func (h *StudentHandler) AdminSave(c *gin.Context) {
 			TrainingProgress:        body.TrainingProgress,
 			ResponsibleInstructorID: body.ResponsibleInstructorID,
 		}
+		if err := mergeContractInfoJSON(&s.ContractInfo, body.ContractInfo); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+			return
+		}
 		if err := h.studentRepo.Create(ctx, s); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 			return
@@ -390,6 +569,10 @@ func (h *StudentHandler) AdminSave(c *gin.Context) {
 	s.FlownMinutes = body.FlownMinutes
 	s.TrainingProgress = body.TrainingProgress
 	s.ResponsibleInstructorID = body.ResponsibleInstructorID
+	if err := mergeContractInfoJSON(&s.ContractInfo, body.ContractInfo); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
 	if err := h.studentRepo.Update(ctx, s); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
@@ -512,4 +695,27 @@ func (h *StudentHandler) MyHome(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": data})
+}
+
+var errInvalidContractInfoJSON = errors.New("invalid contract_info json")
+
+func mergeContractInfoJSON(dst *[]byte, raw json.RawMessage) error {
+	b := bytes.TrimSpace(raw)
+	if len(b) == 0 {
+		return nil
+	}
+	if !json.Valid(b) {
+		return errInvalidContractInfoJSON
+	}
+	*dst = append([]byte(nil), b...)
+	return nil
+}
+
+func isStaffLikeRole(role string) bool {
+	switch domain.UserRole(role) {
+	case domain.RoleAdmin, domain.RoleStaff, domain.RoleMaintenance, domain.RoleInstructor:
+		return true
+	default:
+		return false
+	}
 }

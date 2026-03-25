@@ -90,7 +90,7 @@
 
 ### 2.3 获取学员实体 ID：`STUDENT_ID`
 
-- **接口**：`POST /api/v1/students/list?limit=20&offset=0`
+- **接口**：`POST /api/v1/students/list`（JSON body：`{"limit":20,"offset":0}`；空 body 使用默认分页）
 - **Header**：`Authorization: Bearer {{INSTRUCTOR_TOKEN}}`
 - **Body**：空 `{}` 或不传
 - **检查点**：

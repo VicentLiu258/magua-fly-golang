@@ -337,18 +337,21 @@
       "post": {
         "summary": "学员列表",
         "tags": ["02-基础信息"],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": { "type": "integer", "default": 20 }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "schema": { "type": "integer", "default": 0 }
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "limit": { "type": "integer", "default": 20, "maximum": 100 },
+                  "offset": { "type": "integer", "default": 0, "minimum": 0 }
+                }
+              },
+              "example": { "limit": 20, "offset": 0 }
+            }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "学员列表",
@@ -371,6 +374,41 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+
+    "/api/v1/students/staff-overview": {
+      "post": {
+        "summary": "职员端学员概要",
+        "tags": ["02-基础信息"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["student_id"],
+                "properties": {
+                  "student_id": { "type": "string", "format": "uuid" }
+                }
+              },
+              "example": { "student_id": "550e8400-e29b-41d4-a716-446655440001" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "学员概要（训练、大纲进度、权益）",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BaseResp" }
+              }
+            }
+          },
+          "403": {
+            "description": "学员角色禁止访问"
           }
         }
       }
