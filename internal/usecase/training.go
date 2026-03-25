@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/repository"
 )
@@ -579,7 +581,37 @@ func (u *TrainingUseCase) ListNextSubjects(ctx context.Context, archiveID string
 
 // UpdateNextSubjects 布置下次科目
 func (u *TrainingUseCase) UpdateNextSubjects(ctx context.Context, archiveID string, assignedBy string, syllabusSubjectIDs []string) error {
-	return u.nextSubjRepo.ReplaceForArchive(ctx, archiveID, assignedBy, syllabusSubjectIDs)
+	resolved := make([]string, 0, len(syllabusSubjectIDs))
+	for _, sid := range syllabusSubjectIDs {
+		if sid == "" {
+			continue
+		}
+		pid, err := u.resolveSyllabusSubjectIDForNextTraining(ctx, sid)
+		if err != nil {
+			return err
+		}
+		resolved = append(resolved, pid)
+	}
+	return u.nextSubjRepo.ReplaceForArchive(ctx, archiveID, assignedBy, resolved)
+}
+
+// resolveSyllabusSubjectIDForNextTraining 接受一级科目 id 或二级科目 id，统一解析为一级科目 id（与 next_training_subjects 外键一致）。
+func (u *TrainingUseCase) resolveSyllabusSubjectIDForNextTraining(ctx context.Context, id string) (string, error) {
+	_, err := u.syllabusRepo.GetByID(ctx, id)
+	if err == nil {
+		return id, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
+	sec, err := u.secondaryRepo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", fmt.Errorf("无效的科目 id（需为一级大纲科目或二级科目）: %s", id)
+		}
+		return "", err
+	}
+	return sec.SyllabusSubjectID, nil
 }
 
 // TrainingRecordFieldsConfig 返回录入字段配置（静态）

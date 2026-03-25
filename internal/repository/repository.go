@@ -144,6 +144,7 @@ type SyllabusSubjectRepository interface {
 
 // SyllabusSubjectSecondaryRepository 二级科目
 type SyllabusSubjectSecondaryRepository interface {
+	GetByID(ctx context.Context, id string) (*domain.SyllabusSubjectSecondary, error)
 	ListBySubjectID(ctx context.Context, syllabusSubjectID string) ([]*domain.SyllabusSubjectSecondary, error)
 	ListGroupedBySubjectID(ctx context.Context, syllabusSubjectIDs []string) (map[string][]*domain.SyllabusSubjectSecondary, error)
 	Create(ctx context.Context, row *domain.SyllabusSubjectSecondary) error

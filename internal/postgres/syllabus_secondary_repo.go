@@ -18,6 +18,19 @@ func (db *DB) SyllabusSubjectSecondary() repository.SyllabusSubjectSecondaryRepo
 
 var _ repository.SyllabusSubjectSecondaryRepository = (*SyllabusSubjectSecondaryRepo)(nil)
 
+func (r *SyllabusSubjectSecondaryRepo) GetByID(ctx context.Context, id string) (*domain.SyllabusSubjectSecondary, error) {
+	var sec domain.SyllabusSubjectSecondary
+	err := r.db.Pool.QueryRow(ctx, `
+		SELECT id::text, syllabus_subject_id::text, seq_no, name, COALESCE(description,''), COALESCE(completion_standard,''), sort_order, created_at, updated_at
+		FROM syllabus_subject_secondaries
+		WHERE id = $1::uuid`, id,
+	).Scan(&sec.ID, &sec.SyllabusSubjectID, &sec.SeqNo, &sec.Name, &sec.Description, &sec.CompletionStandard, &sec.SortOrder, &sec.CreatedAt, &sec.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &sec, nil
+}
+
 func (r *SyllabusSubjectSecondaryRepo) ListBySubjectID(ctx context.Context, syllabusSubjectID string) ([]*domain.SyllabusSubjectSecondary, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id::text, syllabus_subject_id::text, seq_no, name, COALESCE(description,''), COALESCE(completion_standard,''), sort_order, created_at, updated_at
