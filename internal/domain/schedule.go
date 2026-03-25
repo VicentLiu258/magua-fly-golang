@@ -90,14 +90,15 @@ type DutyTaskBundle struct {
 
 // DutyTaskItem 单条任务（带飞或地面，字段一致便于前端复用）。
 type DutyTaskItem struct {
-	Source    string `json:"source"` // booking | training_plan | ground (预留)
-	RefID     string `json:"ref_id"`
-	StartTime string `json:"start_time"`
-	EndTime   string `json:"end_time"`
-	Minutes   int    `json:"minutes"`
-	StudentID string `json:"student_id,omitempty"`
-	AircraftID string `json:"aircraft_id,omitempty"`
-	Title     string `json:"title,omitempty"`
+	Source        string `json:"source"` // booking | training_plan | ground (预留)
+	RefID         string `json:"ref_id"`
+	StartTime     string `json:"start_time"`
+	EndTime       string `json:"end_time"`
+	Minutes       int    `json:"minutes"`
+	StudentID     string `json:"student_id,omitempty"`
+	AircraftID    string `json:"aircraft_id,omitempty"`
+	Title         string `json:"title,omitempty"`
+	BookingStatus string `json:"booking_status,omitempty"` // 仅 source=booking：pending | approved | rejected
 }
 
 // ResolvedDutyWindow 响应中解析后的执勤窗口（分钟数从 00:00 起算，用于展示）。

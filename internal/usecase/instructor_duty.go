@@ -2,7 +2,9 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"magua-fly-golang/internal/domain"
@@ -97,6 +99,48 @@ func (u *ScheduleUseCase) ListInstructorDuties(ctx context.Context, from, to tim
 	return out, nil
 }
 
+// ErrInstructorProfileNotFound 当前登录用户未关联 instructors 行。
+var ErrInstructorProfileNotFound = errors.New("未绑定教员档案")
+
+// MyInstructorDutiesResult 教员「我的排班与任务」聚合（与接口 data 对齐）。
+type MyInstructorDutiesResult struct {
+	InstructorID    string                          `json:"instructor_id"`
+	InstructorName  string                          `json:"instructor_name"`
+	Items           []domain.InstructorDutyListItem `json:"items"`
+	PendingBookings []*domain.Booking               `json:"pending_bookings"`
+}
+
+// ListMyInstructorDuties 按 JWT 对应教员列出区间内排班与带飞任务，并附带**全部**待审核预约（不按日期过滤）。
+func (u *ScheduleUseCase) ListMyInstructorDuties(ctx context.Context, userID string, from, to time.Time) (*MyInstructorDutiesResult, error) {
+	ins, err := u.instructorRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if ins == nil {
+		return nil, ErrInstructorProfileNotFound
+	}
+	items, err := u.ListInstructorDuties(ctx, from, to, []string{ins.ID})
+	if err != nil {
+		return nil, err
+	}
+	allPending, err := u.bookingRepo.ListPending(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var pending []*domain.Booking
+	for _, b := range allPending {
+		if b.InstructorID == ins.ID {
+			pending = append(pending, b)
+		}
+	}
+	return &MyInstructorDutiesResult{
+		InstructorID:    ins.ID,
+		InstructorName:  ins.Name,
+		Items:           items,
+		PendingBookings: pending,
+	}, nil
+}
+
 func intervalsToResolved(intervals []dutyInterval) []domain.ResolvedDutyWindow {
 	out := make([]domain.ResolvedDutyWindow, 0, len(intervals))
 	for _, inv := range intervals {
@@ -123,11 +167,11 @@ func aggregateFlightTasks(bookings []*domain.Booking, plans []*domain.TrainingPl
 	total := 0
 
 	for _, b := range bookings {
-		if b.InstructorID != instructorID {
+		if !strings.EqualFold(b.InstructorID, instructorID) {
 			continue
 		}
-		bd := time.Date(b.PlanDate.Year(), b.PlanDate.Month(), b.PlanDate.Day(), 0, 0, 0, 0, b.PlanDate.Location())
-		if !bd.Equal(day) {
+		bd := b.PlanDate
+		if bd.Year() != day.Year() || bd.Month() != day.Month() || bd.Day() != day.Day() {
 			continue
 		}
 		if b.Status == domain.BookingRejected {
@@ -146,22 +190,23 @@ func aggregateFlightTasks(bookings []*domain.Booking, plans []*domain.TrainingPl
 		minutes := em - sm
 		total += minutes
 		items = append(items, domain.DutyTaskItem{
-			Source:     "booking",
-			RefID:      b.ID,
-			StartTime:  b.StartTime.Format("15:04"),
-			EndTime:    b.EndTime.Format("15:04"),
-			Minutes:    minutes,
-			StudentID:  b.StudentID,
-			AircraftID: b.AircraftID,
+			Source:        "booking",
+			RefID:         b.ID,
+			StartTime:     b.StartTime.Format("15:04"),
+			EndTime:       b.EndTime.Format("15:04"),
+			Minutes:       minutes,
+			StudentID:     b.StudentID,
+			AircraftID:    b.AircraftID,
+			BookingStatus: string(b.Status),
 		})
 	}
 
 	for _, p := range plans {
-		if p.InstructorID != instructorID {
+		if !strings.EqualFold(p.InstructorID, instructorID) {
 			continue
 		}
-		pd := time.Date(p.PlanDate.Year(), p.PlanDate.Month(), p.PlanDate.Day(), 0, 0, 0, 0, p.PlanDate.Location())
-		if !pd.Equal(day) {
+		pd := p.PlanDate
+		if pd.Year() != day.Year() || pd.Month() != day.Month() || pd.Day() != day.Day() {
 			continue
 		}
 		sm := p.StartTime.Hour()*60 + p.StartTime.Minute()

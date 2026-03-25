@@ -658,9 +658,21 @@
 
 `instructor_ids` 省略或空数组表示不限教员。
 
-**响应 `data.items[]`**：每条对应库中已有的一行排班，包含 `instructor_name`、`duty_status`、`remark`、`duty_windows`（库内原始值）、`resolved_windows`（解析后的展示窗口）、`flight_tasks`（由当日的 `bookings` 与 `training_plans` 聚合，相同学员/起止时刻去重，优先保留预约）、`ground_courses`（当前为空数组，结构与 `flight_tasks` 一致，预留地面课）。
+**响应 `data.items[]`**：每条对应库中已有的一行排班，包含 `instructor_name`、`duty_status`、`remark`、`duty_windows`（库内原始值）、`resolved_windows`（解析后的展示窗口）、`flight_tasks`（由当日的 `bookings` 与 `training_plans` 聚合，相同学员/起止时刻去重，优先保留预约；其中 `source` 为 `booking` 的条目带 `booking_status`：`pending` | `approved` | `rejected`）、`ground_courses`（当前为空数组，结构与 `flight_tasks` 一致，预留地面课）。
 
-#### 5.5.2 单日写入/更新 `POST /api/v1/schedules/instructor-duties/upsert`
+#### 5.5.2 教员我的排班与任务 `POST /api/v1/schedules/instructor-duties/my-list`
+
+供**已登录且 `instructors.user_id` 已绑定当前用户**的教员使用，无需传 `instructor_id`。请求体与 §5.5.1 相同（仅 `from_date`、`to_date`）。
+
+**响应 `data`**：
+
+- `instructor_id`、`instructor_name`：当前教员档案。
+- `items`：与 §5.5.1 的 `items[]` 结构相同，且仅含该教员在区间内的排班行。
+- `pending_bookings`：`status = pending` 且 `instructor_id` 为当前教员的预约列表（**不按** `from_date`/`to_date` 过滤，便于总览待审核）。
+
+若当前用户未绑定教员档案，返回 `404`，`msg` 为「未绑定教员档案」。
+
+#### 5.5.3 单日写入/更新 `POST /api/v1/schedules/instructor-duties/upsert`
 
 **请求体**：
 
@@ -676,7 +688,7 @@
 
 `duty_windows` 可省略；`duty_status` 为 `custom` 时须提供非空 `duty_windows`。
 
-#### 5.5.3 按区间批量写入 `POST /api/v1/schedules/instructor-duties/bulk`
+#### 5.5.4 按区间批量写入 `POST /api/v1/schedules/instructor-duties/bulk`
 
 **请求体**：
 

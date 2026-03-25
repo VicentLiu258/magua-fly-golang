@@ -2,10 +2,13 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"magua-fly-golang/internal/domain"
+	"magua-fly-golang/internal/middleware"
+	"magua-fly-golang/internal/usecase"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,6 +41,45 @@ func (h *ScheduleHandler) InstructorDutiesList(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": gin.H{"items": items}})
+}
+
+// InstructorDutiesMyList POST /api/v1/schedules/instructor-duties/my-list
+func (h *ScheduleHandler) InstructorDutiesMyList(c *gin.Context) {
+	var body struct {
+		FromDate string `json:"from_date" binding:"required"`
+		ToDate   string `json:"to_date" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	from, err := time.Parse("2006-01-02", body.FromDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid from_date", "data": nil})
+		return
+	}
+	to, err := time.Parse("2006-01-02", body.ToDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid to_date", "data": nil})
+		return
+	}
+
+	claims := middleware.GetGinClaims(c)
+	if claims == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
+		return
+	}
+
+	data, err := h.scheduleUC.ListMyInstructorDuties(c.Request.Context(), claims.UserID, from, to)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInstructorProfileNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": err.Error(), "data": nil})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": data})
 }
 
 // InstructorDutiesUpsert POST /api/v1/schedules/instructor-duties/upsert

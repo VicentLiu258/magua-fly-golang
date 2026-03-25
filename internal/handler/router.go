@@ -62,6 +62,7 @@ func Router(
 		authGroup.POST("/api/v1/schedules/staff-duties/upsert", schedule.StaffDutiesUpsert)
 		authGroup.POST("/api/v1/schedules/staff-duties/bulk", schedule.StaffDutiesBulk)
 		authGroup.POST("/api/v1/schedules/instructor-duties/list", schedule.InstructorDutiesList)
+		authGroup.POST("/api/v1/schedules/instructor-duties/my-list", schedule.InstructorDutiesMyList)
 		authGroup.POST("/api/v1/schedules/instructor-duties/upsert", schedule.InstructorDutiesUpsert)
 		authGroup.POST("/api/v1/schedules/instructor-duties/bulk", schedule.InstructorDutiesBulk)
 
