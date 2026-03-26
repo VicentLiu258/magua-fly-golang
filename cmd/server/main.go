@@ -123,6 +123,18 @@ func main() {
 	)
 	contractFilesHandler := handler.NewContractFilesHandler(contractFilesUC)
 
+	communityUC := usecase.NewCommunityUseCase(
+		pgDB.User(),
+		pgDB.CommunityFollow(),
+		pgDB.CommunityTopic(),
+		pgDB.CommunityGroup(),
+		pgDB.CommunityPost(),
+		pgDB.CommunityLike(),
+		pgDB.CommunityComment(),
+		pgDB.CommunityChallenge(),
+	)
+	communityHandler := handler.NewCommunityHandler(communityUC)
+
 	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.StaffSchedule(), pgDB.User(), pgDB.Booking(), pgDB.TrainingPlan(), pgDB.AircraftAvailability())
 	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan(), pgDB.Task(), scheduleUC)
 	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
@@ -141,6 +153,7 @@ func main() {
 		subjectExamHandler,
 		taskHandler,
 		contractFilesHandler,
+		communityHandler,
 		jwtManager,
 	)
 

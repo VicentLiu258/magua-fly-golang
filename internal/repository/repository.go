@@ -259,3 +259,81 @@ type SmsVerificationRepository interface {
 	FindValidCode(ctx context.Context, phone string, scene domain.SmsScene, code string, now time.Time) (*domain.SmsVerificationCode, error)
 	MarkUsed(ctx context.Context, id string, usedAt time.Time) error
 }
+
+// CommunityFollowRepository 社区关注
+type CommunityFollowRepository interface {
+	Follow(ctx context.Context, followerID, followeeID string) error
+	Unfollow(ctx context.Context, followerID, followeeID string) error
+	IsFollowing(ctx context.Context, followerID, followeeID string) (bool, error)
+	ListFolloweeIDs(ctx context.Context, followerID string) ([]string, error)
+	ListFollowers(ctx context.Context, followeeID string, limit, offset int) ([]string, error)
+	ListFollowing(ctx context.Context, followerID string, limit, offset int) ([]string, error)
+	CountFollowers(ctx context.Context, followeeID string) (int, error)
+	CountFollowing(ctx context.Context, followerID string) (int, error)
+	// RecommendUserIDs 推荐关注：排除自身与已关注；按同组、粉丝数、教员角色排序
+	RecommendUserIDs(ctx context.Context, viewerID string, limit int) ([]string, error)
+}
+
+// CommunityTopicRepository 社区话题
+type CommunityTopicRepository interface {
+	Create(ctx context.Context, t *domain.CommunityTopic) error
+	GetByID(ctx context.Context, id string) (*domain.CommunityTopic, error)
+	GetBySlug(ctx context.Context, slug string) (*domain.CommunityTopic, error)
+	ListByIDs(ctx context.Context, ids []string) ([]*domain.CommunityTopic, error)
+	ListHot(ctx context.Context, limit, offset int) ([]*domain.CommunityTopic, error)
+}
+
+// CommunityGroupRepository 兴趣小组
+type CommunityGroupRepository interface {
+	Create(ctx context.Context, g *domain.CommunityGroup) error
+	Update(ctx context.Context, g *domain.CommunityGroup) error
+	GetByID(ctx context.Context, id string) (*domain.CommunityGroup, error)
+	GetBySlug(ctx context.Context, slug string) (*domain.CommunityGroup, error)
+	List(ctx context.Context, limit, offset int) ([]*domain.CommunityGroup, error)
+	AddMember(ctx context.Context, groupID, userID string, role domain.CommunityGroupMemberRole) error
+	RemoveMember(ctx context.Context, groupID, userID string) error
+	GetMembership(ctx context.Context, groupID, userID string) (*domain.CommunityGroupMember, error)
+	IsMember(ctx context.Context, groupID, userID string) (bool, error)
+	ListMembers(ctx context.Context, groupID string, limit, offset int) ([]*domain.CommunityGroupMember, error)
+}
+
+// CommunityPostRepository 社区动态
+type CommunityPostRepository interface {
+	Create(ctx context.Context, p *domain.CommunityPost) error
+	// CreateWithTopics 在同一事务中插入动态并写入话题关联
+	CreateWithTopics(ctx context.Context, p *domain.CommunityPost, topicIDs []string) error
+	Update(ctx context.Context, p *domain.CommunityPost) error
+	Delete(ctx context.Context, id string) error
+	GetByID(ctx context.Context, id string) (*domain.CommunityPost, error)
+	ReplaceTopicLinks(ctx context.Context, postID string, topicIDs []string) error
+	ListTopicIDs(ctx context.Context, postID string) ([]string, error)
+	ListFeedGlobal(ctx context.Context, limit int, cursorCreatedAt *time.Time, cursorID *string) ([]*domain.CommunityPost, error)
+	ListFeedFollowing(ctx context.Context, viewerID string, limit int, cursorCreatedAt *time.Time, cursorID *string) ([]*domain.CommunityPost, error)
+	ListFeedGroup(ctx context.Context, groupID, viewerID string, limit int, cursorCreatedAt *time.Time, cursorID *string) ([]*domain.CommunityPost, error)
+	ListByTopic(ctx context.Context, topicID string, limit int, cursorCreatedAt *time.Time, cursorID *string) ([]*domain.CommunityPost, error)
+	ListByAuthor(ctx context.Context, authorID string, limit int, cursorCreatedAt *time.Time, cursorID *string) ([]*domain.CommunityPost, error)
+	BatchLikedByUser(ctx context.Context, userID string, postIDs []string) (map[string]bool, error)
+}
+
+// CommunityLikeRepository 点赞
+type CommunityLikeRepository interface {
+	Like(ctx context.Context, postID, userID string) error
+	Unlike(ctx context.Context, postID, userID string) error
+}
+
+// CommunityCommentRepository 评论
+type CommunityCommentRepository interface {
+	Create(ctx context.Context, c *domain.CommunityComment) error
+	ListByPost(ctx context.Context, postID string, limit, offset int) ([]*domain.CommunityComment, error)
+}
+
+// CommunityChallengeRepository 挑战赛
+type CommunityChallengeRepository interface {
+	Create(ctx context.Context, ch *domain.CommunityChallenge) error
+	Update(ctx context.Context, ch *domain.CommunityChallenge) error
+	GetByID(ctx context.Context, id string) (*domain.CommunityChallenge, error)
+	List(ctx context.Context, status *domain.CommunityChallengeStatus, limit, offset int) ([]*domain.CommunityChallenge, error)
+	SubmitEntry(ctx context.Context, e *domain.CommunityChallengeEntry) error
+	GetEntry(ctx context.Context, challengeID, userID string) (*domain.CommunityChallengeEntry, error)
+	ListEntries(ctx context.Context, challengeID string, limit, offset int) ([]*domain.CommunityChallengeEntry, error)
+}

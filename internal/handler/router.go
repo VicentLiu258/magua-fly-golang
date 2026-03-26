@@ -22,6 +22,7 @@ func Router(
 	subjectExam *SubjectExamHandler,
 	task *TaskHandler,
 	contractFiles *ContractFilesHandler,
+	community *CommunityHandler,
 	jwtManager *jwt.Manager,
 ) *gin.Engine {
 	r := gin.Default()
@@ -140,6 +141,38 @@ func Router(
 		authGroup.POST("/api/v1/contracts/files/upload", contractFiles.Upload)
 		authGroup.GET("/api/v1/contracts/files/list", contractFiles.List)
 		authGroup.GET("/api/v1/contracts/files/download", contractFiles.Download)
+
+		// 社区
+		authGroup.POST("/api/v1/community/posts/create", community.PostsCreate)
+		authGroup.POST("/api/v1/community/posts/update", community.PostsUpdate)
+		authGroup.POST("/api/v1/community/posts/delete", community.PostsDelete)
+		authGroup.POST("/api/v1/community/posts/detail", community.PostsDetail)
+		authGroup.POST("/api/v1/community/posts/list", community.PostsList)
+		authGroup.POST("/api/v1/community/posts/like", community.PostsLike)
+		authGroup.POST("/api/v1/community/posts/unlike", community.PostsUnlike)
+		authGroup.POST("/api/v1/community/comments/create", community.CommentsCreate)
+		authGroup.POST("/api/v1/community/comments/list", community.CommentsList)
+		authGroup.POST("/api/v1/community/follows/follow", community.FollowsFollow)
+		authGroup.POST("/api/v1/community/follows/unfollow", community.FollowsUnfollow)
+		authGroup.POST("/api/v1/community/follows/followers", community.FollowsFollowers)
+		authGroup.POST("/api/v1/community/follows/following", community.FollowsFollowing)
+		authGroup.POST("/api/v1/community/follows/recommend", community.FollowsRecommend)
+		authGroup.POST("/api/v1/community/topics/list", community.TopicsList)
+		authGroup.POST("/api/v1/community/topics/detail", community.TopicsDetail)
+		authGroup.POST("/api/v1/community/topics/create", community.TopicsCreate)
+		authGroup.POST("/api/v1/community/groups/create", community.GroupsCreate)
+		authGroup.POST("/api/v1/community/groups/update", community.GroupsUpdate)
+		authGroup.POST("/api/v1/community/groups/detail", community.GroupsDetail)
+		authGroup.POST("/api/v1/community/groups/list", community.GroupsList)
+		authGroup.POST("/api/v1/community/groups/join", community.GroupsJoin)
+		authGroup.POST("/api/v1/community/groups/leave", community.GroupsLeave)
+		authGroup.POST("/api/v1/community/groups/members", community.GroupsMembers)
+		authGroup.POST("/api/v1/community/challenges/create", community.ChallengesCreate)
+		authGroup.POST("/api/v1/community/challenges/update", community.ChallengesUpdate)
+		authGroup.POST("/api/v1/community/challenges/list", community.ChallengesList)
+		authGroup.POST("/api/v1/community/challenges/detail", community.ChallengesDetail)
+		authGroup.POST("/api/v1/community/challenges/submit", community.ChallengesSubmit)
+		authGroup.POST("/api/v1/community/challenges/entries", community.ChallengesEntries)
 	}
 
 	return r
