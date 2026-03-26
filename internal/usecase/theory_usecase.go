@@ -693,12 +693,20 @@ func (uc *TheoryUseCase) RemoveTheoryVideo(ctx context.Context, documentID strin
 	if err != nil {
 		return err
 	}
-	if doc.HasHostedTheoryVideo() {
-		if uc.videoStorage == nil {
+
+	objectID := strings.TrimSpace(doc.VideoObjectID)
+	// 显式 gridfs/cos，或仅有 object_id 而 video_storage 为空（脏数据）时，按托管清理
+	clearHosted := doc.HasHostedTheoryVideo() || (objectID != "" && doc.VideoStorage == "")
+
+	if clearHosted {
+		needGridFS := objectID != "" && (doc.VideoStorage == domain.TheoryVideoStorageGridFS || doc.VideoStorage == "")
+		if needGridFS && uc.videoStorage == nil {
 			return fmt.Errorf("theory video storage is not configured")
 		}
-		if doc.VideoObjectID != "" && doc.VideoStorage == domain.TheoryVideoStorageGridFS {
-			_ = uc.videoStorage.Delete(ctx, doc.VideoObjectID)
+		if needGridFS {
+			if err := uc.videoStorage.Delete(ctx, objectID); err != nil && !errors.Is(err, ErrTheoryVideoFileMissing) {
+				return fmt.Errorf("delete theory video from gridfs: %w", err)
+			}
 		}
 		doc.VideoStorage = ""
 		doc.VideoObjectID = ""
@@ -708,6 +716,7 @@ func (uc *TheoryUseCase) RemoveTheoryVideo(ctx context.Context, documentID strin
 		doc.VideoURL = ""
 		return uc.docRepo.Update(ctx, doc)
 	}
+
 	if doc.HasExternalTheoryVideo() {
 		doc.VideoURL = ""
 		doc.VideoStorage = ""

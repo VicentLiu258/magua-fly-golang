@@ -2,12 +2,15 @@ package mongodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"magua-fly-golang/internal/usecase"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/gridfs"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -30,11 +33,31 @@ func (c *Client) NewTheoryVideoGridFSBucket(bucketName string) (usecase.TheoryVi
 var _ usecase.TheoryVideoStorage = (*TheoryVideoGridFS)(nil)
 
 func parseGridFSFileID(fileID string) (interface{}, error) {
+	fileID = strings.TrimSpace(fileID)
+	if fileID == "" {
+		return nil, fmt.Errorf("empty gridfs file id")
+	}
+	// 与上传时 ObjectID.Hex() 一致；也兼容历史 fmt.Sprintf("%v", ObjectID) 等形式
+	if len(fileID) == 24 {
+		if oid, err := primitive.ObjectIDFromHex(fileID); err == nil {
+			return oid, nil
+		}
+	}
 	var objID interface{}
 	if err := bson.UnmarshalExtJSON([]byte(`"`+fileID+`"`), false, &objID); err != nil {
 		return nil, err
 	}
 	return objID, nil
+}
+
+func wrapTheoryGridFSErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, gridfs.ErrFileNotFound) {
+		return usecase.ErrTheoryVideoFileMissing
+	}
+	return err
 }
 
 func (g *TheoryVideoGridFS) UploadStream(ctx context.Context, filename, contentType string, metadata map[string]interface{}, src io.Reader) (string, int64, error) {
@@ -55,7 +78,12 @@ func (g *TheoryVideoGridFS) UploadStream(ctx context.Context, filename, contentT
 	if err := us.Close(); err != nil {
 		return "", 0, err
 	}
-	return fmt.Sprintf("%v", us.FileID), n, nil
+	switch fid := us.FileID.(type) {
+	case primitive.ObjectID:
+		return fid.Hex(), n, nil
+	default:
+		return fmt.Sprintf("%v", us.FileID), n, nil
+	}
 }
 
 func (g *TheoryVideoGridFS) Delete(ctx context.Context, objectID string) error {
@@ -63,7 +91,10 @@ func (g *TheoryVideoGridFS) Delete(ctx context.Context, objectID string) error {
 	if err != nil {
 		return err
 	}
-	return g.bucket.DeleteContext(ctx, obj)
+	if err := g.bucket.DeleteContext(ctx, obj); err != nil {
+		return wrapTheoryGridFSErr(err)
+	}
+	return nil
 }
 
 func (g *TheoryVideoGridFS) FileLength(ctx context.Context, objectID string) (int64, error) {
@@ -73,7 +104,7 @@ func (g *TheoryVideoGridFS) FileLength(ctx context.Context, objectID string) (in
 	}
 	ds, err := g.bucket.OpenDownloadStream(obj)
 	if err != nil {
-		return 0, err
+		return 0, wrapTheoryGridFSErr(err)
 	}
 	defer ds.Close()
 	return ds.GetFile().Length, nil
@@ -94,7 +125,7 @@ func (g *TheoryVideoGridFS) OpenPartial(ctx context.Context, objectID string, of
 	}
 	ds, err := g.bucket.OpenDownloadStream(obj)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, wrapTheoryGridFSErr(err)
 	}
 	total := ds.GetFile().Length
 	if offset < 0 {

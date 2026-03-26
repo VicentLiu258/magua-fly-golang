@@ -327,6 +327,22 @@ func parseBytesRange(rangeHeader string, size int64) (start, end int64, partial 
 	return 0, 0, false, true
 }
 
+func theoryVideoStreamError(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, usecase.ErrTheoryNoHostedVideo):
+		c.JSON(http.StatusNotFound, errorMessage("no hosted video"))
+		return true
+	case errors.Is(err, usecase.ErrTheoryVideoCOSNotReady):
+		c.JSON(http.StatusNotImplemented, errorMessage("COS video not implemented"))
+		return true
+	case errors.Is(err, usecase.ErrTheoryVideoFileMissing):
+		c.JSON(http.StatusNotFound, errorMessage("视频文件在存储中不存在，可能 MongoDB GridFS 与库表不一致，请重新上传"))
+		return true
+	default:
+		return false
+	}
+}
+
 // StreamTheoryVideo GET，支持 Accept-Ranges / Content-Range（GridFS 托管视频）。
 func (h *TheoryHandler) StreamTheoryVideo(c *gin.Context) {
 	if getUserIDFromContext(c) == "" {
@@ -341,17 +357,11 @@ func (h *TheoryHandler) StreamTheoryVideo(c *gin.Context) {
 	ctx := c.Request.Context()
 	total, ct, err := h.uc.GetTheoryVideoMeta(ctx, documentID)
 	if err != nil {
-		switch {
-		case errors.Is(err, usecase.ErrTheoryNoHostedVideo):
-			c.JSON(http.StatusNotFound, errorMessage("no hosted video"))
-			return
-		case errors.Is(err, usecase.ErrTheoryVideoCOSNotReady):
-			c.JSON(http.StatusNotImplemented, errorMessage("COS video not implemented"))
-			return
-		default:
-			c.JSON(http.StatusInternalServerError, errorResponse(err))
+		if theoryVideoStreamError(c, err) {
 			return
 		}
+		c.JSON(http.StatusInternalServerError, errorResponse(err))
+		return
 	}
 
 	start, end, partial, bad := parseBytesRange(c.GetHeader("Range"), total)
@@ -367,6 +377,9 @@ func (h *TheoryHandler) StreamTheoryVideo(c *gin.Context) {
 	if !partial {
 		rc, _, _, err := h.uc.OpenTheoryVideoContent(ctx, documentID, 0, 0)
 		if err != nil {
+			if theoryVideoStreamError(c, err) {
+				return
+			}
 			c.JSON(http.StatusInternalServerError, errorResponse(err))
 			return
 		}
@@ -380,6 +393,9 @@ func (h *TheoryHandler) StreamTheoryVideo(c *gin.Context) {
 	length := end - start + 1
 	rc, _, _, err := h.uc.OpenTheoryVideoContent(ctx, documentID, start, length)
 	if err != nil {
+		if theoryVideoStreamError(c, err) {
+			return
+		}
 		c.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}

@@ -1563,7 +1563,13 @@
         "has_questions": true,
         "has_video": true,
         "my_latest_score": 86,
-        "my_attempt_count": 3
+        "my_attempt_count": 3,
+        "video_playback": {
+          "kind": "gridfs",
+          "url": "/api/v1/theory/documents/video?document_id=550e8400-e29b-41d4-a716-446655440201",
+          "requires_auth": true,
+          "content_type": "video/mp4"
+        }
       }
     ],
     "total": 1
@@ -1571,9 +1577,11 @@
 }
 ```
 
+> `has_video`：存在**外链**（`video_url`）或**托管**（GridFS/COS）任一则为 `true`。`video_playback` 无视频时为省略；`kind` 为 `external` 时 `url` 为完整外链，`requires_auth` 为 `false`；`kind` 为 `gridfs` 时 `url` 为**相对路径**，需拼接当前 API 根（如 `https://api.example.com`）后再请求，且须带 JWT（见 §8.x.6）。
+
 #### 8.2 理论文档详情 `POST /api/v1/theory/documents/detail`
 
-- **说明**：返回单个理论文档的元数据与内容块（图文 + 视频占位），不包含题目。
+- **说明**：返回单个理论文档的元数据与内容块（图文 + 视频占位），不包含题目。若配置了课程视频，额外返回 `video_playback`（规则同 §8.1 列表）。
 
 **请求体**：
 
@@ -1593,10 +1601,24 @@
     "document": {
       "id": "550e8400-e29b-41d4-a716-446655440201",
       "title": "失速与尾旋理论",
+      "slug": "stall-spin-theory",
+      "sort_order": 10,
+      "content_ref": "",
+      "video_url": "",
+      "video_storage": "gridfs",
+      "video_object_id": "674a1b2c3d4e5f6789012345",
+      "video_content_type": "video/mp4",
+      "video_size_bytes": 12582912,
+      "video_duration_seconds": 0,
       "category": "空气动力学",
-      "status": "published",
-      "created_by": "550e8400-e29b-41d4-a716-446655440002",
-      "created_at": "2026-03-16T00:00:00Z"
+      "created_at": "2026-03-16T00:00:00Z",
+      "updated_at": "2026-03-16T00:00:00Z"
+    },
+    "video_playback": {
+      "kind": "gridfs",
+      "url": "/api/v1/theory/documents/video?document_id=550e8400-e29b-41d4-a716-446655440201",
+      "requires_auth": true,
+      "content_type": "video/mp4"
     },
     "content": [
       {
@@ -1617,6 +1639,8 @@
   }
 }
 ```
+
+> 托管视频时 `video_url` 通常为空，播放地址以 `video_playback` 为准。外链视频时 `video_storage` 为 `external`（或历史数据仅填 `video_url`），`video_playback.kind` 为 `external`。
 
 #### 8.3 开始答题 `POST /api/v1/theory/questions/start`
 
@@ -1833,6 +1857,11 @@
     "sort_order": 10,
     "content_ref": "",
     "video_url": "https://video.example.com/stall.mp4",
+    "video_storage": "external",
+    "video_object_id": "",
+    "video_content_type": "",
+    "video_size_bytes": 0,
+    "video_duration_seconds": 0,
     "category": "空气动力学",
     "created_at": "2026-03-16T00:00:00Z",
     "updated_at": "2026-03-16T00:00:00Z"
@@ -1840,7 +1869,8 @@
 }
 ```
 
-> 说明：返回中的 `id` 即为后续题库录入（`document_id`）、试卷管理、答题接口使用的理论文档 ID。
+> 说明：返回中的 `id` 即为后续题库录入（`document_id`）、试卷管理、答题接口使用的理论文档 ID。  
+> 若填写 `video_url`，后端会写入 `video_storage: "external"`（外链）。**本地上传托管视频**请使用 §8.x.4，不要用本接口覆盖托管资源。
 
 #### 8.x.2 更新文档 `POST /api/v1/theory/documents/update`
 
@@ -1870,12 +1900,20 @@
     "sort_order": 20,
     "content_ref": "",
     "video_url": "https://video.example.com/stall-v2.mp4",
+    "video_storage": "external",
+    "video_object_id": "",
+    "video_content_type": "",
+    "video_size_bytes": 0,
+    "video_duration_seconds": 0,
     "category": "空气动力学",
     "created_at": "2026-03-16T00:00:00Z",
     "updated_at": "2026-03-16T01:00:00Z"
   }
 }
 ```
+
+> **托管视频（GridFS）**：更新标题、排序等字段时照常调用本接口；**不要**通过本接口修改已托管的视频内容。若需换片源，请先 `POST .../video/remove` 再 `POST .../video/upload`，或仅覆盖上传（上传接口会自动替换 GridFS 文件）。  
+> **外链视频**：仍通过本接口的 `video_url` 维护；非托管状态下清空 `video_url` 会清除外链。
 
 #### 8.x.3 删除文档 `POST /api/v1/theory/documents/delete`
 
@@ -1898,6 +1936,68 @@
   }
 }
 ```
+
+#### 8.x.4 上传托管视频 `POST /api/v1/theory/documents/video/upload`
+
+- **说明**：将视频文件流式写入 MongoDB GridFS（独立 bucket：`theory_videos`），并更新 PostgreSQL `theory_documents` 的 `video_storage=gridfs`、`video_object_id`、`video_content_type`、`video_size_bytes` 等。若该文档已有 GridFS 视频，先完成新文件上传与库表更新后再删除旧 GridFS 对象。  
+- **前置**：已存在理论文档（§8.x.1）；数据库需已执行迁移 `020_theory_video_assets`（新增 `video_*` 列与约束）。  
+- **认证**：`Authorization: Bearer <JWT>`（与其它需登录接口相同）。  
+- **Content-Type**：`multipart/form-data`  
+- **表单字段**：
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `document_id` | 是 | 理论文档 UUID |
+| `file` | 是 | 视频文件 |
+
+- **类型校验**：请求的 `Content-Type` 为 `video/*`，或文件扩展名为 `.mp4`、`.webm`、`.mov`、`.m4v`、`.mkv`（之一）。  
+- **成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "status": "ok"
+  }
+}
+```
+
+> 运行环境：默认 `THEORY_VIDEO_STORAGE=gridfs`（或未设置）。若设为 `cos`，当前服务端会启动失败（COS 驱动待实现），部署前请保持 `gridfs` 并完成 MongoDB 与迁移。
+
+#### 8.x.5 移除视频 `POST /api/v1/theory/documents/video/remove`
+
+- **说明**：若当前为托管视频（GridFS），删除对象存储中的文件并清空相关列；若为外链，清空 `video_url` 与 `video_storage`。  
+- **认证**：`Authorization: Bearer <JWT>`  
+
+**请求体**：
+
+```json
+{
+  "document_id": "550e8400-e29b-41d4-a716-446655440201"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "status": "ok"
+  }
+}
+```
+
+#### 8.x.6 播放托管视频 `GET /api/v1/theory/documents/video`
+
+- **说明**：仅适用于 `video_storage=gridfs` 的文档；返回原始视频字节流，便于 `<video>` 或播放器拉流。支持 HTTP `Range` 与 `206 Partial Content`、`Accept-Ranges: bytes`（拖动进度条依赖此行为）。  
+- **认证**：`Authorization: Bearer <JWT>`（Query 无法带 Body，须用 Header）。  
+- **Query**：`document_id=<UUID>`（必填）。  
+- **响应头**：`Content-Type` 一般为 `video/mp4`（或与上传时一致）；分段返回时含 `Content-Range`。  
+- **错误**：无托管视频时 `404`；`video_storage=cos` 尚未实现时 `501`。若库表里 `video_object_id` 在 MongoDB GridFS（bucket `theory_videos`）中已不存在（库表与存储不一致、误删 Mongo、连错库等），同样返回 `404`，提示需重新上传。  
+- **客户端**：列表/详情中的 `video_playback.url` 为**相对路径**（如 `/api/v1/theory/documents/video?document_id=...`），需拼接 API 根地址后再请求，并携带与业务接口相同的 JWT。
 
 ---
 

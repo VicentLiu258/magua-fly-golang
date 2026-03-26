@@ -2,8 +2,12 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"io"
 )
+
+// ErrTheoryVideoFileMissing 表示 PostgreSQL 中记录的 video_object_id 在对象存储（GridFS）中不存在。
+var ErrTheoryVideoFileMissing = errors.New("theory video file missing in storage")
 
 // TheoryVideoStorage 抽象理论课视频对象存储（GridFS / 后续 COS），便于切换实现。
 type TheoryVideoStorage interface {
