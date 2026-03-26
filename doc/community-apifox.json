@@ -1,0 +1,449 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Magua Fly 社区模块接口 (17社区)",
+    "version": "1.0.0",
+    "description": "包含动态广场、飞行故事、热门话题、兴趣小组、飞行挑战赛、关注与评论等功能接口。适配 Apifox 导入。"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "本地开发环境"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "BaseResp": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "example": 200 },
+          "msg": { "type": "string", "example": "ok" },
+          "data": { "type": "object" }
+        }
+      },
+      "CommunityUser": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "username": { "type": "string" },
+          "avatar_url": { "type": "string" },
+          "role": { "type": "string" }
+        }
+      },
+      "Post": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "author_user_id": { "type": "string", "format": "uuid" },
+          "title": { "type": "string" },
+          "body": { "type": "string" },
+          "media_urls": { "type": "array", "items": { "type": "string" } },
+          "visibility": { "type": "string", "enum": ["public", "followers_only", "group_only"] },
+          "group_id": { "type": "string", "format": "uuid", "nullable": true },
+          "like_count": { "type": "integer" },
+          "comment_count": { "type": "integer" },
+          "liked_by_me": { "type": "boolean" },
+          "topic_ids": { "type": "array", "items": { "type": "string" } },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PostCreateReq": {
+        "type": "object",
+        "required": ["body"],
+        "properties": {
+          "title": { "type": "string" },
+          "body": { "type": "string" },
+          "media_urls": { "type": "array", "items": { "type": "string" } },
+          "visibility": { "type": "string", "default": "public" },
+          "group_id": { "type": "string" },
+          "topic_ids": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "PostListReq": {
+        "type": "object",
+        "properties": {
+          "tab": { "type": "string", "enum": ["global", "following", "group"], "default": "global" },
+          "group_id": { "type": "string" },
+          "topic_id": { "type": "string" },
+          "author_user_id": { "type": "string" },
+          "page_size": { "type": "integer", "default": 20 },
+          "next_cursor": { "type": "string" }
+        }
+      },
+      "CommentCreateReq": {
+        "type": "object",
+        "required": ["post_id", "body"],
+        "properties": {
+          "post_id": { "type": "string" },
+          "body": { "type": "string" },
+          "parent_id": { "type": "string" }
+        }
+      },
+      "Comment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "post_id": { "type": "string" },
+          "body": { "type": "string" },
+          "author": { "$ref": "#/components/schemas/CommunityUser" },
+          "parent_id": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Topic": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "slug": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "cover_url": { "type": "string" },
+          "post_count": { "type": "integer" }
+        }
+      },
+      "GroupCreateReq": {
+        "type": "object",
+        "required": ["name", "slug"],
+        "properties": {
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "description": { "type": "string" },
+          "cover_url": { "type": "string" },
+          "is_public": { "type": "boolean", "default": true }
+        }
+      },
+      "Challenge": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "title": { "type": "string" },
+          "starts_at": { "type": "string", "format": "date-time" },
+          "ends_at": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["draft", "active", "ended"] }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/v1/community/posts/create": {
+      "post": {
+        "tags": ["17-社区-动态"],
+        "summary": "创作动态（发帖）",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PostCreateReq" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/BaseResp" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/Post" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/community/posts/list": {
+      "post": {
+        "tags": ["17-社区-动态"],
+        "summary": "动态列表（广场/关注/小组/话题/个人）",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PostListReq" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/BaseResp" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "post": { "$ref": "#/components/schemas/Post" },
+                                  "author": { "$ref": "#/components/schemas/CommunityUser" }
+                                }
+                              }
+                            },
+                            "next_cursor": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/community/posts/like": {
+      "post": {
+        "tags": ["17-社区-动态"],
+        "summary": "点赞动态",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["post_id"],
+                "properties": {
+                  "post_id": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        }
+      }
+    },
+    "/api/v1/community/comments/create": {
+      "post": {
+        "tags": ["17-社区-评论"],
+        "summary": "发表评论",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CommentCreateReq" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/BaseResp" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/Comment" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/community/comments/list": {
+      "post": {
+        "tags": ["17-社区-评论"],
+        "summary": "评论列表",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["post_id"],
+                "properties": {
+                  "post_id": { "type": "string" },
+                  "limit": { "type": "integer" },
+                  "offset": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/BaseResp" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": { "type": "array", "items": { "$ref": "#/components/schemas/Comment" } }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/community/follows/follow": {
+      "post": {
+        "tags": ["17-社区-关注流"],
+        "summary": "关注/取消关注某人",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["followee_id"],
+                "properties": {
+                  "followee_id": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/BaseResp" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "status": { "type": "string", "example": "following" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/community/topics/list": {
+      "post": {
+        "tags": ["17-社区-话题"],
+        "summary": "话题列表",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/BaseResp" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": { "type": "array", "items": { "$ref": "#/components/schemas/Topic" } }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/community/groups/create": {
+      "post": {
+        "tags": ["17-社区-小组"],
+        "summary": "创建兴趣小组",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GroupCreateReq" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功"
+          }
+        }
+      }
+    },
+    "/api/v1/community/challenges/list": {
+      "post": {
+        "tags": ["17-社区-挑战赛"],
+        "summary": "挑战赛列表",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/BaseResp" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": { "type": "array", "items": { "$ref": "#/components/schemas/Challenge" } }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

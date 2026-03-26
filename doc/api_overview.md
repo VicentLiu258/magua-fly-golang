@@ -2881,3 +2881,304 @@ Content-Disposition: attachment
   }
 }
 ```
+
+---
+
+## 17. 社区模块 API
+
+本节描述**动态广场、飞行故事（发帖）、热门话题、兴趣小组、飞行挑战赛、互相关注与推荐关注**等能力。所有接口均为 **`POST`**，路径前缀 **`/api/v1/community/`**，需 **`Authorization: Bearer <JWT>`**，请求体 `Content-Type: application/json`，返回结构同文档开头约定。
+
+**数据库**：迁移 `019_community.up.sql` 创建 `user_follows`、`community_topics`、`community_groups`、`community_group_members`、`community_posts`（含 `media_urls` JSONB）、`community_post_topics`、`community_challenges`、`community_challenge_entries`、`community_post_likes`、`community_comments` 等表；话题帖子数、小组成员数、点赞数、评论数由触发器维护。
+
+### 17.1 领域约定
+
+- **业务对象**：
+  - **动态与故事**：底层对应同一 `community_posts` 记录；`status` 为 `published` 时对满足权限的用户可见；`status` 为 `hidden` 时仅作者可见。
+  - **多维可见性**：
+    - `public`：公开广场可见。
+    - `followers_only`：仅作者本人的关注者（粉丝）可见。
+    - `group_only`：仅特定兴趣小组成员可见，须关联有效 `group_id`。
+- **角色权限**：
+  - **内容运营**：创建话题 `topics/create`、管理挑战赛 `challenges/create|update` 仅限 **`admin` / `staff`**。
+  - **社区自治**：任意用户可创建兴趣小组；小组组长拥有小组信息及成员管理权。
+- **资源关联**：动态可同时关联多个话题及最多一个兴趣小组。
+
+### 17.2 分页与游标机制
+
+社区模块采用**游标分页（Cursor Pagination）**以防止列表滚动时产生重复内容。
+
+- **控制参数**：
+  - `page_size`：每页项数，默认 `20`，最大支持 `50`。
+  - `next_cursor`：分页标识符。首页传空；获取下一页时，传回上一页响应中的 `next_cursor`。
+- **成功响应约定**：
+  - `data.items`：列表数据。
+  - `data.next_cursor`：下一页游标。若无更多数据，该字段为空或不返回。
+- **实现细节（透明可选）**：
+  - 游标格式通常为 `RFC3339Nano|post_id`；后端自动解析为条件 `(created_at, id) < (cursor_time, cursor_id)` 进行高效检索。
+
+### 17.3 动态（飞行故事）
+
+#### 17.3.1 发帖 `POST /api/v1/community/posts/create`
+
+- **认证**：需要。
+- **说明**：支持选择可见性，并可关联多个话题或归属于某个兴趣小组。
+
+**请求体**：
+
+```json
+{
+  "title": "今日首航感悟",
+  "body": "第一次独立起飞的感觉太棒了...",
+  "media_urls": ["https://oss.example.com/p1.jpg", "https://oss.example.com/p2.jpg"],
+  "visibility": "public", // public | followers_only | group_only
+  "group_id": "", // 当 visibility 为 group_only 时必填
+  "topic_ids": ["topic-uuid-1", "topic-uuid-2"]
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": "post-uuid-1",
+    "author_user_id": "user-uuid-1",
+    "title": "今日首航感悟",
+    "body": "...",
+    "media_urls": [...],
+    "visibility": "public",
+    "like_count": 0,
+    "comment_count": 0,
+    "created_at": "2026-03-26T10:00:00Z"
+  }
+}
+```
+
+#### 17.3.2 动态列表 `POST /api/v1/community/posts/list`
+
+- **认证**：需要。
+
+**请求体**：
+
+```json
+{
+  "tab": "global", // global | following | group
+  "group_id": "", // tab=group 时必填
+  "topic_id": "", // 若传则忽略 tab，按话题检索
+  "author_user_id": "", // 拉取特定用户的贴
+  "page_size": 20,
+  "next_cursor": "" // RFC3339Nano|post_id 游标
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "post": {
+          "id": "post-uuid-1",
+          "title": "...",
+          "body": "...",
+          "media_urls": [],
+          "like_count": 10,
+          "comment_count": 2,
+          "liked_by_me": true,
+          "topic_ids": ["..."],
+          "created_at": "..."
+        },
+        "author": {
+          "id": "user-uuid-1",
+          "username": "pilot_007",
+          "avatar_url": "...",
+          "role": "student"
+        }
+      }
+    ],
+    "next_cursor": "2026-03-26T09:00:00Z|uuid"
+  }
+}
+```
+
+#### 17.3.3 点赞动态 `POST /api/v1/community/posts/like`
+
+**请求体**：`{"post_id": "uuid"}`
+
+**成功响应**：`{"code": 200, "msg": "ok", "data": {"like_count": 11}}`
+
+---
+
+### 17.4 评论
+
+#### 17.4.1 发表评论 `POST /api/v1/community/comments/create`
+
+**请求体**：
+
+```json
+{
+  "post_id": "post-uuid-1",
+  "body": "写得真好，期待下一次飞行！",
+  "parent_id": "" // 可选，回复某条评论的 ID
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "id": "comment-uuid-1",
+    "post_id": "...",
+    "body": "...",
+    "author_user_id": "...",
+    "created_at": "..."
+  }
+}
+```
+
+#### 17.4.2 评论列表 `POST /api/v1/community/comments/list`
+
+**请求体**：
+
+```json
+{
+  "post_id": "post-uuid-1",
+  "limit": 20,
+  "offset": 0
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "comment-uuid-1",
+        "body": "...",
+        "author": { "id": "...", "username": "...", "avatar_url": "..." },
+        "parent_id": null,
+        "created_at": "..."
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 17.5 关注与推荐
+
+#### 17.5.1 关注/取消关注 `POST /api/v1/community/follows/follow`
+
+**说明**：内部根据当前状态切换关注/取消。
+
+**请求体**：`{"followee_id": "user-uuid-2"}`
+
+**成功响应**：`{"code": 200, "msg": "ok", "data": {"status": "following"}}`
+
+#### 17.5.2 推荐关注 `POST /api/v1/community/follows/recommend`
+
+**请求体**：`{"limit": 10}`
+
+**成功响应**：`{"code": 200, "msg": "ok", "data": {"users": [{ "id": "uuid", "username": "...", "reason": "同组成员" }]}}`
+
+---
+
+### 17.6 话题
+
+#### 17.6.1 话题列表 `POST /api/v1/community/topics/list`
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "topic-uuid-1",
+        "slug": "first-flight",
+        "title": "这就是飞行",
+        "description": "分享你的飞行故事",
+        "cover_url": "...",
+        "post_count": 128
+      }
+    ]
+  }
+}
+```
+
+#### 17.6.2 创建话题 `POST /api/v1/community/topics/create`
+
+- **权限**：仅 `admin`、`staff`。
+
+**请求体**：`{"title": "蓝天之上", "slug": "above-sky", "description": "...", "cover_url": "..."}`
+
+---
+
+### 17.7 兴趣小组
+
+#### 17.7.1 创建小组 `POST /api/v1/community/groups/create`
+
+**请求体**：
+
+```json
+{
+  "name": "塞斯纳爱好者",
+  "slug": "cessna-fans",
+  "description": "交流塞斯纳 172 飞行技巧",
+  "cover_url": "...",
+  "is_public": true
+}
+```
+
+---
+
+### 17.8 飞行挑战赛
+
+#### 17.8.1 挑战赛列表 `POST /api/v1/community/challenges/list`
+
+**请求体**：`{"status": "active"}` // active | all
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "items": [
+      {
+        "id": "challenge-uuid-1",
+        "title": "首飞 100 小时挑战",
+        "starts_at": "2026-03-01T00:00:00Z",
+        "ends_at": "2026-04-01T00:00:00Z",
+        "status": "active"
+      }
+    ]
+  }
+}
+```
+
+#### 17.8.2 提交参赛作品 `POST /api/v1/community/challenges/submit`
+
+**请求体**：`{"challenge_id": "uuid", "post_id": "uuid"}`
+
+---
+
+### 17.9 常见错误 HTTP 状态
+
+与业务错误对应关系（`msg` 多为英文短句）：`400` 参数非法、`403` 无权限、`404` 资源不存在；其它服务端错误为 `500`。
