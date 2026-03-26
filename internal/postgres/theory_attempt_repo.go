@@ -40,6 +40,21 @@ func (r *TheoryAttemptRepo) UpdateOnSubmit(ctx context.Context, a *domain.Theory
 	return err
 }
 
+func (r *TheoryAttemptRepo) GetByIDAndUser(ctx context.Context, attemptID, userID string) (*domain.TheoryAttempt, error) {
+	var a domain.TheoryAttempt
+	err := r.db.Pool.QueryRow(ctx, `
+		SELECT id::text, user_id::text, theory_document_id::text,
+		       score, submitted_at
+		FROM theory_attempts
+		WHERE id = $1::uuid AND user_id = $2::uuid`,
+		attemptID, userID,
+	).Scan(&a.ID, &a.UserID, &a.TheoryDocumentID, &a.Score, &a.SubmittedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
 func (r *TheoryAttemptRepo) ListByUserAndDocument(ctx context.Context, userID, documentID string, limit, offset int) ([]*domain.TheoryAttempt, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id::text, user_id::text, theory_document_id::text,

@@ -180,8 +180,8 @@ type AdminListSubjectQuestionsRequest struct {
 
 // AdminListSubjectQuestionsResponse lists questions from Mongo.
 type AdminListSubjectQuestionsResponse struct {
-	Items []repository.TheoryQuestionItem `json:"items"`
-	Total int                             `json:"total"`
+	Items []exam.AdminListExamQuestionItem `json:"items"`
+	Total int                              `json:"total"`
 }
 
 // AdminListQuestions returns all questions in the set (filters deferred).
@@ -190,9 +190,13 @@ func (uc *SubjectExamUseCase) AdminListQuestions(ctx context.Context, req *Admin
 	if err != nil {
 		return nil, err
 	}
+	items := make([]exam.AdminListExamQuestionItem, 0, len(qs.Questions))
+	for _, q := range qs.Questions {
+		items = append(items, exam.ToAdminListItem(q))
+	}
 	return &AdminListSubjectQuestionsResponse{
-		Items: qs.Questions,
-		Total: len(qs.Questions),
+		Items: items,
+		Total: len(items),
 	}, nil
 }
 

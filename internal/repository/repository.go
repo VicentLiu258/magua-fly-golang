@@ -211,6 +211,7 @@ type TheoryDocumentRepository interface {
 type TheoryAttemptRepository interface {
 	Create(ctx context.Context, a *domain.TheoryAttempt) error
 	UpdateOnSubmit(ctx context.Context, a *domain.TheoryAttempt) error
+	GetByIDAndUser(ctx context.Context, attemptID, userID string) (*domain.TheoryAttempt, error)
 	ListByUserAndDocument(ctx context.Context, userID, documentID string, limit, offset int) ([]*domain.TheoryAttempt, error)
 }
 

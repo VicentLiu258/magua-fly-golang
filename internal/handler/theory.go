@@ -112,7 +112,7 @@ func (h *TheoryHandler) StartQuestions(c *gin.Context) {
 
 func (h *TheoryHandler) SubmitAnswers(c *gin.Context) {
 	var body struct {
-		DocumentID string                         `json:"document_id" binding:"required"`
+		DocumentID string `json:"document_id"` // optional; inferred from attempt_id when omitted
 		usecase.SubmitAnswersRequest
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -122,6 +122,14 @@ func (h *TheoryHandler) SubmitAnswers(c *gin.Context) {
 	userID := getUserIDFromContext(c)
 	resp, err := h.uc.SubmitAnswers(c.Request.Context(), userID, body.DocumentID, &body.SubmitAnswersRequest)
 	if err != nil {
+		if errors.Is(err, usecase.ErrTheoryAttemptNotFound) {
+			c.JSON(http.StatusBadRequest, errorMessage("attempt not found"))
+			return
+		}
+		if errors.Is(err, usecase.ErrAttemptDocumentMismatch) {
+			c.JSON(http.StatusBadRequest, errorMessage("document_id does not match attempt"))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, errorResponse(err))
 		return
 	}

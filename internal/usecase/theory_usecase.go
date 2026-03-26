@@ -13,6 +13,9 @@ import (
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/exam"
 	"magua-fly-golang/internal/repository"
+
+	"github.com/jackc/pgx/v5"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // TheoryUseCase encapsulates theory learning flows: document reading and quizzes.
@@ -59,15 +62,15 @@ type ListDocumentsRequest struct {
 
 // ListDocumentsItem represents one row in the list.
 type ListDocumentsItem struct {
-	ID             string `json:"id"`
-	Title          string `json:"title"`
-	Category       string `json:"category,omitempty"`
-	SortOrder      int    `json:"sort_order"`
-	Status         string `json:"status,omitempty"`
-	HasQuestions   bool   `json:"has_questions"`
-	HasVideo       bool   `json:"has_video"`
-	MyLatestScore  int    `json:"my_latest_score"`
-	MyAttemptCount int    `json:"my_attempt_count"`
+	ID             string            `json:"id"`
+	Title          string            `json:"title"`
+	Category       string            `json:"category,omitempty"`
+	SortOrder      int               `json:"sort_order"`
+	Status         string            `json:"status,omitempty"`
+	HasQuestions   bool              `json:"has_questions"`
+	HasVideo       bool              `json:"has_video"`
+	MyLatestScore  int               `json:"my_latest_score"`
+	MyAttemptCount int               `json:"my_attempt_count"`
 	VideoPlayback  *VideoPlaybackDTO `json:"video_playback,omitempty"`
 }
 
@@ -87,10 +90,10 @@ func (uc *TheoryUseCase) ListDocuments(ctx context.Context, userID string, req *
 	items := make([]ListDocumentsItem, 0, len(docs))
 	for _, d := range docs {
 		items = append(items, ListDocumentsItem{
-			ID:        d.ID,
-			Title:     d.Title,
-			SortOrder: d.SortOrder,
-			HasVideo:  d.HasHostedTheoryVideo() || d.HasExternalTheoryVideo(),
+			ID:            d.ID,
+			Title:         d.Title,
+			SortOrder:     d.SortOrder,
+			HasVideo:      d.HasHostedTheoryVideo() || d.HasExternalTheoryVideo(),
 			VideoPlayback: uc.buildVideoPlayback(d),
 		})
 	}
@@ -145,6 +148,8 @@ type DocumentDetailResponse struct {
 	Document      *domain.TheoryDocument          `json:"document"`
 	Content       []repository.TheoryContentBlock `json:"content"`
 	VideoPlayback *VideoPlaybackDTO               `json:"video_playback,omitempty"`
+	HasQuestions  bool                            `json:"has_questions"`
+	QuestionCount int                             `json:"question_count"`
 }
 
 func (uc *TheoryUseCase) GetDocumentDetail(ctx context.Context, documentID string) (*DocumentDetailResponse, error) {
@@ -156,10 +161,20 @@ func (uc *TheoryUseCase) GetDocumentDetail(ctx context.Context, documentID strin
 	if err != nil {
 		return nil, err
 	}
+	questionCount := 0
+	if qs, qerr := uc.questionRepo.GetByDocumentID(ctx, documentID); qerr != nil {
+		if !errors.Is(qerr, mongo.ErrNoDocuments) {
+			return nil, qerr
+		}
+	} else if qs != nil {
+		questionCount = len(qs.Questions)
+	}
 	return &DocumentDetailResponse{
 		Document:      doc,
 		Content:       content.Blocks,
 		VideoPlayback: uc.buildVideoPlayback(doc),
+		HasQuestions:  questionCount > 0,
+		QuestionCount: questionCount,
 	}, nil
 }
 
@@ -235,7 +250,7 @@ func (uc *TheoryUseCase) StartQuestions(ctx context.Context, userID, documentID,
 
 // SubmitAnswersRequest describes the payload from client on submit.
 type SubmitAnswersRequest struct {
-	AttemptID string `json:"attempt_id"`
+	AttemptID string `json:"attempt_id" binding:"required"`
 	Answers   []struct {
 		QuestionID        string   `json:"question_id"`
 		SelectedOptionIDs []string `json:"selected_option_ids"`
@@ -252,7 +267,21 @@ type SubmitAnswersResponse struct {
 }
 
 // SubmitAnswers grades and stores a completed attempt.
+// documentID may be empty: in that case it is resolved from the attempt row (same as start flow).
 func (uc *TheoryUseCase) SubmitAnswers(ctx context.Context, userID, documentID string, req *SubmitAnswersRequest) (*SubmitAnswersResponse, error) {
+	attemptRow, err := uc.attemptRepo.GetByIDAndUser(ctx, req.AttemptID, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrTheoryAttemptNotFound
+		}
+		return nil, err
+	}
+	if documentID == "" {
+		documentID = attemptRow.TheoryDocumentID
+	} else if attemptRow.TheoryDocumentID != documentID {
+		return nil, ErrAttemptDocumentMismatch
+	}
+
 	qs, err := uc.questionRepo.GetByDocumentID(ctx, documentID)
 	if err != nil {
 		return nil, err
@@ -339,6 +368,12 @@ func (uc *TheoryUseCase) ListMyAttempts(ctx context.Context, userID, documentID 
 // ErrQuestionNotFound is returned when updating a non-existing question.
 var ErrQuestionNotFound = errors.New("question not found")
 
+// ErrTheoryAttemptNotFound is returned when submit references a missing or other-user attempt.
+var ErrTheoryAttemptNotFound = errors.New("theory attempt not found")
+
+// ErrAttemptDocumentMismatch is returned when document_id does not match the attempt's document.
+var ErrAttemptDocumentMismatch = errors.New("document_id does not match attempt")
+
 // ----- Admin question management -----
 
 // AdminListQuestionsRequest is the filter for listing questions under a document.
@@ -352,8 +387,8 @@ type AdminListQuestionsRequest struct {
 }
 
 type AdminListQuestionsResponse struct {
-	Items []repository.TheoryQuestionItem `json:"items"`
-	Total int                             `json:"total"`
+	Items []exam.AdminListExamQuestionItem `json:"items"`
+	Total int                              `json:"total"`
 }
 
 // AdminListQuestions reads question set from Mongo and returns basic list; filter/分页可以后续细化。
@@ -362,7 +397,10 @@ func (uc *TheoryUseCase) AdminListQuestions(ctx context.Context, req *AdminListQ
 	if err != nil {
 		return nil, err
 	}
-	items := qs.Questions
+	items := make([]exam.AdminListExamQuestionItem, 0, len(qs.Questions))
+	for _, q := range qs.Questions {
+		items = append(items, exam.ToAdminListItem(q))
+	}
 	// 简单忽略分页与过滤，后续可按需要在内存中过滤或在结构上扩展。
 	return &AdminListQuestionsResponse{
 		Items: items,
@@ -484,11 +522,11 @@ type SavePaperQuestion struct {
 }
 
 type SavePaperRequest struct {
-	ID               *string            `json:"id"`
-	TheoryDocumentID string             `json:"theory_document_id" binding:"required"`
-	Name             string             `json:"name" binding:"required"`
-	Description      string             `json:"description"`
-	Enabled          bool               `json:"enabled"`
+	ID               *string             `json:"id"`
+	TheoryDocumentID string              `json:"theory_document_id" binding:"required"`
+	Name             string              `json:"name" binding:"required"`
+	Description      string              `json:"description"`
+	Enabled          bool                `json:"enabled"`
 	Questions        []SavePaperQuestion `json:"questions"`
 }
 
@@ -776,6 +814,3 @@ func (uc *TheoryUseCase) GetTheoryVideoMeta(ctx context.Context, documentID stri
 	}
 	return total, ct, nil
 }
-
-
-
