@@ -19,6 +19,8 @@ type Config struct {
 	SmsSdkAppID  string
 	SmsSignName  string
 	SmsRegion    string
+	// TheoryVideoStorage：gridfs（默认）或 cos（未实现时在 main 中会失败）
+	TheoryVideoStorage string
 }
 
 // Load reads configuration from environment.
@@ -37,6 +39,7 @@ func Load() *Config {
 		SmsSdkAppID:  getEnv("TENCENT_SMS_SDK_APP_ID", ""),
 		SmsSignName:  getEnv("TENCENT_SMS_SIGN_NAME", ""),
 		SmsRegion:    getEnv("TENCENT_SMS_REGION", "ap-guangzhou"),
+		TheoryVideoStorage: getEnv("THEORY_VIDEO_STORAGE", "gridfs"),
 	}
 }
 

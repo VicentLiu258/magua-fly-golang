@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -73,21 +74,22 @@ func main() {
 		pgDB.NextTrainingSubject(),
 		pgDB.Task(),
 	)
-	studentHandler := handler.NewStudentHandler(
-		pgDB.Student(),
-		pgDB.User(),
-		pgDB.Task(),
-		pgDB.TrainingArchive(),
-		pgDB.TrainingPlan(),
-		pgDB.Instructor(),
-		pgDB.Aircraft(),
-		pgDB.TheoryAttempt(),
-		pgDB.Contract(),
-		trainingUC,
-	)
-	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor())
 	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability(), pgDB.AircraftMaintenance(), pgDB)
 	trainingHandler := handler.NewTrainingHandler(trainingUC)
+
+	var theoryVideoStore usecase.TheoryVideoStorage
+	switch strings.ToLower(strings.TrimSpace(cfg.TheoryVideoStorage)) {
+	case "", "gridfs":
+		var err error
+		theoryVideoStore, err = mongoClient.NewTheoryVideoGridFSBucket("theory_videos")
+		if err != nil {
+			log.Fatalf("theory video gridfs: %v", err)
+		}
+	case "cos":
+		log.Fatalf("THEORY_VIDEO_STORAGE=cos is not implemented; use gridfs or leave unset")
+	default:
+		log.Fatalf("invalid THEORY_VIDEO_STORAGE %q", cfg.TheoryVideoStorage)
+	}
 
 	theoryUC := usecase.NewTheoryUseCase(
 		pgDB.TheoryDocument(),
@@ -97,6 +99,7 @@ func main() {
 		mongoClient.TheoryAttemptDetail(),
 		pgDB.TheoryPaper(),
 		pgDB.TheoryPaperQuestion(),
+		theoryVideoStore,
 	)
 	theoryHandler := handler.NewTheoryHandler(theoryUC)
 
@@ -135,6 +138,35 @@ func main() {
 	)
 	communityHandler := handler.NewCommunityHandler(communityUC)
 
+	homeUC := usecase.NewHomeUseCase(
+		pgDB.Student(),
+		pgDB.User(),
+		pgDB.Task(),
+		pgDB.TrainingArchive(),
+		pgDB.TrainingPlan(),
+		pgDB.Instructor(),
+		pgDB.Aircraft(),
+		pgDB.TrainingRecord(),
+		trainingUC,
+		communityUC,
+		theoryUC,
+	)
+	homeHandler := handler.NewHomeHandler(homeUC)
+	studentHandler := handler.NewStudentHandler(
+		pgDB.Student(),
+		pgDB.User(),
+		pgDB.Task(),
+		pgDB.TrainingArchive(),
+		pgDB.TrainingPlan(),
+		pgDB.Instructor(),
+		pgDB.Aircraft(),
+		pgDB.TheoryAttempt(),
+		pgDB.Contract(),
+		trainingUC,
+		homeUC,
+	)
+	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor(), homeUC)
+
 	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.StaffSchedule(), pgDB.User(), pgDB.Booking(), pgDB.TrainingPlan(), pgDB.AircraftAvailability())
 	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan(), pgDB.Task(), scheduleUC)
 	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
@@ -154,6 +186,7 @@ func main() {
 		taskHandler,
 		contractFilesHandler,
 		communityHandler,
+		homeHandler,
 		jwtManager,
 	)
 

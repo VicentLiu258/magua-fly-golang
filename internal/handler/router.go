@@ -23,6 +23,7 @@ func Router(
 	task *TaskHandler,
 	contractFiles *ContractFilesHandler,
 	community *CommunityHandler,
+	home *HomeHandler,
 	jwtManager *jwt.Manager,
 ) *gin.Engine {
 	r := gin.Default()
@@ -45,6 +46,8 @@ func Router(
 		authGroup.POST("/api/v1/admin/contracts/list-by-student", student.AdminContractsListByStudent)
 		authGroup.POST("/api/v1/students/my-home", student.MyHome)
 		authGroup.POST("/api/v1/instructors/list", instructor.List)
+		authGroup.POST("/api/v1/instructors/my-home", instructor.MyHome)
+		authGroup.POST("/api/v1/admin/home", home.AdminHome)
 		authGroup.POST("/api/v1/aircraft/list", aircraft.List)
 		authGroup.POST("/api/v1/aircraft/create", aircraft.Create)
 		authGroup.POST("/api/v1/aircraft/availabilities/create", aircraft.CreateAvailability)
@@ -109,6 +112,9 @@ func Router(
 			authGroup.POST("/api/v1/theory/documents/delete", theory.DeleteDocument)
 			authGroup.POST("/api/v1/theory/documents/list", theory.ListDocuments)
 			authGroup.POST("/api/v1/theory/documents/detail", theory.DocumentDetail)
+			authGroup.POST("/api/v1/theory/documents/video/upload", theory.UploadTheoryVideo)
+			authGroup.POST("/api/v1/theory/documents/video/remove", theory.RemoveTheoryVideo)
+			authGroup.GET("/api/v1/theory/documents/video", theory.StreamTheoryVideo)
 			authGroup.POST("/api/v1/theory/questions/start", theory.StartQuestions)
 			authGroup.POST("/api/v1/theory/questions/submit", theory.SubmitAnswers)
 			authGroup.POST("/api/v1/theory/attempts/my-list", theory.ListMyAttempts)

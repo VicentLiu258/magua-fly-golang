@@ -2475,20 +2475,67 @@
 
 ---
 
-### 14. 学员“我的主页”聚合 API（设计稿）
+### 14. 各角色首页聚合 API
 
-#### 14.1 学员主页 `POST /api/v1/students/my-home`
+> 说明：本节与训练侧《教员 / 学员 / 管理后台主页 — 数据库与聚合接口设计（Golang）》对齐。该设计稿示例为 `GET /home/student` 等形式；**本服务**与文档文首约定一致：除 `/health` 外均为 **`POST`、`Content-Type: application/json`**，响应体为 `code` / `msg` / `data`。
 
-- **认证**：需要，当前登录用户 `role = "student"`。
-- **说明**：为学员端“我的主页”提供一个聚合接口，汇总学员档案、任务、训练计划与理论学习进度等多源信息。
+#### 与设计稿路径对照
 
-**请求体**：
+| 设计稿（示例） | 本仓库路径 |
+|----------------|------------|
+| `GET /home/student` | `POST /api/v1/students/my-home` |
+| `GET /home/instructor` | `POST /api/v1/instructors/my-home` |
+| `GET /home/admin` | `POST /api/v1/admin/home` |
+
+设计稿中的 Query 参数（如 `posts_limit`）在本仓库中放在**请求体**字段中。
+
+#### 通用约定
+
+- **部分失败**：某一子块（如天气上游超时）失败时，仍返回 HTTP `200` 且 `code: 200`；对应字段可为 `null` 或空数组。可选在 `data.warnings` 中返回字符串数组（如 `["weather_upstream_timeout"]`）。客户端应容忍缺失块。
+- **权限与错误码**：未登录返回 HTTP `401`，`code` 与 HTTP 状态一致、`msg` 说明原因；角色不匹配（例如学员调用教员或管理员首页接口）返回 HTTP `403`。与本文档其余接口相同，**不单独约定** `40101` / `40301` 等细粒度业务码，除非后续全项目统一。
+
+| 接口 | 要求的 `role`（最低约定） |
+|------|---------------------------|
+| `POST /api/v1/students/my-home` | `student` |
+| `POST /api/v1/instructors/my-home` | `instructor` |
+| `POST /api/v1/admin/home` | `admin`（与其它 `POST /api/v1/admin/*` 保持一致；若个别接口允许 `staff` 等，以实现为准） |
+
+---
+
+#### 14.1 学员首页 `POST /api/v1/students/my-home`
+
+- **认证**：需要，`role = "student"`；非学员角色返回 `403`。
+- **说明**：学员端首页**一次性拉取**聚合数据，包含两类内容：
+  1. **训练 / 学业块**：档案、任务、近期训练计划与档案、理论学习与科目概要（**已部分实现**，见下方实现状态）。
+  2. **门户 / 运营块**：`user`、社区动态、推荐专题等已部分接入；天气、好物、通知、活动仍为空（见实现状态表）。
+
+**请求体**
+
+最小请求：
 
 ```json
 {}
 ```
 
-**成功响应（结构示例）**：
+可选字段（服务端可忽略暂未支持的字段）：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `locale` | string | 多语言内容筛选，如 `zh-CN` |
+| `posts_limit` | int | `community_posts` 条数，默认 `4`，最大 `10` |
+| `articles_limit` | int | `featured_articles` 条数，默认 `4` |
+
+示例：
+
+```json
+{
+  "locale": "zh-CN",
+  "posts_limit": 4,
+  "articles_limit": 4
+}
+```
+
+**成功响应 `data` 目标结构示例**（训练块 + 门户块合并；未接入字段为 `null` 或空数组）：
 
 ```json
 {
@@ -2539,18 +2586,223 @@
     "subject_progress": {
       "completed": 10,
       "total": 20
-    }
+    },
+    "user": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "display_name": "张三",
+      "avatar_url": "https://example.com/avatar.png"
+    },
+    "weather_snippet": {
+      "temp_c": 24,
+      "wind": "3m/s NW",
+      "flight_condition": "CAVOK"
+    },
+    "community_posts": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440501",
+        "author_name": "李教员",
+        "author_avatar": null,
+        "content": "今日本场训练注意事项 …",
+        "created_at": "2026-03-26T02:00:00Z",
+        "likes": 12,
+        "comments": 3
+      }
+    ],
+    "featured_articles": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440201",
+        "title": "如何完美处理侧风着陆",
+        "category": "飞行技巧",
+        "cover_image_url": "https://example.com/cover.jpg"
+      }
+    ],
+    "featured_products": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440601",
+        "name": "降噪耳机",
+        "price_display": "¥8,999",
+        "image_url": "https://example.com/p.jpg"
+      }
+    ],
+    "notifications": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440701",
+        "title": "明日气象提醒",
+        "type": "warning",
+        "time_label": "今天 09:00"
+      }
+    ],
+    "events": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440801",
+        "title": "飞行开放日",
+        "date_label": "03-20",
+        "status": "open"
+      }
+    ],
+    "warnings": []
   }
 }
 ```
 
-- **实现建议**：后端在实现时可复用以下现有能力：
-  - `students` / `users`：查询学员基本信息与账号；
-  - `POST /api/v1/tasks/my-list`：获取当前学员任务列表，取前若干条作为预览；
-  - `training_plans`：按未来一段时间（如 7 天）查询训练计划；
-  - `POST /api/v1/students/training-archives/list`：获取最近一条训练档案；
-  - `theory_attempts` 与理论模块接口：统计理论学习进度；
-  - `POST /api/v1/syllabus-subjects/list`（带 `student_id`）：统计科目完成数量。
+- **`notifications[].type`**：建议取值 `info` | `warning` | `success`（与公告严重程度一致即可）。
+- **`events[].status`**：建议取值 `open` | `full` | `closed`。
+
+**实现状态**
+
+| 字段 | 状态 |
+|------|------|
+| `profile`、`tasks`、`upcoming_training`、`last_training_archive` | 已实现 |
+| `theory_summary`、`subject_progress` | 已返回结构，当前后端统计可能为简化/占位，可后续对接 §8、大纲科目接口 |
+| `user`、`community_posts`、`featured_articles`、`warnings` | **已实现**：`user` 来自 `users`；`community_posts` 为广场 `global` 前 N 条（见 `posts_limit`）；`featured_articles` 为理论文档列表前 N 条（`cover_image_url` 暂空）；子块失败时 `warnings` 含如 `community_posts_unavailable` |
+| `weather_snippet`、`featured_products`、`notifications`、`events` | **未实现**：当前为 `null` 或空数组 |
+
+**关联接口**
+
+- 社区动态列表与翻页：**§17.3.2** `POST /api/v1/community/posts/list`。
+- 推荐专题数据源可对齐 **§8.1** `POST /api/v1/theory/documents/list`（精选规则由聚合层或后续列表筛选参数扩展）。
+
+**后端组装建议**：`students` / `users`；**§9.1** `POST /api/v1/tasks/my-list` 取预览条数；`training_plans` 未来 7 天；**§7.6.1** `POST /api/v1/students/training-archives/list` 取最近一条；`theory_attempts` 与 **§8** 理论模块统计；**§7.7.1** `POST /api/v1/syllabus-subjects/list`（带学员）统计科目；门户块可并行查询社区帖子、理论精选、公告/活动表或外部天气服务，失败时写入 `warnings` 并置空对应块。
+
+---
+
+#### 14.2 教员首页 `POST /api/v1/instructors/my-home`
+
+- **认证**：需要，`role = "instructor"`；非教员角色返回 `403`。
+- **路由**：已在 `POST /api/v1/instructors/my-home` 注册。当前实现要点：`stats` 由 `training_records` 按教员 ID 与日期范围汇总；`active_students_count` 为**近 365 天**与该教员有训练记录的去重学员数；`rank`、`passing_rate_percent`、`trend_*` 为占位或空串；`flight_time_distribution` 由本年度记录按 `flight_type`/`task_type` 等关键词粗分桶；`my_posts` 为社区中 `author_user_id = 当前用户` 的动态。
+
+**请求体**
+
+```json
+{}
+```
+
+可选（与学员侧类似，供 `my_posts` 条数等扩展）：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `posts_limit` | int | 教员本人动态 `my_posts` 条数，默认 `4`，最大 `10` |
+
+**成功响应 `data` 结构示例**
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "profile": {
+      "user_id": "550e8400-e29b-41d4-a716-446655440002",
+      "display_name": "李教员",
+      "avatar_url": "https://example.com/a.png",
+      "title": "资深飞行教员",
+      "tagline": "飞行时长 2500+ 小时",
+      "rank": {
+        "code": "SENIOR_FI",
+        "label": "高级飞行教员",
+        "progress_percent": 75,
+        "hint": "距离特级教员还需 500 小时带飞时长"
+      }
+    },
+    "stats": {
+      "annual_flight_hours": 450.5,
+      "monthly_flight_hours": 42.0,
+      "active_students_count": 12,
+      "passing_rate_percent": 95,
+      "trend_annual": "+12% 较去年",
+      "trend_monthly": "目标完成 70%",
+      "trend_students": "3名即将结业",
+      "trend_passing": "全校前 5%"
+    },
+    "flight_time_distribution": [
+      { "type": "dual", "label": "带飞 (Dual)", "percent": 85 },
+      { "type": "xc", "label": "转场 (XC)", "percent": 60 },
+      { "type": "ifr", "label": "仪表 (IFR)", "percent": 40 },
+      { "type": "night", "label": "夜航 (Night)", "percent": 25 }
+    ],
+    "my_posts": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440502",
+        "content": "本场训练总结 …",
+        "image_url": "https://example.com/m.jpg",
+        "created_at": "2026-03-26T00:00:00Z",
+        "likes": 45,
+        "comments": 12
+      }
+    ],
+    "warnings": []
+  }
+}
+```
+
+**数据源说明（实现参考）**：年度/月度飞行小时由 `flight_records`（教员维度、日期范围）汇总；在训人数来自教员—学员分配关系（如 `status = active`）；通过率来自考试/训练结果聚合；`flight_time_distribution` 可由分段表或月度快照预计算；`trend_*` 可为模板文案或后续改为结构化字段（如同比百分比）。教员动态可与社区帖子同源（`author_id = 当前用户`），列表扩展见 **§17.3.2**。
+
+---
+
+#### 14.3 管理后台首页 `POST /api/v1/admin/home`
+
+- **认证**：需要，`role = "admin"`（与 **§13** 等管理端接口一致）；非 `admin` 返回 `403`。
+- **路由**：已在 `POST /api/v1/admin/home` 注册。当前实现要点：`kpi.monthly_total_flight_hours` 为当月**正常状态**训练记录飞行分钟合计换算整数小时；`active_students_count` 为 `students` 表分页全量计数；`pending_reports_count` 固定 `0`；`system_alerts` 为空；`modules` 为内置默认模块列表。
+
+**请求体**
+
+```json
+{}
+```
+
+**成功响应 `data` 结构示例**
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "admin_user": {
+      "id": "550e8400-e29b-41d4-a716-446655440003",
+      "display_name": "管理员"
+    },
+    "kpi": {
+      "monthly_total_flight_hours": 1240,
+      "monthly_total_flight_hours_trend": "+8.5%",
+      "active_students_count": 156,
+      "active_students_delta": "+12",
+      "pending_reports_count": 2
+    },
+    "modules": [
+      {
+        "key": "student_management",
+        "title": "学员管理",
+        "description": "学员档案、进度、合同与权益",
+        "path": "/admin/student-management",
+        "icon": "graduation_cap"
+      }
+    ],
+    "system_alerts": {
+      "summary": "当前有 3 架飞机即将到达定检周期，2 名教员的执照即将到期。",
+      "items": [
+        {
+          "type": "aircraft_inspection",
+          "severity": "warning",
+          "count": 3,
+          "deeplink": "/admin/aircraft-schedule"
+        },
+        {
+          "type": "instructor_license",
+          "severity": "warning",
+          "count": 2,
+          "deeplink": "/admin/personnel-schedule"
+        }
+      ]
+    },
+    "warnings": []
+  }
+}
+```
+
+**说明**
+
+- **`modules`**：可由后端下发（便于版本控制入口与路径），也可仅由前端静态配置；若后端不返回，客户端可使用本地模块表。
+- **`kpi`**：优先来自定时任务写入的快照表，实时性要求高时可叠加当日增量。
+- **`system_alerts`**：可由合规/定检/执照等规则聚合；`summary` 可由服务端拼接，或仅返回 `items` 由前端做文案国际化。
 
 ---
 

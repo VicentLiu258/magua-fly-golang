@@ -2,6 +2,13 @@ package domain
 
 import "time"
 
+// 理论课视频存储方式（PostgreSQL theory_documents.video_storage）
+const (
+	TheoryVideoStorageExternal = "external"
+	TheoryVideoStorageGridFS   = "gridfs"
+	TheoryVideoStorageCOS      = "cos"
+)
+
 // TheoryDocument is metadata for a theory document (content in MongoDB).
 type TheoryDocument struct {
 	ID         string    `json:"id"`
@@ -10,9 +17,34 @@ type TheoryDocument struct {
 	SortOrder  int       `json:"sort_order"`
 	ContentRef string    `json:"content_ref,omitempty"`
 	VideoURL   string    `json:"video_url,omitempty"`
-	Category   string    `json:"category,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	// VideoStorage：外链 external；托管 gridfs / cos（与 VideoObjectID 配合）
+	VideoStorage         string `json:"video_storage,omitempty"`
+	VideoObjectID        string `json:"video_object_id,omitempty"`
+	VideoContentType     string `json:"video_content_type,omitempty"`
+	VideoSizeBytes       int64  `json:"video_size_bytes,omitempty"`
+	VideoDurationSeconds int    `json:"video_duration_seconds,omitempty"`
+	Category             string `json:"category,omitempty"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
+}
+
+// HasHostedTheoryVideo 是否为 GridFS/COS 托管视频
+func (d *TheoryDocument) HasHostedTheoryVideo() bool {
+	if d == nil {
+		return false
+	}
+	return d.VideoStorage == TheoryVideoStorageGridFS || d.VideoStorage == TheoryVideoStorageCOS
+}
+
+// HasExternalTheoryVideo 是否为外链视频（显式 external 或仅填 video_url 的兼容行）
+func (d *TheoryDocument) HasExternalTheoryVideo() bool {
+	if d == nil {
+		return false
+	}
+	if d.VideoStorage == TheoryVideoStorageExternal {
+		return true
+	}
+	return d.VideoStorage == "" && d.VideoURL != ""
 }
 
 // TheoryQuestion is a single choice question for a theory document.

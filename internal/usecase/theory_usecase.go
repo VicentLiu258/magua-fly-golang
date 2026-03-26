@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"magua-fly-golang/internal/domain"
@@ -13,13 +17,14 @@ import (
 
 // TheoryUseCase encapsulates theory learning flows: document reading and quizzes.
 type TheoryUseCase struct {
-	docRepo        repository.TheoryDocumentRepository
-	attemptRepo    repository.TheoryAttemptRepository
-	contentRepo    repository.TheoryContentRepository
-	questionRepo   repository.TheoryQuestionSetRepository
-	attemptDetail  repository.TheoryAttemptDetailRepository
-	paperRepo      repository.TheoryPaperRepository
+	docRepo           repository.TheoryDocumentRepository
+	attemptRepo       repository.TheoryAttemptRepository
+	contentRepo       repository.TheoryContentRepository
+	questionRepo      repository.TheoryQuestionSetRepository
+	attemptDetail     repository.TheoryAttemptDetailRepository
+	paperRepo         repository.TheoryPaperRepository
 	paperQuestionRepo repository.TheoryPaperQuestionRepository
+	videoStorage      TheoryVideoStorage
 }
 
 func NewTheoryUseCase(
@@ -30,15 +35,17 @@ func NewTheoryUseCase(
 	attemptDetail repository.TheoryAttemptDetailRepository,
 	paperRepo repository.TheoryPaperRepository,
 	paperQuestionRepo repository.TheoryPaperQuestionRepository,
+	videoStorage TheoryVideoStorage,
 ) *TheoryUseCase {
 	return &TheoryUseCase{
-		docRepo:       docRepo,
-		attemptRepo:   attemptRepo,
-		contentRepo:   contentRepo,
-		questionRepo:  questionRepo,
-		attemptDetail: attemptDetail,
-		paperRepo:     paperRepo,
+		docRepo:           docRepo,
+		attemptRepo:       attemptRepo,
+		contentRepo:       contentRepo,
+		questionRepo:      questionRepo,
+		attemptDetail:     attemptDetail,
+		paperRepo:         paperRepo,
 		paperQuestionRepo: paperQuestionRepo,
+		videoStorage:      videoStorage,
 	}
 }
 
@@ -61,6 +68,7 @@ type ListDocumentsItem struct {
 	HasVideo       bool   `json:"has_video"`
 	MyLatestScore  int    `json:"my_latest_score"`
 	MyAttemptCount int    `json:"my_attempt_count"`
+	VideoPlayback  *VideoPlaybackDTO `json:"video_playback,omitempty"`
 }
 
 // ListDocumentsResponse is the response for listing theory documents.
@@ -79,10 +87,11 @@ func (uc *TheoryUseCase) ListDocuments(ctx context.Context, userID string, req *
 	items := make([]ListDocumentsItem, 0, len(docs))
 	for _, d := range docs {
 		items = append(items, ListDocumentsItem{
-			ID:       d.ID,
-			Title:    d.Title,
+			ID:        d.ID,
+			Title:     d.Title,
 			SortOrder: d.SortOrder,
-			HasVideo: d.VideoURL != "",
+			HasVideo:  d.HasHostedTheoryVideo() || d.HasExternalTheoryVideo(),
+			VideoPlayback: uc.buildVideoPlayback(d),
 		})
 	}
 	return &ListDocumentsResponse{
@@ -91,10 +100,51 @@ func (uc *TheoryUseCase) ListDocuments(ctx context.Context, userID string, req *
 	}, nil
 }
 
+// VideoPlaybackDTO 客户端播放地址与类型（外链 / 本服务 Range 流 / 未来 COS）。
+type VideoPlaybackDTO struct {
+	Kind         string `json:"kind"` // external | gridfs | cos
+	URL          string `json:"url,omitempty"`
+	RequiresAuth bool   `json:"requires_auth"`
+	ContentType  string `json:"content_type,omitempty"`
+}
+
+const theoryVideoStreamPath = "/api/v1/theory/documents/video"
+
+func (uc *TheoryUseCase) buildVideoPlayback(doc *domain.TheoryDocument) *VideoPlaybackDTO {
+	if doc == nil {
+		return nil
+	}
+	switch {
+	case doc.VideoStorage == domain.TheoryVideoStorageGridFS && doc.VideoObjectID != "":
+		return &VideoPlaybackDTO{
+			Kind:         "gridfs",
+			URL:          theoryVideoStreamPath + "?document_id=" + doc.ID,
+			RequiresAuth: true,
+			ContentType:  doc.VideoContentType,
+		}
+	case doc.VideoStorage == domain.TheoryVideoStorageCOS && doc.VideoObjectID != "":
+		return &VideoPlaybackDTO{
+			Kind:         "cos",
+			URL:          "",
+			RequiresAuth: false,
+			ContentType:  doc.VideoContentType,
+		}
+	case doc.HasExternalTheoryVideo():
+		return &VideoPlaybackDTO{
+			Kind:         "external",
+			URL:          doc.VideoURL,
+			RequiresAuth: false,
+		}
+	default:
+		return nil
+	}
+}
+
 // DocumentDetailResponse aggregates document metadata and content blocks.
 type DocumentDetailResponse struct {
-	Document *domain.TheoryDocument          `json:"document"`
-	Content  []repository.TheoryContentBlock `json:"content"`
+	Document      *domain.TheoryDocument          `json:"document"`
+	Content       []repository.TheoryContentBlock `json:"content"`
+	VideoPlayback *VideoPlaybackDTO               `json:"video_playback,omitempty"`
 }
 
 func (uc *TheoryUseCase) GetDocumentDetail(ctx context.Context, documentID string) (*DocumentDetailResponse, error) {
@@ -107,8 +157,9 @@ func (uc *TheoryUseCase) GetDocumentDetail(ctx context.Context, documentID strin
 		return nil, err
 	}
 	return &DocumentDetailResponse{
-		Document: doc,
-		Content:  content.Blocks,
+		Document:      doc,
+		Content:       content.Blocks,
+		VideoPlayback: uc.buildVideoPlayback(doc),
 	}, nil
 }
 
@@ -523,6 +574,9 @@ func (uc *TheoryUseCase) CreateDocument(ctx context.Context, req *CreateDocument
 		Category:  req.Category,
 		VideoURL:  req.VideoURL,
 	}
+	if req.VideoURL != "" {
+		doc.VideoStorage = domain.TheoryVideoStorageExternal
+	}
 	if err := uc.docRepo.Create(ctx, doc); err != nil {
 		return nil, err
 	}
@@ -538,7 +592,26 @@ func (uc *TheoryUseCase) UpdateDocument(ctx context.Context, req *UpdateDocument
 	doc.Slug = req.Slug
 	doc.SortOrder = req.SortOrder
 	doc.Category = req.Category
-	doc.VideoURL = req.VideoURL
+
+	if doc.HasHostedTheoryVideo() {
+		// 托管视频仅通过 upload/remove 接口维护，避免 Update 误覆盖
+	} else {
+		if req.VideoURL != "" {
+			doc.VideoURL = req.VideoURL
+			doc.VideoStorage = domain.TheoryVideoStorageExternal
+			doc.VideoObjectID = ""
+			doc.VideoContentType = ""
+			doc.VideoSizeBytes = 0
+			doc.VideoDurationSeconds = 0
+		} else {
+			doc.VideoURL = ""
+			doc.VideoStorage = ""
+			doc.VideoObjectID = ""
+			doc.VideoContentType = ""
+			doc.VideoSizeBytes = 0
+			doc.VideoDurationSeconds = 0
+		}
+	}
 	if err := uc.docRepo.Update(ctx, doc); err != nil {
 		return nil, err
 	}
@@ -546,7 +619,153 @@ func (uc *TheoryUseCase) UpdateDocument(ctx context.Context, req *UpdateDocument
 }
 
 func (uc *TheoryUseCase) DeleteDocument(ctx context.Context, id string) error {
+	doc, err := uc.docRepo.GetByID(ctx, id)
+	if err == nil && doc != nil && uc.videoStorage != nil {
+		if doc.VideoStorage == domain.TheoryVideoStorageGridFS && doc.VideoObjectID != "" {
+			_ = uc.videoStorage.Delete(ctx, doc.VideoObjectID)
+		}
+	}
 	return uc.docRepo.Delete(ctx, id)
+}
+
+// ErrTheoryNoHostedVideo 表示该文档没有可流式播放的托管视频。
+var ErrTheoryNoHostedVideo = errors.New("theory document has no hosted video for streaming")
+
+// ErrTheoryVideoCOSNotReady 表示 COS 模式尚未实现播放。
+var ErrTheoryVideoCOSNotReady = errors.New("theory video on COS is not implemented yet")
+
+func isTheoryVideoContentType(filename, contentType string) bool {
+	ct := strings.ToLower(strings.TrimSpace(contentType))
+	if strings.HasPrefix(ct, "video/") {
+		return true
+	}
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".mp4", ".webm", ".mov", ".m4v", ".mkv":
+		return true
+	default:
+		return false
+	}
+}
+
+// AttachTheoryVideo 将视频流写入对象存储并绑定到理论文档（替换时先上传成功再删旧文件）。
+func (uc *TheoryUseCase) AttachTheoryVideo(ctx context.Context, documentID, filename, contentType string, src io.Reader) error {
+	if uc.videoStorage == nil {
+		return fmt.Errorf("theory video storage is not configured")
+	}
+	if !isTheoryVideoContentType(filename, contentType) {
+		return fmt.Errorf("unsupported theory video type")
+	}
+	doc, err := uc.docRepo.GetByID(ctx, documentID)
+	if err != nil {
+		return err
+	}
+	prevStorage := doc.VideoStorage
+	prevObjectID := doc.VideoObjectID
+
+	meta := map[string]interface{}{
+		"theory_document_id": documentID,
+	}
+	gridID, size, err := uc.videoStorage.UploadStream(ctx, filename, contentType, meta, src)
+	if err != nil {
+		return err
+	}
+
+	doc.VideoStorage = domain.TheoryVideoStorageGridFS
+	doc.VideoObjectID = gridID
+	doc.VideoContentType = contentType
+	doc.VideoSizeBytes = size
+	doc.VideoDurationSeconds = 0
+	doc.VideoURL = ""
+
+	if err := uc.docRepo.Update(ctx, doc); err != nil {
+		_ = uc.videoStorage.Delete(ctx, gridID)
+		return err
+	}
+	if prevObjectID != "" && prevStorage == domain.TheoryVideoStorageGridFS {
+		_ = uc.videoStorage.Delete(ctx, prevObjectID)
+	}
+	return nil
+}
+
+// RemoveTheoryVideo 移除外链或删除托管文件并清空字段。
+func (uc *TheoryUseCase) RemoveTheoryVideo(ctx context.Context, documentID string) error {
+	doc, err := uc.docRepo.GetByID(ctx, documentID)
+	if err != nil {
+		return err
+	}
+	if doc.HasHostedTheoryVideo() {
+		if uc.videoStorage == nil {
+			return fmt.Errorf("theory video storage is not configured")
+		}
+		if doc.VideoObjectID != "" && doc.VideoStorage == domain.TheoryVideoStorageGridFS {
+			_ = uc.videoStorage.Delete(ctx, doc.VideoObjectID)
+		}
+		doc.VideoStorage = ""
+		doc.VideoObjectID = ""
+		doc.VideoContentType = ""
+		doc.VideoSizeBytes = 0
+		doc.VideoDurationSeconds = 0
+		doc.VideoURL = ""
+		return uc.docRepo.Update(ctx, doc)
+	}
+	if doc.HasExternalTheoryVideo() {
+		doc.VideoURL = ""
+		doc.VideoStorage = ""
+		return uc.docRepo.Update(ctx, doc)
+	}
+	return nil
+}
+
+// OpenTheoryVideoContent 打开托管视频的字节流片段（用于 HTTP Range）。
+func (uc *TheoryUseCase) OpenTheoryVideoContent(ctx context.Context, documentID string, offset, maxLen int64) (io.ReadCloser, int64, string, error) {
+	if uc.videoStorage == nil {
+		return nil, 0, "", fmt.Errorf("theory video storage is not configured")
+	}
+	doc, err := uc.docRepo.GetByID(ctx, documentID)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	if doc.VideoStorage == domain.TheoryVideoStorageCOS {
+		return nil, 0, "", ErrTheoryVideoCOSNotReady
+	}
+	if doc.VideoStorage != domain.TheoryVideoStorageGridFS || doc.VideoObjectID == "" {
+		return nil, 0, "", ErrTheoryNoHostedVideo
+	}
+	ct := doc.VideoContentType
+	if ct == "" {
+		ct = "video/mp4"
+	}
+	rc, total, err := uc.videoStorage.OpenPartial(ctx, doc.VideoObjectID, offset, maxLen)
+	if err != nil {
+		return nil, 0, "", err
+	}
+	return rc, total, ct, nil
+}
+
+// GetTheoryVideoMeta 返回托管视频总长度与 Content-Type（用于 Range 响应头）。
+func (uc *TheoryUseCase) GetTheoryVideoMeta(ctx context.Context, documentID string) (total int64, contentType string, err error) {
+	if uc.videoStorage == nil {
+		return 0, "", fmt.Errorf("theory video storage is not configured")
+	}
+	doc, err := uc.docRepo.GetByID(ctx, documentID)
+	if err != nil {
+		return 0, "", err
+	}
+	if doc.VideoStorage == domain.TheoryVideoStorageCOS {
+		return 0, "", ErrTheoryVideoCOSNotReady
+	}
+	if doc.VideoStorage != domain.TheoryVideoStorageGridFS || doc.VideoObjectID == "" {
+		return 0, "", ErrTheoryNoHostedVideo
+	}
+	total, err = uc.videoStorage.FileLength(ctx, doc.VideoObjectID)
+	if err != nil {
+		return 0, "", err
+	}
+	ct := doc.VideoContentType
+	if ct == "" {
+		ct = "video/mp4"
+	}
+	return total, ct, nil
 }
 
 

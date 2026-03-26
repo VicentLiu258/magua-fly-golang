@@ -29,6 +29,7 @@ type StudentHandler struct {
 	theoryRepo   repository.TheoryAttemptRepository
 	contractRepo repository.ContractRepository
 	trainingUC   *usecase.TrainingUseCase
+	homeUC       *usecase.HomeUseCase
 }
 
 // NewStudentHandler creates a StudentHandler.
@@ -43,6 +44,7 @@ func NewStudentHandler(
 	theoryRepo repository.TheoryAttemptRepository,
 	contractRepo repository.ContractRepository,
 	trainingUC *usecase.TrainingUseCase,
+	homeUC *usecase.HomeUseCase,
 ) *StudentHandler {
 	return &StudentHandler{
 		studentRepo:  studentRepo,
@@ -55,6 +57,7 @@ func NewStudentHandler(
 		theoryRepo:   theoryRepo,
 		contractRepo: contractRepo,
 		trainingUC:   trainingUC,
+		homeUC:       homeUC,
 	}
 }
 
@@ -587,113 +590,25 @@ func (h *StudentHandler) MyHome(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
 		return
 	}
-	ctx := c.Request.Context()
-	// 当前学员
-	stu, err := h.studentRepo.GetByUserID(ctx, claims.UserID)
-	if err != nil || stu == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "student not found", "data": nil})
+	if domain.UserRole(claims.Role) != domain.RoleStudent {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "forbidden", "data": nil})
 		return
 	}
-
-	// profile
-	var remaining *int
-	if stu.ContractDurationMinutes != nil {
-		r := *stu.ContractDurationMinutes - stu.FlownMinutes
-		remaining = &r
+	if h.homeUC == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "home aggregate not configured", "data": nil})
+		return
 	}
-	profile := gin.H{
-		"student_id":               stu.ID,
-		"name":                     stu.Name,
-		"student_no":               stu.StudentNo,
-		"contract_duration_minutes": stu.ContractDurationMinutes,
-		"flown_minutes":            stu.FlownMinutes,
-		"remaining_minutes":        remaining,
-		"training_progress":        stu.TrainingProgress,
-	}
-
-	// tasks 预览：复用 taskRepo，简单取所有 pending
-	var pendingTasks []*domain.Task
-	status := domain.TaskStatusPending
-	allTasks, _ := h.taskRepo.ListByStudent(ctx, stu.ID, &status)
-	if len(allTasks) > 5 {
-		pendingTasks = allTasks[:5]
-	} else {
-		pendingTasks = allTasks
-	}
-	tasksBlock := gin.H{
-		"items": pendingTasks,
-		"total": len(allTasks),
-	}
-
-	// upcoming_training：未来 7 天内的 training_plans
-	now := time.Now()
-	from := now.Format("2006-01-02")
-	to := now.AddDate(0, 0, 7).Format("2006-01-02")
-	plans, _ := h.planRepo.ListByDate(ctx, from, to)
-	type upcomingItem struct {
-		TrainingDate   string `json:"training_date"`
-		StartTime      string `json:"start_time"`
-		EndTime        string `json:"end_time"`
-		InstructorName string `json:"instructor_name"`
-		AircraftName   string `json:"aircraft_name"`
-	}
-	var upcoming []upcomingItem
-	for _, p := range plans {
-		if p.StudentID != stu.ID {
-			continue
+	var body usecase.StudentHomeRequest
+	_ = c.ShouldBindJSON(&body)
+	data, _, err := h.homeUC.StudentHome(c.Request.Context(), claims.UserID, &body)
+	if err != nil {
+		if errors.Is(err, usecase.ErrStudentNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "student not found", "data": nil})
+			return
 		}
-		var insName, acName string
-		if ins, err := h.instrRepo.GetByID(ctx, p.InstructorID); err == nil && ins != nil {
-			insName = ins.Name
-		}
-		if ac, err := h.aircraftRepo.GetByID(ctx, p.AircraftID); err == nil && ac != nil {
-			acName = ac.Name
-		}
-		upcoming = append(upcoming, upcomingItem{
-			TrainingDate:   p.PlanDate.Format("2006-01-02"),
-			StartTime:      p.StartTime.Format("15:04"),
-			EndTime:        p.EndTime.Format("15:04"),
-			InstructorName: insName,
-			AircraftName:   acName,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
 	}
-
-	// last_training_archive：最近一次档案
-	archives, _ := h.archiveRepo.ListByStudent(ctx, stu.ID, 1, 0)
-	var lastArchive interface{}
-	if len(archives) > 0 {
-		a := archives[0]
-		lastArchive = gin.H{
-			"id":                     a.ID,
-			"training_date":          a.TrainingDate.Format("2006-01-02"),
-			"stage":                  a.Stage,
-			"flight_duration_minutes": a.FlightDurationMinutes,
-		}
-	}
-
-	// theory_summary：简单按当前用户全部 attempt 统计（略简化）
-	// NOTE: 现有 TheoryAttemptRepository 只按文档 + 用户筛选，为简化，这里不做遍历，留空结构或后续扩展。
-	theorySummary := gin.H{
-		"completed_documents": 0,
-		"avg_score":           0,
-		"last_attempt_at":     nil,
-	}
-
-	// subject_progress 目前通过 syllabus-subjects/list 完成统计，聚合放在前端或后续 UseCase 中。
-	subjectProgress := gin.H{
-		"completed": 0,
-		"total":     0,
-	}
-
-	data := gin.H{
-		"profile":             profile,
-		"tasks":               tasksBlock,
-		"upcoming_training":   upcoming,
-		"last_training_archive": lastArchive,
-		"theory_summary":      theorySummary,
-		"subject_progress":    subjectProgress,
-	}
-
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": data})
 }
 
