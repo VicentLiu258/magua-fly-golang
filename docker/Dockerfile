@@ -2,6 +2,8 @@
 FROM golang:1.23-alpine AS builder
 WORKDIR /build
 COPY go.mod go.sum ./
+# 设置国内代理，加速依赖下载
+ENV GOPROXY=https://goproxy.cn,direct
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
