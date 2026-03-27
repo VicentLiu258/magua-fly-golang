@@ -11,6 +11,7 @@ import (
 	"magua-fly-golang/internal/usecase"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // InstructorDutiesList POST /api/v1/schedules/instructor-duties/list
@@ -37,7 +38,7 @@ func (h *ScheduleHandler) InstructorDutiesList(c *gin.Context) {
 
 	items, err := h.scheduleUC.ListInstructorDuties(c.Request.Context(), from, to, body.InstructorIDs)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		writeInstructorDutyErr(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": gin.H{"items": items}})
@@ -76,7 +77,7 @@ func (h *ScheduleHandler) InstructorDutiesMyList(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": err.Error(), "data": nil})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		writeInstructorDutyErr(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": data})
@@ -155,4 +156,14 @@ func (h *ScheduleHandler) InstructorDutiesBulk(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": gin.H{"upserted": n}})
+}
+
+// writeInstructorDutyErr 区分 PostgreSQL 错误（库表结构/约束）与业务参数错误，避免把 SQLSTATE 误标为 400。
+func writeInstructorDutyErr(c *gin.Context, err error) {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 }
