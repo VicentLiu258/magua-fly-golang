@@ -90,6 +90,17 @@ type TrainingRecordListResult struct {
 	Total int               `json:"total"`
 }
 
+// MaxTrainingRecordExportRows 单次 CSV 导出行数上限（避免内存与响应过大）。
+const MaxTrainingRecordExportRows = 50000
+
+// TrainingRecordCSVHeaders 与业务样稿一致的总表列名（37 列）。
+var TrainingRecordCSVHeaders = []string{
+	"记录编号", "飞行日期", "星期", "计划开车时刻", "计划关车时刻", "开车时刻", "关车时刻", "机号",
+	"始发", "目的", "本场/转场", "任务类型", "带飞/单飞", "业务类型", "飞行教员", "客户", "学员阶段", "客户编号", "备注",
+	"飞行时长", "分钟数", "小时数", "起落架次", "此前经历", "发动机开车", "发动机关车", "年月",
+	"关联合同", "小时价值", "本次价值", "校验", "校验结果", "视频及时", "拍摄人", "视频有效", "航后讲评", "飞行数据",
+}
+
 // TrainingArchive is the detailed archive for one training record.
 type TrainingArchive struct {
 	ID                            string     `json:"id"`

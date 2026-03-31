@@ -1016,6 +1016,33 @@
 }
 ```
 
+#### 7.2.6 导出总表 CSV `POST /api/v1/training-records/export`
+
+与 **7.2.5** 相同的筛选与排序参数（`student_id`、`instructor_id`、`date_from` / `date_to`、`status`、`import_source`、`sort_field`、`sort_asc`），另可选：
+
+- `include_prior_experience`（布尔，默认 `true`）：为 `true` 时，**此前经历**列为按学员、按训练日期与开车时间升序累计的飞行小时数（与当前库内 `flight_duration_minutes` 一致，四舍五入保留一位小数）；为 `false` 时该列为空。
+
+**请求体示例**：
+
+```json
+{
+  "date_from": "2026-01-01",
+  "date_to": "2026-12-31",
+  "status": "normal",
+  "sort_field": "training_date",
+  "sort_asc": false,
+  "include_prior_experience": true
+}
+```
+
+**成功响应**：HTTP 200，`Content-Type: text/csv; charset=utf-8`，`Content-Disposition: attachment; filename="training_records_YYYYMMDD.csv"`，正文为 **UTF-8 BOM** + CSV。首行为表头，共 **37 列**，顺序与历史业务总表样稿一致。
+
+**已映射列（有数据则输出）**：记录编号（`archive_display_no`）、飞行日期与星期、计划开车/关车时刻（关联 `training_plans` 的 `start_time` / `end_time`，`HH24:MI`）、开车/关车时刻、机号（飞机 `code`）、始发/目的、本场或转场、任务类型、飞行教员、客户（学员姓名）、学员阶段与备注（档案）、客户编号（学号）、飞行时长（`H:MM`）/分钟数/小时数、起落架次、此前经历（见上）、年月（`Jan-06` 英文缩写）、航后讲评（档案 `instructor_review`）。
+
+**当前占空列（表头保留，单元格为空）**：带飞/单飞、业务类型、发动机开车/关车（小时表读数）、关联合同、小时价值、本次价值、校验、校验结果、视频及时、拍摄人、视频有效、飞行数据。后续若扩展库表或合同计费，可再填入。
+
+**错误**：筛选结果行数超过 **50000**（常量 `MaxTrainingRecordExportRows`）时返回 **400**，提示缩小范围后重试。
+
 ### 7.3 飞行数据导入与认领（外部数据流水，非排期草稿）
 
 本节接口处理**机载/外部文件导入**后的待认领行，与 **7.2.0** 中 `import_source=schedule` 的排期草稿无关。

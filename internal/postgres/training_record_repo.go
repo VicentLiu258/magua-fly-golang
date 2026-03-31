@@ -2,9 +2,13 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -161,6 +165,278 @@ func (r *TrainingRecordRepo) List(ctx context.Context, filter *domain.TrainingRe
 		return nil, 0, err
 	}
 	return list, total, nil
+}
+
+// trainingRecordTableFilterWhere 生成带表别名的 WHERE 子句（参数从 $1 起编）。
+func trainingRecordTableFilterWhere(filter *domain.TrainingRecordListFilter, tableAlias string) (where string, args []interface{}, nextArg int) {
+	var conds []string
+	args = []interface{}{}
+	nextArg = 1
+	prefix := tableAlias + "."
+	if filter != nil {
+		if filter.StudentID != nil {
+			conds = append(conds, fmt.Sprintf("%sstudent_id = $%d::uuid", prefix, nextArg))
+			args = append(args, *filter.StudentID)
+			nextArg++
+		}
+		if filter.InstructorID != nil {
+			conds = append(conds, fmt.Sprintf("%sinstructor_id = $%d::uuid", prefix, nextArg))
+			args = append(args, *filter.InstructorID)
+			nextArg++
+		}
+		if filter.DateFrom != nil {
+			conds = append(conds, fmt.Sprintf("%straining_date >= $%d", prefix, nextArg))
+			args = append(args, *filter.DateFrom)
+			nextArg++
+		}
+		if filter.DateTo != nil {
+			conds = append(conds, fmt.Sprintf("%straining_date <= $%d", prefix, nextArg))
+			args = append(args, *filter.DateTo)
+			nextArg++
+		}
+		if filter.Status != nil {
+			conds = append(conds, fmt.Sprintf("%sstatus = $%d", prefix, nextArg))
+			args = append(args, string(*filter.Status))
+			nextArg++
+		}
+		if filter.ImportSource != nil {
+			conds = append(conds, fmt.Sprintf("%simport_source = $%d", prefix, nextArg))
+			args = append(args, string(*filter.ImportSource))
+			nextArg++
+		}
+	}
+	if len(conds) == 0 {
+		return "", args, nextArg
+	}
+	return " WHERE " + strings.Join(conds, " AND "), args, nextArg
+}
+
+func trainingRecordExportOrderBy(sort *domain.TrainingRecordListSort) string {
+	allowed := map[string]string{
+		"training_date":           "tr.training_date",
+		"created_at":              "tr.created_at",
+		"updated_at":              "tr.updated_at",
+		"flight_duration_minutes": "tr.flight_duration_minutes",
+		"engine_on_time":          "tr.engine_on_time",
+		"engine_off_time":         "tr.engine_off_time",
+		"id":                      "tr.id",
+	}
+	field := "tr.training_date"
+	asc := false
+	if sort != nil && sort.Field != "" {
+		if col, ok := allowed[sort.Field]; ok {
+			field = col
+		}
+		asc = sort.Asc
+	}
+	dir := "DESC"
+	if asc {
+		dir = "ASC"
+	}
+	return " ORDER BY " + field + " " + dir + ", tr.id " + dir
+}
+
+// CountForExport 与 CSV 导出相同的 JOIN 条件下的行数。
+func (r *TrainingRecordRepo) CountForExport(ctx context.Context, filter *domain.TrainingRecordListFilter) (int, error) {
+	where, args, _ := trainingRecordTableFilterWhere(filter, "tr")
+	q := `SELECT COUNT(*) FROM training_records tr
+		INNER JOIN students s ON s.id = tr.student_id
+		INNER JOIN instructors i ON i.id = tr.instructor_id
+		INNER JOIN aircraft a ON a.id = tr.aircraft_id` + where
+	var n int
+	err := r.db.Pool.QueryRow(ctx, q, args...).Scan(&n)
+	return n, err
+}
+
+// ListForCSVExport 返回与样稿表头顺序一致的列值（不含表头行）。
+func (r *TrainingRecordRepo) ListForCSVExport(ctx context.Context, filter *domain.TrainingRecordListFilter, sort *domain.TrainingRecordListSort, limit int, includePriorExperience bool) ([][]string, error) {
+	where, args, nextArg := trainingRecordTableFilterWhere(filter, "tr")
+	includePh := nextArg
+	args = append(args, includePriorExperience)
+	nextArg++
+	limitPh := nextArg
+	args = append(args, limit)
+
+	priorExpr := fmt.Sprintf(`CASE WHEN $%d::boolean THEN ROUND((
+			SUM(COALESCE(tr.flight_duration_minutes, 0)) OVER (
+				PARTITION BY tr.student_id
+				ORDER BY tr.training_date ASC, tr.engine_on_time ASC NULLS LAST, tr.id ASC
+			)
+		)::numeric / 60.0, 1) ELSE NULL::numeric END`, includePh)
+
+	q := fmt.Sprintf(`
+		SELECT
+			COALESCE(NULLIF(tr.archive_display_no, ''), '') AS archive_display_no,
+			tr.training_date,
+			tr.engine_on_time,
+			tr.engine_off_time,
+			a.code AS aircraft_code,
+			COALESCE(tr.departure, '') AS departure,
+			COALESCE(tr.destination, '') AS destination,
+			tr.is_local,
+			COALESCE(tr.task_type, '') AS task_type,
+			i.name AS instructor_name,
+			s.name AS student_name,
+			COALESCE(ta.stage, '') AS archive_stage,
+			s.student_no,
+			COALESCE(ta.progress_note, '') AS progress_note,
+			tr.flight_duration_minutes,
+			tr.landings,
+			to_char(tp.start_time, 'HH24:MI') AS plan_start,
+			to_char(tp.end_time, 'HH24:MI') AS plan_end,
+			%s AS prior_cum_hours,
+			COALESCE(ta.instructor_review, '') AS instructor_review
+		FROM training_records tr
+		INNER JOIN students s ON s.id = tr.student_id
+		INNER JOIN instructors i ON i.id = tr.instructor_id
+		INNER JOIN aircraft a ON a.id = tr.aircraft_id
+		LEFT JOIN training_plans tp ON tp.id = tr.training_plan_id
+		LEFT JOIN training_archives ta ON ta.training_record_id = tr.id
+		%s
+		%s
+		LIMIT $%d`, priorExpr, where, trainingRecordExportOrderBy(sort), limitPh)
+
+	rows, err := r.db.Pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out [][]string
+	for rows.Next() {
+		var archiveNo string
+		var trainingDate time.Time
+		var engineOn, engineOff sql.NullTime
+		var aircraftCode, departure, destination, taskType, instructorName, studentName, archiveStage, studentNo, progressNote string
+		var flightMin sql.NullInt32
+		var landings sql.NullInt32
+		var planStart, planEnd sql.NullString
+		var priorCum sql.NullFloat64
+		var instructorReview string
+
+		var isLocal bool
+		if err := rows.Scan(
+			&archiveNo, &trainingDate, &engineOn, &engineOff, &aircraftCode, &departure, &destination,
+			&isLocal, &taskType, &instructorName, &studentName, &archiveStage, &studentNo, &progressNote,
+			&flightMin, &landings, &planStart, &planEnd, &priorCum, &instructorReview,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, formatTrainingRecordCSVRow(
+			archiveNo, trainingDate, engineOn, engineOff, aircraftCode, departure, destination,
+			isLocal, taskType, instructorName, studentName, archiveStage, studentNo, progressNote,
+			flightMin, landings, planStart, planEnd, priorCum, instructorReview,
+		))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+var chineseWeekdays = []string{"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"}
+
+func formatTrainingRecordCSVRow(
+	archiveNo string,
+	trainingDate time.Time,
+	engineOn, engineOff sql.NullTime,
+	aircraftCode, departure, destination string,
+	isLocal bool,
+	taskType, instructorName, studentName, archiveStage, studentNo, progressNote string,
+	flightMin sql.NullInt32,
+	landings sql.NullInt32,
+	planStart, planEnd sql.NullString,
+	priorCum sql.NullFloat64,
+	instructorReview string,
+) []string {
+	lt := trainingDate.In(time.Local)
+	flightDateStr := fmt.Sprintf("%d/%d/%d", lt.Year(), int(lt.Month()), lt.Day())
+	weekday := chineseWeekdays[int(lt.Weekday())]
+	yearMonth := lt.Format("Jan-06")
+
+	localStr := "转场"
+	if isLocal {
+		localStr = "本场"
+	}
+
+	var planS, planE string
+	if planStart.Valid {
+		planS = planStart.String
+	}
+	if planEnd.Valid {
+		planE = planEnd.String
+	}
+
+	var minsStr, landStr, durationHMM, hoursStr, priorStr string
+	if flightMin.Valid {
+		m := int(flightMin.Int32)
+		minsStr = strconv.Itoa(m)
+		durationHMM = fmt.Sprintf("%d:%02d", m/60, m%60)
+		h := float64(m) / 60.0
+		hoursStr = strconv.FormatFloat(math.Round(h*10)/10, 'f', 1, 64)
+	}
+	if landings.Valid {
+		landStr = strconv.Itoa(int(landings.Int32))
+	}
+	if priorCum.Valid {
+		p := priorCum.Float64
+		priorStr = strconv.FormatFloat(math.Round(p*10)/10, 'f', 1, 64)
+	}
+
+	n := len(domain.TrainingRecordCSVHeaders)
+	row := make([]string, n)
+	row[0] = archiveNo
+	row[1] = flightDateStr
+	row[2] = weekday
+	row[3] = planS
+	row[4] = planE
+	row[5] = formatEngineCSVFromNull(engineOn)
+	row[6] = formatEngineCSVFromNull(engineOff)
+	row[7] = aircraftCode
+	row[8] = departure
+	row[9] = destination
+	row[10] = localStr
+	row[11] = taskType
+	row[12] = ""
+	row[13] = ""
+	row[14] = instructorName
+	row[15] = studentName
+	row[16] = archiveStage
+	row[17] = studentNo
+	row[18] = progressNote
+	row[19] = durationHMM
+	row[20] = minsStr
+	row[21] = hoursStr
+	row[22] = landStr
+	row[23] = priorStr
+	row[24] = ""
+	row[25] = ""
+	row[26] = yearMonth
+	row[27] = ""
+	row[28] = ""
+	row[29] = ""
+	row[30] = ""
+	row[31] = ""
+	row[32] = ""
+	row[33] = ""
+	row[34] = ""
+	row[35] = instructorReview
+	if n > 36 {
+		row[36] = ""
+	}
+	return row
+}
+
+func formatEngineCSVFromNull(nt sql.NullTime) string {
+	if !nt.Valid {
+		return ""
+	}
+	return formatEngineCSVTime(nt.Time)
+}
+
+func formatEngineCSVTime(t time.Time) string {
+	tt := t.In(time.Local)
+	return fmt.Sprintf("%d/%d/%d %d:%02d", tt.Year(), int(tt.Month()), tt.Day(), tt.Hour(), tt.Minute())
 }
 
 func (r *TrainingRecordRepo) Create(ctx context.Context, rec *domain.TrainingRecord) error {

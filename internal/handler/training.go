@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -295,6 +296,84 @@ func (h *TrainingHandler) ListRecords(c *gin.Context) {
 		return
 	}
 	respOK(c, result)
+}
+
+// ExportRecordsCSV POST /api/v1/training-records/export — 返回 UTF-8 BOM CSV，列顺序与业务总表样稿一致。
+func (h *TrainingHandler) ExportRecordsCSV(c *gin.Context) {
+	var body struct {
+		StudentID              *string `json:"student_id"`
+		InstructorID           *string `json:"instructor_id"`
+		DateFrom               *string `json:"date_from"`
+		DateTo                 *string `json:"date_to"`
+		Status                 *string `json:"status"`
+		ImportSource           *string `json:"import_source"`
+		SortField              string  `json:"sort_field"`
+		SortAsc                bool    `json:"sort_asc"`
+		IncludePriorExperience *bool   `json:"include_prior_experience"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		_ = err
+	}
+	filter := &domain.TrainingRecordListFilter{}
+	if body.StudentID != nil {
+		filter.StudentID = body.StudentID
+	}
+	if body.InstructorID != nil {
+		filter.InstructorID = body.InstructorID
+	}
+	if body.DateFrom != nil {
+		t, err := time.Parse("2006-01-02", *body.DateFrom)
+		if err == nil {
+			filter.DateFrom = &t
+		}
+	}
+	if body.DateTo != nil {
+		t, err := time.Parse("2006-01-02", *body.DateTo)
+		if err == nil {
+			filter.DateTo = &t
+		}
+	}
+	if body.Status != nil {
+		s := domain.TrainingRecordStatus(*body.Status)
+		filter.Status = &s
+	}
+	if body.ImportSource != nil {
+		s := domain.ImportSource(*body.ImportSource)
+		filter.ImportSource = &s
+	}
+	sort := (*domain.TrainingRecordListSort)(nil)
+	if body.SortField != "" {
+		sort = &domain.TrainingRecordListSort{Field: body.SortField, Asc: body.SortAsc}
+	}
+	includePrior := true
+	if body.IncludePriorExperience != nil {
+		includePrior = *body.IncludePriorExperience
+	}
+	rows, err := h.uc.ExportTrainingRecordsCSV(c.Request.Context(), filter, sort, includePrior)
+	if err != nil {
+		if errors.Is(err, usecase.ErrTrainingRecordExportTooManyRows) {
+			respErr(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		respErr(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	filename := "training_records_" + time.Now().Format("20060102") + ".csv"
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		return
+	}
+	w := csv.NewWriter(c.Writer)
+	if err := w.Write(domain.TrainingRecordCSVHeaders); err != nil {
+		return
+	}
+	for _, row := range rows {
+		if err := w.Write(row); err != nil {
+			return
+		}
+	}
+	w.Flush()
 }
 
 // ImportRecords POST /api/v1/training-records/import

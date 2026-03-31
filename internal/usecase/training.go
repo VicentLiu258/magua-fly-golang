@@ -16,6 +16,9 @@ import (
 // ErrTrainingRecordNotFound 表示指定的 training_record_id 不存在，创建档案前需先有对应训练记录。
 var ErrTrainingRecordNotFound = errors.New("training_record_id 不存在，请先创建训练记录或使用已有的记录 ID")
 
+// ErrTrainingRecordExportTooManyRows 导出行数超过 domain.MaxTrainingRecordExportRows。
+var ErrTrainingRecordExportTooManyRows = errors.New("导出行数超过上限，请缩小日期范围或筛选条件后再试")
+
 // ErrInvalidSyllabusOutlineCategory 大纲类别非法（与 syllabus_outlines CHECK 不一致）
 var ErrInvalidSyllabusOutlineCategory = errors.New("invalid syllabus outline category")
 
@@ -144,6 +147,18 @@ func (u *TrainingUseCase) ListRecords(ctx context.Context, filter *domain.Traini
 		return nil, err
 	}
 	return &domain.TrainingRecordListResult{Items: items, Total: total}, nil
+}
+
+// ExportTrainingRecordsCSV 按与列表相同的筛选条件导出 CSV 数据行（不含表头）；行数超过上限时返回 ErrTrainingRecordExportTooManyRows。
+func (u *TrainingUseCase) ExportTrainingRecordsCSV(ctx context.Context, filter *domain.TrainingRecordListFilter, sort *domain.TrainingRecordListSort, includePriorExperience bool) ([][]string, error) {
+	n, err := u.recordRepo.CountForExport(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	if n > domain.MaxTrainingRecordExportRows {
+		return nil, ErrTrainingRecordExportTooManyRows
+	}
+	return u.recordRepo.ListForCSVExport(ctx, filter, sort, n, includePriorExperience)
 }
 
 // ImportRaw 批量导入原始飞行数据，写入 raw_flight_imports

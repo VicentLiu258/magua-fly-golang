@@ -116,6 +116,8 @@ type TrainingRecordRepository interface {
 	FindByTrainingPlanID(ctx context.Context, trainingPlanID string) (*domain.TrainingRecord, error)
 	ListByStudent(ctx context.Context, studentID string, limit, offset int) ([]*domain.TrainingRecord, error)
 	List(ctx context.Context, filter *domain.TrainingRecordListFilter, sort *domain.TrainingRecordListSort, limit, offset int) ([]*domain.TrainingRecord, int, error)
+	CountForExport(ctx context.Context, filter *domain.TrainingRecordListFilter) (int, error)
+	ListForCSVExport(ctx context.Context, filter *domain.TrainingRecordListFilter, sort *domain.TrainingRecordListSort, limit int, includePriorExperience bool) ([][]string, error)
 	Create(ctx context.Context, r *domain.TrainingRecord) error
 	Update(ctx context.Context, r *domain.TrainingRecord) error
 	UpdateStatus(ctx context.Context, id string, status domain.TrainingRecordStatus) error
