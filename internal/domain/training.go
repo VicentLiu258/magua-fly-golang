@@ -9,18 +9,20 @@ import (
 type ImportSource string
 
 const (
-	ImportManual ImportSource = "manual"
-	ImportImport ImportSource = "import"
+	ImportManual   ImportSource = "manual"
+	ImportImport   ImportSource = "import"
+	ImportSchedule ImportSource = "schedule" // 预约/排期通过后自动生成的待补全记录
 )
 
 // TrainingRecordStatus 训练记录状态
 type TrainingRecordStatus string
 
 const (
-	RecordStatusNormal   TrainingRecordStatus = "normal"
+	RecordStatusNormal    TrainingRecordStatus = "normal"
 	RecordStatusCancelled TrainingRecordStatus = "cancelled"
 	RecordStatusDeleted   TrainingRecordStatus = "deleted"
 	RecordStatusExpired   TrainingRecordStatus = "expired"
+	RecordStatusDraft     TrainingRecordStatus = "draft" // 已关联排期、待补充起落等字段
 )
 
 // TrainingRecord is one flight training record.
@@ -47,8 +49,22 @@ type TrainingRecord struct {
 	FlightType             string                `json:"flight_type,omitempty"`
 	TaskType               string                `json:"task_type,omitempty"`
 	Landings               *int                  `json:"landings,omitempty"`
+	TrainingPlanID         string                `json:"training_plan_id,omitempty"`
 	CreatedAt              time.Time             `json:"created_at"`
 	UpdatedAt              time.Time             `json:"updated_at"`
+}
+
+// PlannedDurationMinutesFromClock 根据计划起止时刻（仅时钟部分）计算分钟数，跨零点则加 24h。
+func PlannedDurationMinutesFromClock(start, end time.Time) int {
+	sh, sm, _ := start.Clock()
+	eh, em, _ := end.Clock()
+	smin := sh*60 + sm
+	emin := eh*60 + em
+	d := emin - smin
+	if d < 0 {
+		d += 24 * 60
+	}
+	return d
 }
 
 // TrainingRecordListFilter 列表筛选条件

@@ -113,6 +113,7 @@ type TrainingPlanRepository interface {
 // TrainingRecordRepository defines training record persistence.
 type TrainingRecordRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.TrainingRecord, error)
+	FindByTrainingPlanID(ctx context.Context, trainingPlanID string) (*domain.TrainingRecord, error)
 	ListByStudent(ctx context.Context, studentID string, limit, offset int) ([]*domain.TrainingRecord, error)
 	List(ctx context.Context, filter *domain.TrainingRecordListFilter, sort *domain.TrainingRecordListSort, limit, offset int) ([]*domain.TrainingRecord, int, error)
 	Create(ctx context.Context, r *domain.TrainingRecord) error

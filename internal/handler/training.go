@@ -132,6 +132,15 @@ func (h *TrainingHandler) UpdateRecord(c *gin.Context) {
 		FlightDurationMinutes  *int    `json:"flight_duration_minutes"`
 		IsLocal                *bool   `json:"is_local"`
 		PlannedDurationMinutes *int    `json:"planned_duration_minutes"`
+		TheoryDurationMinutes  *int    `json:"theory_duration_minutes"`
+		SimDurationMinutes     *int    `json:"sim_duration_minutes"`
+		Landings               *int    `json:"landings"`
+		SyllabusOutline        *string `json:"syllabus_outline"`
+		ArchiveDisplayNo       *string `json:"archive_display_no"`
+		Departure              *string `json:"departure"`
+		Destination            *string `json:"destination"`
+		FlightType             *string `json:"flight_type"`
+		TaskType               *string `json:"task_type"`
 		Status                 *string `json:"status"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -172,6 +181,33 @@ func (h *TrainingHandler) UpdateRecord(c *gin.Context) {
 	}
 	if body.PlannedDurationMinutes != nil {
 		rec.PlannedDurationMinutes = body.PlannedDurationMinutes
+	}
+	if body.TheoryDurationMinutes != nil {
+		rec.TheoryDurationMinutes = body.TheoryDurationMinutes
+	}
+	if body.SimDurationMinutes != nil {
+		rec.SimDurationMinutes = body.SimDurationMinutes
+	}
+	if body.Landings != nil {
+		rec.Landings = body.Landings
+	}
+	if body.SyllabusOutline != nil {
+		rec.SyllabusOutline = *body.SyllabusOutline
+	}
+	if body.ArchiveDisplayNo != nil {
+		rec.ArchiveDisplayNo = *body.ArchiveDisplayNo
+	}
+	if body.Departure != nil {
+		rec.Departure = *body.Departure
+	}
+	if body.Destination != nil {
+		rec.Destination = *body.Destination
+	}
+	if body.FlightType != nil {
+		rec.FlightType = *body.FlightType
+	}
+	if body.TaskType != nil {
+		rec.TaskType = *body.TaskType
 	}
 	if body.Status != nil {
 		rec.Status = domain.TrainingRecordStatus(*body.Status)

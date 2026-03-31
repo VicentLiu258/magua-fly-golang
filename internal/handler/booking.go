@@ -20,15 +20,17 @@ type BookingHandler struct {
 	planRepo    repository.TrainingPlanRepository
 	taskRepo    repository.TaskRepository
 	scheduleUC  *usecase.ScheduleUseCase
+	trainingUC  *usecase.TrainingUseCase
 }
 
 // NewBookingHandler creates a BookingHandler.
-func NewBookingHandler(bookingRepo repository.BookingRepository, planRepo repository.TrainingPlanRepository, taskRepo repository.TaskRepository, scheduleUC *usecase.ScheduleUseCase) *BookingHandler {
+func NewBookingHandler(bookingRepo repository.BookingRepository, planRepo repository.TrainingPlanRepository, taskRepo repository.TaskRepository, scheduleUC *usecase.ScheduleUseCase, trainingUC *usecase.TrainingUseCase) *BookingHandler {
 	return &BookingHandler{
 		bookingRepo: bookingRepo,
 		planRepo:    planRepo,
 		taskRepo:    taskRepo,
 		scheduleUC:  scheduleUC,
+		trainingUC:  trainingUC,
 	}
 }
 
@@ -148,6 +150,12 @@ func (h *BookingHandler) Review(c *gin.Context) {
 		if err := h.planRepo.Create(ctx, plan); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 			return
+		}
+		if h.trainingUC != nil {
+			if err := h.trainingUC.EnsureScheduleDraftRecord(ctx, plan); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+				return
+			}
 		}
 		// 关键：这里不要再 `_ =` 吞掉错误，直接返回给前端看
 		if err := h.createFlightTaskFromBooking(ctx, booking, claims.UserID); err != nil {

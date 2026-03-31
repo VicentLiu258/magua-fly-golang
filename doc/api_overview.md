@@ -903,12 +903,24 @@
         "type": "date",
         "required": true
       },
+      {
+        "key": "training_plan_id",
+        "label": "关联训练计划",
+        "type": "string",
+        "readonly": true
+      },
       { "key": "engine_on_time", "label": "开车时间", "type": "time" },
+      {
+        "key": "import_source",
+        "label": "来源",
+        "type": "select",
+        "options": ["manual", "import", "schedule"]
+      },
       {
         "key": "status",
         "label": "状态",
         "type": "select",
-        "options": ["normal", "cancelled", "deleted", "expired"]
+        "options": ["draft", "normal", "cancelled", "deleted", "expired"]
       }
     ]
   }
@@ -916,6 +928,14 @@
 ```
 
 ### 7.2 训练记录 CRUD 与列表
+
+#### 7.2.0 两种录入与「认领」语义说明
+
+- **手动录入**：调用 `POST /api/v1/training-records` 创建记录，`import_source` 为 `manual`，`status` 一般为 `normal`（也可按需传其他状态）。
+- **排期驱动的待补全记录（认领/补全模式）**：学员预约经后台**审核通过**后，系统会写入 `training_plans`，并**自动**插入一条 `training_records` 草稿：`import_source`=`schedule`，`status`=`draft`，并带上 `student_id`、`instructor_id`、`aircraft_id`、`training_date`（计划日）、`planned_duration_minutes`（由计划起止时刻推算）、`training_plan_id`。前端在记录管理中列出 `status=draft` 或 `import_source=schedule` 即可作为「待补全」队列；用户通过 `POST /api/v1/training-records/update` 补充开车/关车、时长、档案编号等字段后，将 `status` 改为 `normal` 即完成录入。
+- **导入流水认领**（与上不同）：见 **7.3** 节 `import` + `claim`，针对 `raw_flight_imports`，**不是**排期表关联。
+
+计划开始/结束时刻不在 `training_records` 上冗余存储，可通过 `training_plan_id` 关联 `training_plans` 查询 `plan_date`、`start_time`、`end_time`。
 
 #### 7.2.1 创建记录 `POST /api/v1/training-records`
 
@@ -941,7 +961,7 @@
 }
 ```
 
-**成功响应**：`data` 为完整训练记录（含 `id`、`created_at`、`updated_at`）。
+**成功响应**：`data` 为完整训练记录（含 `id`、`training_plan_id`（可空）、`created_at`、`updated_at`）。
 
 #### 7.2.2 记录详情 `POST /api/v1/training-records/detail`
 
@@ -951,7 +971,7 @@
 
 #### 7.2.3 更新记录 `POST /api/v1/training-records/update`
 
-**请求体**：`{ "id": "550e8400-e29b-41d4-a716-446655440011", "student_id": "550e8400-e29b-41d4-a716-446655440001", "instructor_id": "550e8400-e29b-41d4-a716-446655440002", ... }`（需传 `id`，其余为可选更新字段）。
+**请求体**：`{ "id": "550e8400-e29b-41d4-a716-446655440011", "student_id": "550e8400-e29b-41d4-a716-446655440001", "instructor_id": "550e8400-e29b-41d4-a716-446655440002", ... }`（需传 `id`，其余为可选更新字段）。补全排期草稿时可传 `engine_on_time`、`engine_off_time`、`flight_duration_minutes`、`archive_display_no`、`landings`、`syllabus_outline`、`theory_duration_minutes`、`sim_duration_minutes`、`departure`、`destination`、`flight_type`、`task_type` 等，并将 `status` 设为 `normal`。
 
 **成功响应**：`data` 为更新后的记录。
 
@@ -973,13 +993,15 @@
   "date_from": "2026-01-01",
   "date_to": "2026-12-31",
   "status": "normal",
-  "import_source": null,
+  "import_source": "schedule",
   "sort_field": "training_date",
   "sort_asc": false,
   "limit": 20,
   "offset": 0
 }
 ```
+
+筛选 **待补全排期记录** 时可设 `status` 为 `draft`，或 `import_source` 为 `schedule`（可与日期、学员等条件组合）。
 
 **成功响应**：
 
@@ -988,13 +1010,15 @@
   "code": 200,
   "msg": "ok",
   "data": {
-    "items": [ { "id": "550e8400-e29b-41d4-a716-446655440000", "student_id": "550e8400-e29b-41d4-a716-446655440001", "instructor_id": "550e8400-e29b-41d4-a716-446655440002", "training_date": "2026-03-15", ... } ],
+    "items": [ { "id": "550e8400-e29b-41d4-a716-446655440000", "student_id": "550e8400-e29b-41d4-a716-446655440001", "instructor_id": "550e8400-e29b-41d4-a716-446655440002", "training_date": "2026-03-15", "training_plan_id": "550e8400-e29b-41d4-a716-446655440099", "import_source": "schedule", "status": "draft", ... } ],
     "total": 100
   }
 }
 ```
 
-### 7.3 飞行数据导入与认领
+### 7.3 飞行数据导入与认领（外部数据流水，非排期草稿）
+
+本节接口处理**机载/外部文件导入**后的待认领行，与 **7.2.0** 中 `import_source=schedule` 的排期草稿无关。
 
 #### 7.3.1 批量导入 `POST /api/v1/training-records/import`
 

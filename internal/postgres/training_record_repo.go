@@ -2,8 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/jackc/pgx/v5"
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/repository"
@@ -19,6 +22,7 @@ var trainingRecordColumns = `id::text, student_id::text, instructor_id::text, ai
 	flight_duration_minutes, is_local, import_source, COALESCE(raw_import_id::text,''), COALESCE(status::text,'normal'),
 	planned_duration_minutes, theory_duration_minutes, sim_duration_minutes, COALESCE(syllabus_outline,''), COALESCE(archive_display_no,''),
 	COALESCE(departure,''), COALESCE(destination,''), COALESCE(flight_type,''), COALESCE(task_type,''), landings,
+	COALESCE(training_plan_id::text,''),
 	created_at, updated_at`
 
 func (r *TrainingRecordRepo) GetByID(ctx context.Context, id string) (*domain.TrainingRecord, error) {
@@ -27,10 +31,28 @@ func (r *TrainingRecordRepo) GetByID(ctx context.Context, id string) (*domain.Tr
 		&rec.ID, &rec.StudentID, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
 		&rec.FlightDurationMinutes, &rec.IsLocal, &rec.ImportSource, &rec.RawImportID, &rec.Status,
 		&rec.PlannedDurationMinutes, &rec.TheoryDurationMinutes, &rec.SimDurationMinutes, &rec.SyllabusOutline, &rec.ArchiveDisplayNo,
-		&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings,
+		&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings, &rec.TrainingPlanID,
 		&rec.CreatedAt, &rec.UpdatedAt,
 	)
 	if err != nil {
+		return nil, err
+	}
+	return &rec, nil
+}
+
+func (r *TrainingRecordRepo) FindByTrainingPlanID(ctx context.Context, trainingPlanID string) (*domain.TrainingRecord, error) {
+	var rec domain.TrainingRecord
+	err := r.db.Pool.QueryRow(ctx, `SELECT `+trainingRecordColumns+` FROM training_records WHERE training_plan_id = $1::uuid`, trainingPlanID).Scan(
+		&rec.ID, &rec.StudentID, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
+		&rec.FlightDurationMinutes, &rec.IsLocal, &rec.ImportSource, &rec.RawImportID, &rec.Status,
+		&rec.PlannedDurationMinutes, &rec.TheoryDurationMinutes, &rec.SimDurationMinutes, &rec.SyllabusOutline, &rec.ArchiveDisplayNo,
+		&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings, &rec.TrainingPlanID,
+		&rec.CreatedAt, &rec.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &rec, nil
@@ -49,7 +71,7 @@ func (r *TrainingRecordRepo) ListByStudent(ctx context.Context, studentID string
 			&rec.ID, &rec.StudentID, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
 			&rec.FlightDurationMinutes, &rec.IsLocal, &rec.ImportSource, &rec.RawImportID, &rec.Status,
 			&rec.PlannedDurationMinutes, &rec.TheoryDurationMinutes, &rec.SimDurationMinutes, &rec.SyllabusOutline, &rec.ArchiveDisplayNo,
-			&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings,
+			&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings, &rec.TrainingPlanID,
 			&rec.CreatedAt, &rec.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -128,7 +150,7 @@ func (r *TrainingRecordRepo) List(ctx context.Context, filter *domain.TrainingRe
 			&rec.ID, &rec.StudentID, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
 			&rec.FlightDurationMinutes, &rec.IsLocal, &rec.ImportSource, &rec.RawImportID, &rec.Status,
 			&rec.PlannedDurationMinutes, &rec.TheoryDurationMinutes, &rec.SimDurationMinutes, &rec.SyllabusOutline, &rec.ArchiveDisplayNo,
-			&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings,
+			&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings, &rec.TrainingPlanID,
 			&rec.CreatedAt, &rec.UpdatedAt,
 		); err != nil {
 			return nil, 0, err
@@ -150,13 +172,13 @@ func (r *TrainingRecordRepo) Create(ctx context.Context, rec *domain.TrainingRec
 		INSERT INTO training_records (student_id, instructor_id, aircraft_id, training_date, engine_on_time, engine_off_time,
 			flight_duration_minutes, is_local, import_source, raw_import_id, status,
 			planned_duration_minutes, theory_duration_minutes, sim_duration_minutes, syllabus_outline, archive_display_no,
-			departure, destination, flight_type, task_type, landings)
-		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10::uuid, $11::training_record_status, $12, $13, $14, NULLIF($15,''), NULLIF($16,''), NULLIF($17,''), NULLIF($18,''), NULLIF($19,''), NULLIF($20,''), $21)
+			departure, destination, flight_type, task_type, landings, training_plan_id)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10::uuid, $11::training_record_status, $12, $13, $14, NULLIF($15,''), NULLIF($16,''), NULLIF($17,''), NULLIF($18,''), NULLIF($19,''), NULLIF($20,''), $21, $22::uuid)
 		RETURNING id::text, created_at, updated_at`,
 		rec.StudentID, rec.InstructorID, rec.AircraftID, rec.TrainingDate, rec.EngineOnTime, rec.EngineOffTime,
 		rec.FlightDurationMinutes, rec.IsLocal, rec.ImportSource, nullEmpty(rec.RawImportID), status,
 		rec.PlannedDurationMinutes, rec.TheoryDurationMinutes, rec.SimDurationMinutes, rec.SyllabusOutline, rec.ArchiveDisplayNo,
-		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, rec.Landings,
+		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, rec.Landings, nullEmpty(rec.TrainingPlanID),
 	).Scan(&rec.ID, &rec.CreatedAt, &rec.UpdatedAt)
 }
 
@@ -173,12 +195,13 @@ func (r *TrainingRecordRepo) Update(ctx context.Context, rec *domain.TrainingRec
 			engine_on_time=$6, engine_off_time=$7, flight_duration_minutes=$8, is_local=$9, import_source=$10, raw_import_id=$11::uuid,
 			status=$12::training_record_status, planned_duration_minutes=$13, theory_duration_minutes=$14, sim_duration_minutes=$15,
 			syllabus_outline=NULLIF($16,''), archive_display_no=NULLIF($17,''),
-			departure=NULLIF($18,''), destination=NULLIF($19,''), flight_type=NULLIF($20,''), task_type=NULLIF($21,''), landings=$22, updated_at=NOW()
+			departure=NULLIF($18,''), destination=NULLIF($19,''), flight_type=NULLIF($20,''), task_type=NULLIF($21,''), landings=$22,
+			training_plan_id=$23::uuid, updated_at=NOW()
 		WHERE id=$1::uuid`,
 		rec.ID, rec.StudentID, rec.InstructorID, rec.AircraftID, rec.TrainingDate, rec.EngineOnTime, rec.EngineOffTime,
 		rec.FlightDurationMinutes, rec.IsLocal, rec.ImportSource, nullEmpty(rec.RawImportID),
 		rec.Status, rec.PlannedDurationMinutes, rec.TheoryDurationMinutes, rec.SimDurationMinutes, rec.SyllabusOutline, rec.ArchiveDisplayNo,
-		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, rec.Landings,
+		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, rec.Landings, nullEmpty(rec.TrainingPlanID),
 	)
 	return err
 }

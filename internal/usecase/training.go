@@ -89,6 +89,33 @@ func (u *TrainingUseCase) CreateRecord(ctx context.Context, rec *domain.Training
 	return u.recordRepo.Create(ctx, rec)
 }
 
+// EnsureScheduleDraftRecord 预约审核通过并生成 training_plan 后，创建一条待补全飞行记录（幂等）。
+func (u *TrainingUseCase) EnsureScheduleDraftRecord(ctx context.Context, plan *domain.TrainingPlan) error {
+	if u == nil || plan == nil || plan.ID == "" {
+		return nil
+	}
+	existing, err := u.recordRepo.FindByTrainingPlanID(ctx, plan.ID)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return nil
+	}
+	mins := domain.PlannedDurationMinutesFromClock(plan.StartTime, plan.EndTime)
+	rec := &domain.TrainingRecord{
+		StudentID:              plan.StudentID,
+		InstructorID:           plan.InstructorID,
+		AircraftID:             plan.AircraftID,
+		TrainingDate:           plan.PlanDate,
+		IsLocal:                true,
+		ImportSource:           domain.ImportSchedule,
+		Status:                 domain.RecordStatusDraft,
+		TrainingPlanID:         plan.ID,
+		PlannedDurationMinutes: &mins,
+	}
+	return u.recordRepo.Create(ctx, rec)
+}
+
 // GetRecord 单条记录详情
 func (u *TrainingUseCase) GetRecord(ctx context.Context, id string) (*domain.TrainingRecord, error) {
 	return u.recordRepo.GetByID(ctx, id)
@@ -620,11 +647,13 @@ func TrainingRecordFieldsConfig() ([]byte, error) {
 		{"key": "student_id", "label": "学员", "type": "select", "required": true},
 		{"key": "instructor_id", "label": "带飞教员", "type": "select", "required": true},
 		{"key": "training_date", "label": "训练日期", "type": "date", "required": true},
+		{"key": "training_plan_id", "label": "关联训练计划", "type": "string", "readonly": true},
 		{"key": "engine_on_time", "label": "开车时间", "type": "time"},
 		{"key": "engine_off_time", "label": "关车时间", "type": "time"},
 		{"key": "flight_duration_minutes", "label": "飞行时长(分钟)", "type": "number"},
 		{"key": "is_local", "label": "本场/转场", "type": "boolean"},
-		{"key": "status", "label": "状态", "type": "select", "options": []string{"normal", "cancelled", "deleted", "expired"}},
+		{"key": "import_source", "label": "来源", "type": "select", "options": []string{"manual", "import", "schedule"}},
+		{"key": "status", "label": "状态", "type": "select", "options": []string{"draft", "normal", "cancelled", "deleted", "expired"}},
 	}
 	return json.Marshal(cfg)
 }
