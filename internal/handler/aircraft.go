@@ -210,6 +210,10 @@ func (h *AircraftHandler) UploadAvatar(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "头像超过大小限制（5MB）", "data": nil})
 		return
 	}
+	if len(data) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "文件内容为空，请确认 multipart 中 file 字段包含图片数据", "data": nil})
+		return
+	}
 
 	contentType := strings.TrimSpace(strings.ToLower(header.Header.Get("Content-Type")))
 	if contentType == "" {

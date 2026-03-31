@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"magua-fly-golang/internal/usecase"
@@ -32,16 +33,41 @@ func (c *Client) NewTheoryVideoGridFSBucket(bucketName string) (usecase.TheoryVi
 
 var _ usecase.TheoryVideoStorage = (*TheoryVideoGridFS)(nil)
 
+// parseGoVerbObjectID 兼容历史上用 fmt.Sprintf("%v", primitive.ObjectID) 写入 PG 的串，形如 "[80 127 ...]"（12 个十进制字节）。
+func parseGoVerbObjectID(s string) (primitive.ObjectID, bool) {
+	s = strings.TrimSpace(s)
+	if len(s) < 3 || s[0] != '[' || s[len(s)-1] != ']' {
+		return primitive.NilObjectID, false
+	}
+	parts := strings.Fields(s[1 : len(s)-1])
+	if len(parts) != 12 {
+		return primitive.NilObjectID, false
+	}
+	var id primitive.ObjectID
+	for i, p := range parts {
+		v, err := strconv.ParseUint(p, 10, 8)
+		if err != nil {
+			return primitive.NilObjectID, false
+		}
+		id[i] = byte(v)
+	}
+	return id, true
+}
+
 func parseGridFSFileID(fileID string) (interface{}, error) {
 	fileID = strings.TrimSpace(fileID)
 	if fileID == "" {
 		return nil, fmt.Errorf("empty gridfs file id")
 	}
-	// 与上传时 ObjectID.Hex() 一致；也兼容历史 fmt.Sprintf("%v", ObjectID) 等形式
+	// 与上传时 ObjectID.Hex() 一致
 	if len(fileID) == 24 {
 		if oid, err := primitive.ObjectIDFromHex(fileID); err == nil {
 			return oid, nil
 		}
+	}
+	// 兼容历史 gridfs 实现里 fmt.Sprintf("%v", ObjectID) 落库
+	if oid, ok := parseGoVerbObjectID(fileID); ok {
+		return oid, nil
 	}
 	var objID interface{}
 	if err := bson.UnmarshalExtJSON([]byte(`"`+fileID+`"`), false, &objID); err != nil {
