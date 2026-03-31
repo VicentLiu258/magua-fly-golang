@@ -3,7 +3,7 @@
 本文汇总当前后端已实现的主要 HTTP 接口，按业务模块分组，统一说明：
 
 - **认证方式**：除 `/health`、`/auth/*` 外，其余接口均需 `Authorization: Bearer <JWT>`。
-- **请求格式**：`Content-Type: application/json`，方法均为 `POST`（除 `/health` 为 `GET`）。
+- **请求格式**：主体接口为 `POST`、`Content-Type: application/json`；`GET /health` 及少量资源接口（如理论课视频流、飞机头像、合同文件列表/下载）见对应小节。
 - **统一返回结构**：
 
 ```json
@@ -340,6 +340,11 @@
 
 ### 4.3 飞机列表 `POST /api/v1/aircraft/list`
 
+**说明**：
+
+- **`status`（业务状态，库表校验）**：仅允许 `active`（现役）、`retired`（退役）、`partnership`（合作）。
+- **`avatar_url`**：已上传头像时返回相对路径，客户端需拼接网关/API 基址；使用方式与 §4.4.5 一致（`GET` + `Authorization`）。未设置头像时通常省略该字段。
+
 **成功响应**：
 
 ```json
@@ -353,6 +358,7 @@
         "code": "AC001",
         "name": "塞斯纳 172",
         "status": "active",
+        "avatar_url": "/api/v1/aircraft/avatar?aircraft_id=550e8400-e29b-41d4-a716-446655440000",
         "total_airframe_hours": 120.5,
         "last_inspection_hours": 100.0,
         "inspection_interval_hours": 50,
@@ -378,7 +384,85 @@
 }
 ```
 
-**成功响应**同上单条飞机结构。
+- `code`：必填。
+- `name`：可选。
+- `status`：可选，默认 `active`；仅允许 `active` | `retired` | `partnership`（含义见 §4.3）。
+
+**成功响应**同上单条飞机结构（含 `avatar_url` 时与列表一致；新建飞机一般无头像）。
+
+### 4.4.1 更新飞机 `POST /api/v1/aircraft/update`
+
+用于修改名称与业务状态（至少提供 `name` 与 `status` 之一）。
+
+**请求体**：
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "塞斯纳 172R",
+  "status": "partnership"
+}
+```
+
+- `id`：必填，飞机 UUID。
+- `name`、`status`：可选；`status` 取值规则同 §4.3。
+
+**成功响应**：`data` 为更新后的单条飞机对象（结构同 §4.3 列表项）。
+
+### 4.4.2 删除飞机 `POST /api/v1/aircraft/delete`
+
+删除 `aircraft` 记录；关联的可用时段、维护时间窗等随外键级联删除。若该飞机在 GridFS 中存有头像文件，会先删除对象再删库表行。
+
+**请求体**：
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": { "deleted": true }
+}
+```
+
+### 4.4.3 上传飞机头像 `POST /api/v1/aircraft/avatar/upload`
+
+- **认证**：需要。
+- **请求**：`multipart/form-data`（非 JSON）。
+- **表单字段**：
+  - `aircraft_id`（必填）：飞机 UUID。
+  - `file`（必填）：图片文件。
+- **限制**：单文件最大 **5MB**；`Content-Type` 须为 `image/jpeg`、`image/png`、`image/webp` 或 `image/gif`（未带类型时会按文件头探测，仍须落在上述类型内）。
+
+头像二进制写入 MongoDB **GridFS**，bucket 名为 `aircraft_avatars`；PostgreSQL `aircraft.avatar_gridfs_id` 仅存文件 ID。若该飞机已有头像，上传成功后会替换为新文件并尽量删除旧 GridFS 对象。
+
+**成功响应**：`data` 为当前飞机完整对象（同 §4.3 列表项，含 `avatar_url`）。
+
+### 4.4.4 移除飞机头像 `POST /api/v1/aircraft/avatar/remove`
+
+清除 `avatar_gridfs_id` 并删除 GridFS 中的对应文件。
+
+**请求体**：
+
+```json
+{
+  "aircraft_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+**成功响应**：`data` 为当前飞机对象（无头像时无 `avatar_url` 或为空串，以后端实现为准）。
+
+### 4.4.5 拉取飞机头像 `GET /api/v1/aircraft/avatar`
+
+- **认证**：需要（请求头 `Authorization: Bearer <JWT>`），与理论课托管视频流类似，便于在 WebView/App 内带 token 拉流或使用下载接口转 blob。
+- **Query**：`aircraft_id=<飞机 UUID>`（必填）。
+- **响应**：成功时为图片二进制流，HTTP `Content-Type` 以上传时记录的类型为准（缺省为 `application/octet-stream`）；无飞机、未设置头像或 GridFS 中文件缺失时返回 `404` 及 JSON 错误体（与文首统一结构一致）。
 
 ### 4.5 配置飞机可用时段 `POST /api/v1/aircraft/availabilities/create`
 

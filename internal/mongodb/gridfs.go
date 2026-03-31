@@ -71,3 +71,12 @@ func (g *GridFSBucketImpl) DownloadToStream(ctx context.Context, fileID string) 
 	return buf.Bytes(), meta, nil
 }
 
+// Delete 按 GridFS 文件 ID（ObjectId 字符串）删除文件。
+func (g *GridFSBucketImpl) Delete(ctx context.Context, fileID string) error {
+	var objID interface{}
+	if err := bson.UnmarshalExtJSON([]byte(`"`+fileID+`"`), false, &objID); err != nil {
+		return err
+	}
+	return g.bucket.DeleteContext(ctx, objID)
+}
+

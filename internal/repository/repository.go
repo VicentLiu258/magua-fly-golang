@@ -40,6 +40,9 @@ type AircraftRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Aircraft, error)
 	List(ctx context.Context) ([]*domain.Aircraft, error)
 	Create(ctx context.Context, a *domain.Aircraft) error
+	Update(ctx context.Context, id string, name, status *string) error
+	SetAvatarGridFSID(ctx context.Context, id string, gridFSID string) error
+	Delete(ctx context.Context, id string) error
 	UpdateAirworthiness(ctx context.Context, id string, totalHours, lastInspectionHours *float64, inspectionIntervalHours *int) error
 }
 

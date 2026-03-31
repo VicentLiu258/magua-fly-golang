@@ -35,12 +35,33 @@ func ParseDutyWindowsJSON(raw []byte) ([]DutyWindowJSON, error) {
 	return w, nil
 }
 
+// AircraftStatus 飞机业务状态（与 aircraft.status / chk_aircraft_status 一致）。
+type AircraftStatus string
+
+const (
+	AircraftStatusActive      AircraftStatus = "active"      // 现役
+	AircraftStatusRetired     AircraftStatus = "retired"     // 退役
+	AircraftStatusPartnership AircraftStatus = "partnership" // 合作
+)
+
+// ValidAircraftStatus 是否为允许写入的 status 取值。
+func ValidAircraftStatus(s string) bool {
+	switch AircraftStatus(s) {
+	case AircraftStatusActive, AircraftStatusRetired, AircraftStatusPartnership:
+		return true
+	default:
+		return false
+	}
+}
+
 // Aircraft represents an aircraft.
 type Aircraft struct {
 	ID                      string    `json:"id"`
 	Code                    string    `json:"code"`
 	Name                    string    `json:"name,omitempty"`
 	Status                  string    `json:"status"`
+	AvatarGridFSID          string    `json:"-"` // 仅存库与业务逻辑，对外用 AvatarURL
+	AvatarURL               string    `json:"avatar_url,omitempty"`
 	TotalAirframeHours      *float64  `json:"total_airframe_hours,omitempty"`
 	LastInspectionHours     *float64  `json:"last_inspection_hours,omitempty"`
 	InspectionIntervalHours int       `json:"inspection_interval_hours,omitempty"`

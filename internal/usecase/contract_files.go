@@ -19,6 +19,7 @@ type ContractFilesUseCase struct {
 type GridFSBucket interface {
 	UploadFromStream(ctx context.Context, filename string, data []byte, metadata map[string]interface{}) (string, error)
 	DownloadToStream(ctx context.Context, fileID string) ([]byte, map[string]interface{}, error)
+	Delete(ctx context.Context, fileID string) error
 }
 
 // NewContractFilesUseCase 创建合同文件用例。

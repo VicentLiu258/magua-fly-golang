@@ -74,7 +74,11 @@ func main() {
 		pgDB.NextTrainingSubject(),
 		pgDB.Task(),
 	)
-	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability(), pgDB.AircraftMaintenance(), pgDB)
+	aircraftAvatarGridFS, err := mongoClient.NewGridFSBucket("aircraft_avatars")
+	if err != nil {
+		log.Fatalf("aircraft avatar gridfs: %v", err)
+	}
+	aircraftHandler := handler.NewAircraftHandler(pgDB.Aircraft(), pgDB.AircraftAvailability(), pgDB.AircraftMaintenance(), pgDB, aircraftAvatarGridFS)
 	trainingHandler := handler.NewTrainingHandler(trainingUC)
 
 	var theoryVideoStore usecase.TheoryVideoStorage
