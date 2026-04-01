@@ -18,7 +18,7 @@ var _ repository.InstructorRepository = (*InstructorRepo)(nil)
 
 func (r *InstructorRepo) GetByID(ctx context.Context, id string) (*domain.Instructor, error) {
 	var i domain.Instructor
-	err := r.db.Pool.QueryRow(ctx, `SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at FROM instructors WHERE id = $1::uuid`, id).Scan(
+	err := r.db.Pool.QueryRow(ctx, `SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at FROM instructors WHERE id = $1::uuid AND deleted_at IS NULL`, id).Scan(
 		&i.ID, &i.UserID, &i.Name, &i.DisplayColor, &i.CreatedAt, &i.UpdatedAt,
 	)
 	if err != nil {
@@ -31,7 +31,7 @@ func (r *InstructorRepo) GetByUserID(ctx context.Context, userID string) (*domai
 	var i domain.Instructor
 	err := r.db.Pool.QueryRow(ctx, `
 		SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at
-		FROM instructors WHERE user_id = $1::uuid`, userID).Scan(
+		FROM instructors WHERE user_id = $1::uuid AND deleted_at IS NULL`, userID).Scan(
 		&i.ID, &i.UserID, &i.Name, &i.DisplayColor, &i.CreatedAt, &i.UpdatedAt,
 	)
 	if err != nil {
@@ -44,7 +44,7 @@ func (r *InstructorRepo) GetByUserID(ctx context.Context, userID string) (*domai
 }
 
 func (r *InstructorRepo) List(ctx context.Context) ([]*domain.Instructor, error) {
-	rows, err := r.db.Pool.Query(ctx, `SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at FROM instructors ORDER BY id`)
+	rows, err := r.db.Pool.Query(ctx, `SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at FROM instructors WHERE deleted_at IS NULL ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}

@@ -156,6 +156,8 @@ func main() {
 		theoryUC,
 	)
 	homeHandler := handler.NewHomeHandler(homeUC)
+	personnelUC := usecase.NewPersonnelUseCase(pgDB.Personnel())
+	personnelHandler := handler.NewPersonnelHandler(personnelUC)
 	studentHandler := handler.NewStudentHandler(
 		pgDB.Student(),
 		pgDB.User(),
@@ -191,6 +193,7 @@ func main() {
 		contractFilesHandler,
 		communityHandler,
 		homeHandler,
+		personnelHandler,
 		jwtManager,
 	)
 

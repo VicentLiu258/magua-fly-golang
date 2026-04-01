@@ -1,0 +1,73 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_PORT: "8080"
+      POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/maguafly?sslmode=disable"
+      MONGODB_URI: "mongodb://mongodb:27017"
+      MONGODB_DB: "maguafly"
+      JWT_SECRET: "change-me-in-production"
+      MIGRATE_PATH: "file:///app/migrations"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: maguafly
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: magua-fly-nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  frontend:
+    image: node:20-alpine
+    container_name: nextjs-frontend
+    working_dir: /app
+    volumes:
+      - ../:/app # 把包含 .next, package.json 的整个目录挂载进去
+    command: npm start # 执行 Next.js 的启动命令
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  mongodb_data:

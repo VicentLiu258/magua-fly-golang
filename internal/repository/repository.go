@@ -2,10 +2,17 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"magua-fly-golang/internal/domain"
 )
+
+// ErrNotFound 仓储层统一「不存在」哨兵，可与业务层 errors.Is 配合。
+var ErrNotFound = errors.New("not found")
+
+// ErrPersonnelStaffRole 使用 kind=staff 删除时目标用户不是 staff/maintenance。
+var ErrPersonnelStaffRole = errors.New("personnel staff role mismatch")
 
 // UserRepository defines user persistence.
 type UserRepository interface {
@@ -33,6 +40,13 @@ type InstructorRepository interface {
 	GetByUserID(ctx context.Context, userID string) (*domain.Instructor, error)
 	List(ctx context.Context) ([]*domain.Instructor, error)
 	Create(ctx context.Context, i *domain.Instructor) error
+}
+
+// PersonnelRepository 学员 / 教员 / 地面人员账号的软删除（事务内更新 users 与档案表）。
+type PersonnelRepository interface {
+	SoftDeleteStudent(ctx context.Context, studentID string) error
+	SoftDeleteInstructor(ctx context.Context, instructorID string) error
+	SoftDeleteStaffUser(ctx context.Context, userID string) error
 }
 
 // AircraftRepository defines aircraft persistence.

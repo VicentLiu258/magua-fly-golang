@@ -2580,7 +2580,7 @@
 
 ### 13. 学员信息管理（后台）API（设计稿）
 
-> 说明：本节为基于当前数据库结构的后台“学员信息管理”接口设计，实际落地时可按本规范实现到对应 Handler 中。
+> 说明：本节为基于当前数据库结构的后台“学员信息管理”接口设计，实际落地时可按本规范实现到对应 Handler 中。与学员 / 教员 / 地面职员相关的**统一软删除**见 **§13.4**（仅 `admin`）。
 
 #### 13.1 学员列表（后台）`POST /api/v1/admin/students/list`
 
@@ -2708,6 +2708,52 @@
   - 返回新建的学员主键与账号信息。
 - 当 `student_id` 非空时，仅更新已存在学员的基础信息与账号（密码可选字段 `new_password` 单独处理）。
 
+#### 13.4 人员软删除（后台）`POST /api/v1/admin/personnel/delete`
+
+- **认证**：需要；**仅** `role = "admin"` 可调用，否则 HTTP `403`（`code: 403`，`msg: forbidden`）。
+- **说明**：对学员、教员或地面职员账号做**软删除**（数据库字段 `deleted_at`），不物理删行。软删除后：
+  - 学员 / 教员列表、用户按角色列举等常规查询**不再包含**该人员；
+  - 已软删除账号**无法**再通过用户名密码登录（`POST /auth/login` 查不到有效用户）；
+  - 唯一约束（用户名、学号等）在「未删除」范围内生效，后续可复用相同用户名 / 学号新建档案（见迁移 `026_personnel_soft_delete`）。
+
+**请求体**：
+
+```json
+{
+  "kind": "student",
+  "id": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `kind` | string | 是 | `student`：学员，此时 `id` 为 `students.id`；`instructor`：教员，此时 `id` 为 `instructors.id`；`staff`：地面工作人员，此时 `id` 为 `users.id`，且该用户角色须为 `staff` 或 `maintenance` |
+| `id` | string (UUID) | 是 | 与 `kind` 对应的主键 |
+
+**行为摘要**：
+
+- `kind = "student"`：标记 `students.deleted_at`；若该学员有关联 `users`（`user_id` 非空），同时标记对应 `users.deleted_at`。
+- `kind = "instructor"`：标记 `instructors.deleted_at` 及对应 `users.deleted_at`（教员账号一对一）。
+- `kind = "staff"`：仅标记 `users.deleted_at`；若目标用户不是 `staff` / `maintenance`，返回 HTTP `403`，`msg` 为 `personnel kind staff requires user role staff or maintenance`。
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": null
+}
+```
+
+**常见错误**：
+
+| HTTP | `code` | 说明 |
+|------|--------|------|
+| `400` | `400` | `kind` 非法、JSON 绑定失败、`id` 为空等 |
+| `403` | `403` | 非 `admin` 调用；或 `kind = "staff"` 但用户角色不是 `staff`/`maintenance` |
+| `404` | `404` | 目标不存在或已被软删除（`msg: not found`） |
+
 ---
 
 ### 14. 各角色首页聚合 API
@@ -2733,7 +2779,8 @@
 |------|---------------------------|
 | `POST /api/v1/students/my-home` | `student` |
 | `POST /api/v1/instructors/my-home` | `instructor` |
-| `POST /api/v1/admin/home` | `admin`（与其它 `POST /api/v1/admin/*` 保持一致；若个别接口允许 `staff` 等，以实现为准） |
+| `POST /api/v1/admin/home` | `admin`（与其它多数 `POST /api/v1/admin/*` 一致） |
+| `POST /api/v1/admin/personnel/delete` | **仅** `admin`（见 §13.4） |
 
 ---
 

@@ -58,15 +58,35 @@ services:
       - app
     restart: unless-stopped
 
+  # 宿主机未安装 Node 时，用下面一次性任务在容器内生成 .next（与 frontend 同挂载、同环境变量）。
+  # 用法：在 compose 文件所在目录执行
+  #   docker compose --profile build run --rm frontend-build
+  # 然后再：docker compose up -d frontend
+  frontend-build:
+    profiles: ["build"]
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ../:/app
+    environment:
+      API_UPSTREAM: "http://app:8080"
+    command: sh -c "npm ci && npm run build"
+
+  # 前端：依赖宿主机（挂载目录）里已有 .next；无 Node 时用 frontend-build 生成。
+  # next.config 的 rewrites 在 npm run build 时写入 .next/routes-manifest.json。
   frontend:
     image: node:20-alpine
     container_name: nextjs-frontend
     working_dir: /app
     volumes:
-      - ../:/app # 把包含 .next, package.json 的整个目录挂载进去
-    command: npm start # 执行 Next.js 的启动命令
+      - ../:/app
+    environment:
+      API_UPSTREAM: "http://app:8080"
+    command: npm start
     ports:
       - "3000:3000"
+    depends_on:
+      - app
 
 volumes:
   postgres_data:

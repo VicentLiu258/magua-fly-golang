@@ -20,7 +20,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id string) (*domain.User, error)
 	var roleStr string
 	err := r.db.Pool.QueryRow(ctx, `
 		SELECT id::text, username, password_hash, COALESCE(phone,''), COALESCE(email,''), role::text, COALESCE(avatar_url,''), created_at, updated_at
-		FROM users WHERE id = $1::uuid`, id).Scan(
+		FROM users WHERE id = $1::uuid AND deleted_at IS NULL`, id).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Phone, &u.Email, &roleStr, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
@@ -35,7 +35,7 @@ func (r *UserRepo) GetByUsername(ctx context.Context, username string) (*domain.
 	var roleStr string
 	err := r.db.Pool.QueryRow(ctx, `
 		SELECT id::text, username, password_hash, COALESCE(phone,''), COALESCE(email,''), role::text, COALESCE(avatar_url,''), created_at, updated_at
-		FROM users WHERE username = $1`, username).Scan(
+		FROM users WHERE username = $1 AND deleted_at IS NULL`, username).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Phone, &u.Email, &roleStr, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
@@ -59,7 +59,7 @@ func (r *UserRepo) GetByPhone(ctx context.Context, phone string) (*domain.User, 
 	var roleStr string
 	err := r.db.Pool.QueryRow(ctx, `
 		SELECT id::text, username, password_hash, COALESCE(phone,''), COALESCE(email,''), role::text, COALESCE(avatar_url,''), created_at, updated_at
-		FROM users WHERE phone = $1`, phone).Scan(
+		FROM users WHERE phone = $1 AND deleted_at IS NULL`, phone).Scan(
 		&u.ID, &u.Username, &u.PasswordHash, &u.Phone, &u.Email, &roleStr, &u.AvatarURL, &u.CreatedAt, &u.UpdatedAt,
 	)
 	if err != nil {
@@ -79,7 +79,7 @@ func (r *UserRepo) ListByRoles(ctx context.Context, roles []domain.UserRole) ([]
 	}
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id::text, username, password_hash, COALESCE(phone,''), COALESCE(email,''), role::text, COALESCE(avatar_url,''), created_at, updated_at
-		FROM users WHERE role::text = ANY($1::text[])
+		FROM users WHERE role::text = ANY($1::text[]) AND deleted_at IS NULL
 		ORDER BY role, username`, roleStrs)
 	if err != nil {
 		return nil, err

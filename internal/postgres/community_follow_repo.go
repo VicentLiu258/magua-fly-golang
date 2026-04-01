@@ -126,7 +126,8 @@ func (r *CommunityFollowRepo) RecommendUserIDs(ctx context.Context, viewerID str
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT u.id::text
 		FROM users u
-		WHERE u.id <> $1::uuid
+		WHERE u.deleted_at IS NULL
+		  AND u.id <> $1::uuid
 		  AND NOT EXISTS (
 			SELECT 1 FROM user_follows f
 			WHERE f.follower_id = $1::uuid AND f.followee_id = u.id

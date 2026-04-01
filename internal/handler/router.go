@@ -24,6 +24,7 @@ func Router(
 	contractFiles *ContractFilesHandler,
 	community *CommunityHandler,
 	home *HomeHandler,
+	personnel *PersonnelHandler,
 	jwtManager *jwt.Manager,
 ) *gin.Engine {
 	r := gin.Default()
@@ -48,6 +49,7 @@ func Router(
 		authGroup.POST("/api/v1/instructors/list", instructor.List)
 		authGroup.POST("/api/v1/instructors/my-home", instructor.MyHome)
 		authGroup.POST("/api/v1/admin/home", home.AdminHome)
+		authGroup.POST("/api/v1/admin/personnel/delete", personnel.AdminDelete)
 		authGroup.POST("/api/v1/aircraft/list", aircraft.List)
 		authGroup.POST("/api/v1/aircraft/create", aircraft.Create)
 		authGroup.POST("/api/v1/aircraft/update", aircraft.Update)

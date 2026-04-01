@@ -28,7 +28,7 @@ func (r *StudentRepo) GetByID(ctx context.Context, id string) (*domain.Student, 
 		       responsible_instructor_id::text,
 		       created_at,
 		       updated_at
-		FROM students WHERE id = $1::uuid`, id).Scan(
+		FROM students WHERE id = $1::uuid AND deleted_at IS NULL`, id).Scan(
 		&s.ID,
 		&s.UserID,
 		&s.Name,
@@ -63,7 +63,7 @@ func (r *StudentRepo) GetByUserID(ctx context.Context, userID string) (*domain.S
 		       responsible_instructor_id::text,
 		       created_at,
 		       updated_at
-		FROM students WHERE user_id = $1::uuid`, userID).Scan(
+		FROM students WHERE user_id = $1::uuid AND deleted_at IS NULL`, userID).Scan(
 		&s.ID,
 		&s.UserID,
 		&s.Name,
@@ -98,7 +98,7 @@ func (r *StudentRepo) GetByStudentNo(ctx context.Context, studentNo string) (*do
 		       responsible_instructor_id::text,
 		       created_at,
 		       updated_at
-		FROM students WHERE student_no = $1`, studentNo).Scan(
+		FROM students WHERE student_no = $1 AND deleted_at IS NULL`, studentNo).Scan(
 		&s.ID,
 		&s.UserID,
 		&s.Name,
@@ -132,7 +132,7 @@ func (r *StudentRepo) List(ctx context.Context, limit, offset int) ([]*domain.St
 		       responsible_instructor_id::text,
 		       created_at,
 		       updated_at
-		FROM students ORDER BY id LIMIT $1 OFFSET $2`, limit, offset)
+		FROM students WHERE deleted_at IS NULL ORDER BY id LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func (r *StudentRepo) Update(ctx context.Context, s *domain.Student) error {
 		    training_progress_json=$9,
 		    responsible_instructor_id=$10::uuid,
 		    updated_at=NOW()
-		WHERE id=$1::uuid`,
+		WHERE id=$1::uuid AND deleted_at IS NULL`,
 		s.ID,
 		nullUUID(s.UserID),
 		s.Name,
