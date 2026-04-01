@@ -20,6 +20,8 @@ type UserRepository interface {
 	GetByUsername(ctx context.Context, username string) (*domain.User, error)
 	GetByPhone(ctx context.Context, phone string) (*domain.User, error)
 	Create(ctx context.Context, u *domain.User) error
+	// Update 全量更新可变字段（含 password_hash）；调用方需先 GetByID 再改字段。
+	Update(ctx context.Context, u *domain.User) error
 	// ListByRoles returns users with any of the given roles, ordered by role then username.
 	ListByRoles(ctx context.Context, roles []domain.UserRole) ([]*domain.User, error)
 }
@@ -40,6 +42,7 @@ type InstructorRepository interface {
 	GetByUserID(ctx context.Context, userID string) (*domain.Instructor, error)
 	List(ctx context.Context) ([]*domain.Instructor, error)
 	Create(ctx context.Context, i *domain.Instructor) error
+	Update(ctx context.Context, i *domain.Instructor) error
 }
 
 // PersonnelRepository 学员 / 教员 / 地面人员账号的软删除（事务内更新 users 与档案表）。

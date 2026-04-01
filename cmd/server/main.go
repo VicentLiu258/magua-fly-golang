@@ -156,7 +156,7 @@ func main() {
 		theoryUC,
 	)
 	homeHandler := handler.NewHomeHandler(homeUC)
-	personnelUC := usecase.NewPersonnelUseCase(pgDB.Personnel())
+	personnelUC := usecase.NewPersonnelUseCase(pgDB.Personnel(), pgDB.User(), pgDB.Student(), pgDB.Instructor())
 	personnelHandler := handler.NewPersonnelHandler(personnelUC)
 	studentHandler := handler.NewStudentHandler(
 		pgDB.Student(),
@@ -170,6 +170,7 @@ func main() {
 		pgDB.Contract(),
 		trainingUC,
 		homeUC,
+		personnelUC,
 	)
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor(), homeUC)
 

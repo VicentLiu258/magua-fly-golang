@@ -66,3 +66,21 @@ func (r *InstructorRepo) Create(ctx context.Context, i *domain.Instructor) error
 		RETURNING id::text, created_at, updated_at`, i.UserID, i.Name, i.DisplayColor,
 	).Scan(&i.ID, &i.CreatedAt, &i.UpdatedAt)
 }
+
+func (r *InstructorRepo) Update(ctx context.Context, i *domain.Instructor) error {
+	tag, err := r.db.Pool.Exec(ctx, `
+		UPDATE instructors
+		SET name = $2,
+		    display_color = NULLIF(TRIM($3), ''),
+		    updated_at = NOW()
+		WHERE id = $1::uuid AND deleted_at IS NULL`,
+		i.ID, i.Name, i.DisplayColor,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}

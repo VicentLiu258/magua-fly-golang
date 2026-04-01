@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/middleware"
@@ -51,4 +52,49 @@ func (h *PersonnelHandler) AdminDelete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": nil})
+}
+
+// AdminSave POST /api/v1/admin/personnel/save — 统一新建/编辑学员、教员、地面职员（仅 admin）
+func (h *PersonnelHandler) AdminSave(c *gin.Context) {
+	claims := middleware.GetGinClaims(c)
+	if claims == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
+		return
+	}
+	if domain.UserRole(claims.Role) != domain.RoleAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "forbidden", "data": nil})
+		return
+	}
+	var body usecase.SavePersonnelRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	if strings.TrimSpace(body.Kind) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "kind required", "data": nil})
+		return
+	}
+	res, err := h.uc.SavePersonnel(c.Request.Context(), &body)
+	if err != nil {
+		writePersonnelSaveErr(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": res})
+}
+
+func writePersonnelSaveErr(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, usecase.ErrInvalidArgument):
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+	case errors.Is(err, usecase.ErrNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "not found", "data": nil})
+	case errors.Is(err, usecase.ErrUsernameConflict):
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": usecase.ErrUsernameConflict.Error(), "data": nil})
+	case errors.Is(err, usecase.ErrPersonnelStaffRole):
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": usecase.ErrPersonnelStaffRole.Error(), "data": nil})
+	case errors.Is(err, usecase.ErrInvalidContractInfo):
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": usecase.ErrInvalidContractInfo.Error(), "data": nil})
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+	}
 }

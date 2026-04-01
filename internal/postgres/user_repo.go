@@ -54,6 +54,27 @@ func (r *UserRepo) Create(ctx context.Context, u *domain.User) error {
 	).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
 }
 
+func (r *UserRepo) Update(ctx context.Context, u *domain.User) error {
+	tag, err := r.db.Pool.Exec(ctx, `
+		UPDATE users
+		SET username = $2,
+		    phone = $3,
+		    email = $4,
+		    avatar_url = NULLIF(TRIM($5), ''),
+		    password_hash = $6,
+		    updated_at = NOW()
+		WHERE id = $1::uuid AND deleted_at IS NULL`,
+		u.ID, u.Username, u.Phone, u.Email, u.AvatarURL, u.PasswordHash,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}
+
 func (r *UserRepo) GetByPhone(ctx context.Context, phone string) (*domain.User, error) {
 	var u domain.User
 	var roleStr string

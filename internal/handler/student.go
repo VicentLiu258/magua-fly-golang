@@ -30,6 +30,7 @@ type StudentHandler struct {
 	contractRepo repository.ContractRepository
 	trainingUC   *usecase.TrainingUseCase
 	homeUC       *usecase.HomeUseCase
+	personnelUC  *usecase.PersonnelUseCase
 }
 
 // NewStudentHandler creates a StudentHandler.
@@ -45,6 +46,7 @@ func NewStudentHandler(
 	contractRepo repository.ContractRepository,
 	trainingUC *usecase.TrainingUseCase,
 	homeUC *usecase.HomeUseCase,
+	personnelUC *usecase.PersonnelUseCase,
 ) *StudentHandler {
 	return &StudentHandler{
 		studentRepo:  studentRepo,
@@ -58,6 +60,7 @@ func NewStudentHandler(
 		contractRepo: contractRepo,
 		trainingUC:   trainingUC,
 		homeUC:       homeUC,
+		personnelUC:  personnelUC,
 	}
 }
 
@@ -499,88 +502,26 @@ func (h *StudentHandler) AdminContractsListByStudent(c *gin.Context) {
 
 // AdminSave 后台学员创建 / 更新 POST /api/v1/admin/students/save
 func (h *StudentHandler) AdminSave(c *gin.Context) {
-	var body struct {
-		StudentID               *string         `json:"student_id"`
-		Name                    string          `json:"name" binding:"required"`
-		StudentNo               string          `json:"student_no" binding:"required"`
-		Username                string          `json:"username"`
-		Phone                   string          `json:"phone"`
-		Email                   string          `json:"email"`
-		Password                string          `json:"password"`
-		ContractDurationMinutes *int            `json:"contract_duration_minutes"`
-		FlownMinutes            int             `json:"flown_minutes"`
-		TrainingProgress        string          `json:"training_progress"`
-		ResponsibleInstructorID *string         `json:"responsible_instructor_id"`
-		ContractInfo            json.RawMessage `json:"contract_info"`
-	}
+	var body usecase.SavePersonnelRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
-	ctx := c.Request.Context()
-
-	// 简化：创建路径只在传入 student_id 为空时使用，密码作为明文占位，调用 AuthUseCase 更合理，这里仅演示结构。
-	if body.StudentID == nil || *body.StudentID == "" {
-		// 若用户名已存在，则直接返回 400，避免违反唯一约束
-		if body.Username != "" {
-			if _, err := h.userRepo.GetByUsername(ctx, body.Username); err == nil {
-				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "username already exists", "data": nil})
-				return
-			}
-		}
-		// 创建 user（role=student）
-		u := &domain.User{
-			Username: body.Username,
-			Phone:    body.Phone,
-			Email:    body.Email,
-			Role:     domain.RoleStudent,
-		}
-		if err := h.userRepo.Create(ctx, u); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
-			return
-		}
-		s := &domain.Student{
-			UserID:                  &u.ID,
-			Name:                    body.Name,
-			StudentNo:               body.StudentNo,
-			ContractDurationMinutes: body.ContractDurationMinutes,
-			FlownMinutes:            body.FlownMinutes,
-			TrainingProgress:        body.TrainingProgress,
-			ResponsibleInstructorID: body.ResponsibleInstructorID,
-		}
-		if err := mergeContractInfoJSON(&s.ContractInfo, body.ContractInfo); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
-			return
-		}
-		if err := h.studentRepo.Create(ctx, s); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": s})
+	body.Kind = "student"
+	if h.personnelUC == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "personnel save not configured", "data": nil})
 		return
 	}
-
-	// 更新已有学员
-	s, err := h.studentRepo.GetByID(ctx, *body.StudentID)
-	if err != nil || s == nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "student not found", "data": nil})
+	res, err := h.personnelUC.SavePersonnel(c.Request.Context(), &body)
+	if err != nil {
+		writePersonnelSaveErr(c, err)
 		return
 	}
-	s.Name = body.Name
-	s.StudentNo = body.StudentNo
-	s.ContractDurationMinutes = body.ContractDurationMinutes
-	s.FlownMinutes = body.FlownMinutes
-	s.TrainingProgress = body.TrainingProgress
-	s.ResponsibleInstructorID = body.ResponsibleInstructorID
-	if err := mergeContractInfoJSON(&s.ContractInfo, body.ContractInfo); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+	if res == nil || res.Student == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "empty result", "data": nil})
 		return
 	}
-	if err := h.studentRepo.Update(ctx, s); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": s})
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": res.Student})
 }
 
 // MyHome 学员主页聚合接口 POST /api/v1/students/my-home
@@ -610,20 +551,6 @@ func (h *StudentHandler) MyHome(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": data})
-}
-
-var errInvalidContractInfoJSON = errors.New("invalid contract_info json")
-
-func mergeContractInfoJSON(dst *[]byte, raw json.RawMessage) error {
-	b := bytes.TrimSpace(raw)
-	if len(b) == 0 {
-		return nil
-	}
-	if !json.Valid(b) {
-		return errInvalidContractInfoJSON
-	}
-	*dst = append([]byte(nil), b...)
-	return nil
 }
 
 func isStaffLikeRole(role string) bool {

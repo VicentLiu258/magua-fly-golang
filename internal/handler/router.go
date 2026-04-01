@@ -50,6 +50,7 @@ func Router(
 		authGroup.POST("/api/v1/instructors/my-home", instructor.MyHome)
 		authGroup.POST("/api/v1/admin/home", home.AdminHome)
 		authGroup.POST("/api/v1/admin/personnel/delete", personnel.AdminDelete)
+		authGroup.POST("/api/v1/admin/personnel/save", personnel.AdminSave)
 		authGroup.POST("/api/v1/aircraft/list", aircraft.List)
 		authGroup.POST("/api/v1/aircraft/create", aircraft.Create)
 		authGroup.POST("/api/v1/aircraft/update", aircraft.Update)

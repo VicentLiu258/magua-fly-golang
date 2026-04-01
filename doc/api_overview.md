@@ -2580,7 +2580,7 @@
 
 ### 13. 学员信息管理（后台）API（设计稿）
 
-> 说明：本节为基于当前数据库结构的后台“学员信息管理”接口设计，实际落地时可按本规范实现到对应 Handler 中。与学员 / 教员 / 地面职员相关的**统一软删除**见 **§13.4**（仅 `admin`）。
+> 说明：本节为基于当前数据库结构的后台“学员信息管理”接口设计，实际落地时可按本规范实现到对应 Handler 中。与学员 / 教员 / 地面职员相关的**统一软删除**见 **§13.4**，**统一新建/编辑**见 **§13.5**（均仅 `admin`）。
 
 #### 13.1 学员列表（后台）`POST /api/v1/admin/students/list`
 
@@ -2677,7 +2677,7 @@
 
 #### 13.3 新建 / 更新学员（后台）`POST /api/v1/admin/students/save`
 
-- **说明**：用于后台创建或编辑学员信息，同时维护 `users` 与 `students` 两张表的字段。
+- **说明**：用于后台创建或编辑学员信息；实现上与 **§13.5** `kind = "student"` 相同（本接口**无需**传 `kind`，服务端固定按学员处理）。创建时维护 `users`（`role = student`）与 `students`；**更新**时若学员已关联 `user_id`，可同时修改该账号的 `username` / `phone` / `email` / `avatar_url` / `password`（密码非空则重置）。
 
 **请求体（示例）**：
 
@@ -2706,7 +2706,7 @@
   - 在 `users` 表中创建一条 `role = "student"` 的账号记录；
   - 在 `students` 表中创建一条记录并关联 `user_id`；
   - 返回新建的学员主键与账号信息。
-- 当 `student_id` 非空时，仅更新已存在学员的基础信息与账号（密码可选字段 `new_password` 单独处理）。
+- 当 `student_id` 非空时，更新已存在学员档案；若存在关联账号，同步更新账号字段（见上文）。
 
 #### 13.4 人员软删除（后台）`POST /api/v1/admin/personnel/delete`
 
@@ -2754,6 +2754,87 @@
 | `403` | `403` | 非 `admin` 调用；或 `kind = "staff"` 但用户角色不是 `staff`/`maintenance` |
 | `404` | `404` | 目标不存在或已被软删除（`msg: not found`） |
 
+#### 13.5 人员新建 / 编辑（后台）`POST /api/v1/admin/personnel/save`
+
+- **认证**：需要；**仅** `role = "admin"` 可调用，否则 HTTP `403`。
+- **说明**：用同一套协议维护学员、教员、地面职员（`staff` / `maintenance`）档案及对应 `users` 账号字段。与 **§13.3** 学员专用接口二选一即可；本接口便于前台「人员管理」统一表单。
+
+**请求体**：须带 `kind`；其余字段按 `kind` 选填或必填，见下表。
+
+| `kind` | 新建 | 更新 | 必填与主键 |
+|--------|------|------|------------|
+| `student` | `student_id` 省略或空 | `student_id` = `students.id` | 新建：`name`、`student_no`；更新：同上。可选：`username`、`phone`、`email`、`password`、`avatar_url`（有 `user_id` 时生效）、合同与训练字段同 §13.3 |
+| `instructor` | `instructor_id` 省略或空 | `instructor_id` = `instructors.id` | 新建：`username`、`name`、`password`（非空）、可选 `phone`、`email`、`display_color`、`avatar_url`。更新：教员 `name` / `display_color` 及账号字段（非空字段覆盖） |
+| `staff` | （本接口不单独创建地面账号，请用注册或其它流程） | `user_id` = `users.id` | **仅更新**：`user_id` 必填；目标用户须为 `staff` 或 `maintenance`；可改 `username`、`phone`、`email`、`avatar_url`、`password` |
+
+**请求示例（新建教员）**：
+
+```json
+{
+  "kind": "instructor",
+  "username": "ins01",
+  "password": "initial-secret",
+  "name": "教员A",
+  "phone": "13800000000",
+  "email": "ins@example.com",
+  "display_color": "#3366cc",
+  "avatar_url": ""
+}
+```
+
+**请求示例（编辑地面职员）**：
+
+```json
+{
+  "kind": "staff",
+  "user_id": "550e8400-e29b-41d4-a716-446655440099",
+  "username": "maint01",
+  "phone": "13900000000",
+  "email": "m@example.com"
+}
+```
+
+**成功响应**：`data` 为对象，仅与本次 `kind` 相关的字段有值，例如：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "kind": "instructor",
+    "instructor": {
+      "id": "550e8400-e29b-41d4-a716-446655440002",
+      "user_id": "550e8400-e29b-41d4-a716-446655440003",
+      "name": "教员A",
+      "display_color": "#3366cc",
+      "created_at": "...",
+      "updated_at": "..."
+    },
+    "user": {
+      "id": "550e8400-e29b-41d4-a716-446655440003",
+      "username": "ins01",
+      "phone": "13800000000",
+      "email": "ins@example.com",
+      "role": "instructor",
+      "avatar_url": "",
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  }
+}
+```
+
+- `kind = "student"` 时 `data.student` 必有；`user` 仅在创建学员账号或更新后需要带出账号信息时出现（与实现一致）。
+- 返回中的 `user` **不含** `password_hash` 字段。
+
+**常见错误**：
+
+| HTTP | 说明 |
+|------|------|
+| `400` | `kind` 缺失或非法；新建教员未提供 `password`；学员新建缺少 `name`/`student_no`；`username` 已被他人占用（`msg: username already exists`）；`contract_info` 非法 JSON |
+| `403` | 非 `admin`；`kind = "staff"` 但目标用户不是 `staff`/`maintenance` |
+| `404` | 更新的 `student_id` / `instructor_id` / `user_id` 不存在或已软删除 |
+
 ---
 
 ### 14. 各角色首页聚合 API
@@ -2781,6 +2862,7 @@
 | `POST /api/v1/instructors/my-home` | `instructor` |
 | `POST /api/v1/admin/home` | `admin`（与其它多数 `POST /api/v1/admin/*` 一致） |
 | `POST /api/v1/admin/personnel/delete` | **仅** `admin`（见 §13.4） |
+| `POST /api/v1/admin/personnel/save` | **仅** `admin`（见 §13.5） |
 
 ---
 

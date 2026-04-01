@@ -8,14 +8,24 @@ import (
 	"magua-fly-golang/internal/repository"
 )
 
-// PersonnelUseCase 管理员软删除学员 / 教员 / 地面职员账号。
+// PersonnelUseCase 管理员软删除、新建/编辑学员 / 教员 / 地面职员账号。
 type PersonnelUseCase struct {
-	repo repository.PersonnelRepository
+	repo           repository.PersonnelRepository
+	userRepo       repository.UserRepository
+	studentRepo    repository.StudentRepository
+	instructorRepo repository.InstructorRepository
 }
 
-// NewPersonnelUseCase 创建 PersonnelUseCase。
-func NewPersonnelUseCase(repo repository.PersonnelRepository) *PersonnelUseCase {
-	return &PersonnelUseCase{repo: repo}
+// NewPersonnelUseCase 创建 PersonnelUseCase（软删除仅依赖 repo；保存需传入 user/student/instructor 仓储）。
+func NewPersonnelUseCase(
+	repo repository.PersonnelRepository,
+	userRepo repository.UserRepository,
+	studentRepo repository.StudentRepository,
+	instructorRepo repository.InstructorRepository,
+) *PersonnelUseCase {
+	return &PersonnelUseCase{
+		repo: repo, userRepo: userRepo, studentRepo: studentRepo, instructorRepo: instructorRepo,
+	}
 }
 
 // SoftDeletePersonnelRequest 对应 POST /api/v1/admin/personnel/delete
