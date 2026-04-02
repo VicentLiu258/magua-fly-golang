@@ -129,6 +129,7 @@ func (h *StudentHandler) List(c *gin.Context) {
 		UserID                  *string `json:"user_id,omitempty"`
 		Name                    string  `json:"name"`
 		StudentNo               string  `json:"student_no"`
+		ResidentCity            string  `json:"resident_city,omitempty"`
 		Username                string  `json:"username,omitempty"`
 		Phone                   string  `json:"phone,omitempty"`
 		Email                   string  `json:"email,omitempty"`
@@ -155,6 +156,7 @@ func (h *StudentHandler) List(c *gin.Context) {
 			UserID:                  s.UserID,
 			Name:                    s.Name,
 			StudentNo:               s.StudentNo,
+			ResidentCity:            s.ResidentCity,
 			ContractInfo:            s.ContractInfo,
 			ContractDurationMinutes: s.ContractDurationMinutes,
 			FlownMinutes:            s.FlownMinutes,
@@ -239,6 +241,7 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 		StudentID               string `json:"student_id"`
 		Name                    string `json:"name"`
 		StudentNo               string `json:"student_no"`
+		ResidentCity            string `json:"resident_city,omitempty"`
 		Username                string `json:"username"`
 		Phone                   string `json:"phone"`
 		Email                   string `json:"email"`
@@ -261,6 +264,7 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 			StudentID:               s.ID,
 			Name:                    s.Name,
 			StudentNo:               s.StudentNo,
+			ResidentCity:            s.ResidentCity,
 			ContractDurationMinutes: s.ContractDurationMinutes,
 			FlownMinutes:            s.FlownMinutes,
 			TrainingProgress:        s.TrainingProgress,
@@ -394,6 +398,7 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 			"student_id":                s.ID,
 			"name":                      s.Name,
 			"student_no":                s.StudentNo,
+			"resident_city":             s.ResidentCity,
 			"contract_duration_minutes": s.ContractDurationMinutes,
 			"flown_minutes":             s.FlownMinutes,
 			"remaining_minutes":         remaining,

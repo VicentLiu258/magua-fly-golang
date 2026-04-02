@@ -23,14 +23,15 @@ type SavePersonnelRequest struct {
 	InstructorID *string `json:"instructor_id"`
 	UserID       *string `json:"user_id"`
 
-	Name       string `json:"name"`
-	StudentNo  string `json:"student_no"`
-	Username   string `json:"username"`
-	Phone      string `json:"phone"`
-	Email      string `json:"email"`
-	Password   string `json:"password"`
-	AvatarURL  string `json:"avatar_url"`
-	DisplayColor string `json:"display_color"`
+	Name         string  `json:"name"`
+	StudentNo    string  `json:"student_no"`
+	ResidentCity *string `json:"resident_city"`
+	Username     string  `json:"username"`
+	Phone        string  `json:"phone"`
+	Email        string  `json:"email"`
+	Password     string  `json:"password"`
+	AvatarURL    string  `json:"avatar_url"`
+	DisplayColor string  `json:"display_color"`
 
 	ContractDurationMinutes *int            `json:"contract_duration_minutes"`
 	FlownMinutes            int             `json:"flown_minutes"`
@@ -45,10 +46,10 @@ type SavePersonnelRequest struct {
 
 // SavePersonnelResult 保存成功后的响应体（按 Kind 仅一个非空）。
 type SavePersonnelResult struct {
-	Kind        string             `json:"kind"`
-	Student     *domain.Student    `json:"student,omitempty"`
-	Instructor  *domain.Instructor `json:"instructor,omitempty"`
-	User        *domain.User       `json:"user,omitempty"`
+	Kind       string             `json:"kind"`
+	Student    *domain.Student    `json:"student,omitempty"`
+	Instructor *domain.Instructor `json:"instructor,omitempty"`
+	User       *domain.User       `json:"user,omitempty"`
 }
 
 func mergeJSONColumn(dst *[]byte, raw json.RawMessage, invalidErr error) error {
@@ -178,6 +179,9 @@ func (u *PersonnelUseCase) createStudent(ctx context.Context, req *SavePersonnel
 	if err := mergeTrainingProgressJSON(&s.TrainingProgressJSON, req.TrainingProgressJSON); err != nil {
 		return nil, err
 	}
+	if req.ResidentCity != nil {
+		s.ResidentCity = strings.TrimSpace(*req.ResidentCity)
+	}
 	if t := strings.TrimSpace(req.FlightTrainingStatus); t != "" {
 		if fs, ok := domain.ParseFlightTrainingStatus(t); ok {
 			s.FlightTrainingStatus = fs
@@ -215,6 +219,9 @@ func (u *PersonnelUseCase) updateStudent(ctx context.Context, studentID string, 
 	}
 	if err := mergeTrainingProgressJSON(&s.TrainingProgressJSON, req.TrainingProgressJSON); err != nil {
 		return nil, err
+	}
+	if req.ResidentCity != nil {
+		s.ResidentCity = strings.TrimSpace(*req.ResidentCity)
 	}
 	if t := strings.TrimSpace(req.FlightTrainingStatus); t != "" {
 		if fs, ok := domain.ParseFlightTrainingStatus(t); ok {

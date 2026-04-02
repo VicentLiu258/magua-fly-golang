@@ -218,19 +218,25 @@
 - **认证**：需要。
 - **任职状态过滤**：调用者为 **`admin`** 时列出全部未软删学员；**非 admin** 时仅列出「无关联账号」或关联用户 **`employment_status = active`** 的学员（见文首「任职状态、人员类别与鉴权」）。
 
-**请求体**（JSON；`Content-Length` 为 0 或仅空白时视为未传，使用默认分页）：
+**请求体**（JSON；`Content-Length` 为 0 或仅空白时视为未传，使用默认分页与「无附加筛选」）：
 
 ```json
 {
   "limit": 20,
-  "offset": 0
+  "offset": 0,
+  "keyword": "",
+  "responsible_instructor_id": "",
+  "flight_training_status": ""
 }
 ```
 
 - `limit`：默认 `20`，最大 `100`；`<=0` 时使用默认。
 - `offset`：默认 `0`；`<0` 时按 `0` 处理。
+- `keyword`：**可选**。非空时按学员**姓名或学号**模糊匹配（`ILIKE`）。
+- `responsible_instructor_id`：**可选**。非空时按责任教员（`instructors.id`）精确过滤。
+- `flight_training_status`：**可选**。非空时按学飞状态精确过滤，须为 `in_progress`（进行中）| `paused`（已暂停）| `completed`（已完结）| `terminated`（已终止）；非法取值返回 **`400`**，`msg` 形如 `invalid flight_training_status`。
 
-**成功响应**：每条在 `students` 档案字段外，若存在 **`user_id`**，会附带关联 **`users` 账号**上的 `username`、`phone`、`email`、`employment_status`、`personnel_category`（推导规则见文首）；无账号时上述账号字段通常为空或省略。其余字段与 `students` 表一致（含 `contract_info`、`training_progress_json` 等）。
+**成功响应**：每条在 `students` 档案字段外，若存在 **`user_id`**，会附带关联 **`users` 账号**上的 `username`、`phone`、`email`、`employment_status`、`personnel_category`（推导规则见文首）；无账号时上述账号字段通常为空或省略。档案侧常见字段还含 **`resident_city`**（常驻城市）、**`flight_training_status`**、**`responsible_instructor`**（`{ "id", "name" }`，来自 `instructors`）、`contract_info`、`training_progress_json` 等。
 
 ```json
 {
@@ -248,6 +254,13 @@
         "email": "s1@example.com",
         "employment_status": "active",
         "personnel_category": "flight",
+        "resident_city": "上海",
+        "flight_training_status": "in_progress",
+        "responsible_instructor_id": "550e8400-e29b-41d4-a716-446655440002",
+        "responsible_instructor": {
+          "id": "550e8400-e29b-41d4-a716-446655440002",
+          "name": "教员A"
+        },
         "flown_minutes": 0,
         "training_progress": "",
         "created_at": "...",
@@ -2627,10 +2640,13 @@
 {
   "keyword": "",
   "responsible_instructor_id": "",
+  "flight_training_status": "",
   "page": 1,
   "page_size": 20
 }
 ```
+
+- `keyword`、`responsible_instructor_id`、`flight_training_status`：**可选**，语义与 **§4.1** 学员列表一致（后台列表含离职/兼职学员，`onlyActiveEmployment` 为关闭）。
 
 **成功响应（示例）**：
 
@@ -2653,6 +2669,8 @@
         "flown_minutes": 1200,
         "remaining_minutes": 2400,
         "training_progress": "已完成单飞阶段",
+        "resident_city": "上海",
+        "flight_training_status": "in_progress",
         "responsible_instructor": {
           "id": "550e8400-e29b-41d4-a716-446655440002",
           "name": "教员A"
@@ -2665,6 +2683,7 @@
 ```
 
 - 无关联账号（学员未绑定 `user_id`）时，`username` / `phone` / `email` / `employment_status` / `personnel_category` 通常为空或省略。
+- `total`：当前实现为**本页**返回条数（与 `page`/`page_size` 一致），非全表总数。
 
 #### 13.2 学员详情（后台）`POST /api/v1/admin/students/detail`
 
@@ -2687,10 +2706,12 @@
       "student_id": "550e8400-e29b-41d4-a716-446655440001",
       "name": "张三",
       "student_no": "S000001",
+      "resident_city": "上海",
       "contract_duration_minutes": 3600,
       "flown_minutes": 1200,
       "remaining_minutes": 2400,
-      "training_progress": "已完成单飞阶段"
+      "training_progress": "已完成单飞阶段",
+      "flight_training_status": "in_progress"
     },
     "account": {
       "username": "student1",
@@ -2720,6 +2741,22 @@
 - **认证**：需要；**仅** `admin`。
 - **说明**：用于后台创建或编辑学员信息；实现上与 **§13.5** `kind = "student"` 相同（本接口**无需**传 `kind`，服务端固定按学员处理）。创建时维护 `users`（`role = student`）与 `students`；**更新**时若学员已关联 `user_id`，可同时修改该账号的 `username` / `phone` / `email` / `avatar_url` / `password`（密码非空则重置）及 **`employment_status`**。
 
+**「先录基本信息」与请求字段对照**（可与合同、进度等分步保存；未列字段见下文可选说明）：
+
+| 业务项 | 请求 JSON 字段 | 持久化位置 |
+|--------|----------------|------------|
+| 姓名 | `name` | `students.name`（必填） |
+| 电话 | `phone` | 关联 `users.phone`（有账号时写入） |
+| 学员编号 | `student_no` | `students.student_no`（必填） |
+| 责任教员 | `responsible_instructor_id` | `students.responsible_instructor_id`（UUID，可空） |
+| 登录账号 | `username` | `users.username` |
+| 登录密码 | `password` | `users.password_hash`（创建时可空则无法密码登录直至后续设置；更新时非空则重置） |
+| 常驻城市 | `resident_city` | `students.resident_city`（见下行语义） |
+| 学飞状态 | `flight_training_status` | `students.flight_training_status`（见下行枚举） |
+
+- **`resident_city`（常驻城市）**：字符串，可空。**新建**时请求中省略或 `null` 表示空；**更新**时请求体**省略该字段**或 **`resident_city`: `null`** 表示不修改原值；显式传 `""` 可清空 city。
+- **`flight_training_status`**：取值 `in_progress` | `paused` | `completed` | `terminated`。**新建**时省略默认为 `in_progress`；**更新**时省略则不修改。非法取值返回 `400`。
+
 **请求体（示例）**：
 
 ```json
@@ -2727,11 +2764,13 @@
   "student_id": null,
   "name": "张三",
   "student_no": "S000001",
+  "resident_city": "上海",
   "username": "student1",
   "phone": "13800000000",
   "email": "s1@example.com",
   "password": "secret",
   "employment_status": "active",
+  "flight_training_status": "in_progress",
   "contract_duration_minutes": 3600,
   "flown_minutes": 0,
   "training_progress": "",
@@ -2808,7 +2847,7 @@
 
 | `kind` | 新建 | 更新 | 必填与主键 |
 |--------|------|------|------------|
-| `student` | `student_id` 省略或空 | `student_id` = `students.id` | 新建：`name`、`student_no`；更新：同上。可选：`username`、`phone`、`email`、`password`、`avatar_url`（有 `user_id` 时生效）、**`employment_status`**（`active` / `resigned` / `part_time`）、`contract_duration_minutes`、`flown_minutes`、`training_progress`、`training_progress_json`、`responsible_instructor_id`、`contract_info`（语义见 §13.3） |
+| `student` | `student_id` 省略或空 | `student_id` = `students.id` | 新建：`name`、`student_no`；更新：同上。可选：`username`、`phone`、`email`、`password`、`avatar_url`（有 `user_id` 时生效）、**`employment_status`**（`active` / `resigned` / `part_time`）、**`resident_city`**（语义见 §13.3）、**`flight_training_status`**、`contract_duration_minutes`、`flown_minutes`、`training_progress`、`training_progress_json`、`responsible_instructor_id`、`contract_info`（其余语义见 §13.3） |
 | `instructor` | `instructor_id` 省略或空 | `instructor_id` = `instructors.id` | 新建：`username`、`name`、`password`（非空）、可选 `phone`、`email`、`display_color`、`avatar_url`、**`employment_status`**。更新：教员 `name` / `display_color` 及账号字段（非空字段覆盖）；可选 **`employment_status`**（有值则更新） |
 | `staff` | （本接口不单独创建地面账号，请用注册或其它流程） | `user_id` = `users.id` | **仅更新**：`user_id` 必填；目标用户须为 `staff` 或 `maintenance`；可改 `username`、`phone`、`email`、`avatar_url`、`password`、**`employment_status`** |
 

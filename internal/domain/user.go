@@ -119,6 +119,7 @@ type Student struct {
 	UserID                  *string `json:"user_id,omitempty"`
 	Name                    string  `json:"name"`
 	StudentNo               string  `json:"student_no"`
+	ResidentCity            string  `json:"resident_city,omitempty"`
 	ContractInfo            []byte  `json:"contract_info,omitempty"`
 	ContractDurationMinutes *int    `json:"contract_duration_minutes,omitempty"`
 	FlownMinutes            int     `json:"flown_minutes"`
