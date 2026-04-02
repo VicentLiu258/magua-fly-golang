@@ -108,6 +108,11 @@ func (u *TrainingUseCase) CreateRecord(ctx context.Context, rec *domain.Training
 	if rec.Destination == "" {
 		rec.Destination = "莲洲"
 	}
+	if strings.TrimSpace(rec.StudentNo) == "" && rec.StudentID != "" && u.studentRepo != nil {
+		if stu, err := u.studentRepo.GetByID(ctx, rec.StudentID); err == nil && stu != nil {
+			rec.StudentNo = stu.StudentNo
+		}
+	}
 	if rec.RecordSerialNo == "" && rec.Status != domain.RecordStatusDraft {
 		s, err := u.recordRepo.AllocateRecordSerialNo(ctx, rec.TrainingDate)
 		if err != nil {
@@ -162,6 +167,11 @@ func (u *TrainingUseCase) UpdateRecord(ctx context.Context, rec *domain.Training
 			return err
 		}
 		rec.RecordSerialNo = s
+	}
+	if rec.StudentID != "" && u.studentRepo != nil && (prev == nil || prev.StudentID != rec.StudentID || strings.TrimSpace(rec.StudentNo) == "") {
+		if stu, err := u.studentRepo.GetByID(ctx, rec.StudentID); err == nil && stu != nil {
+			rec.StudentNo = stu.StudentNo
+		}
 	}
 	return u.recordRepo.Update(ctx, rec)
 }
@@ -255,6 +265,7 @@ func (u *TrainingUseCase) ClaimImport(ctx context.Context, rawImportID string, s
 	archive := &domain.TrainingArchive{
 		TrainingRecordID:      rec.ID,
 		StudentID:             rec.StudentID,
+		StudentNo:             rec.StudentNo,
 		InstructorID:          rec.InstructorID,
 		TrainingDate:          rec.TrainingDate,
 		EngineOnTime:          rec.EngineOnTime,
@@ -356,9 +367,12 @@ func (u *TrainingUseCase) GetArchive(ctx context.Context, id string) (*domain.Tr
 
 // CreateArchive 创建档案。若 training_record_id 不存在则返回 ErrTrainingRecordNotFound。
 func (u *TrainingUseCase) CreateArchive(ctx context.Context, a *domain.TrainingArchive) error {
-	_, err := u.recordRepo.GetByID(ctx, a.TrainingRecordID)
+	rec, err := u.recordRepo.GetByID(ctx, a.TrainingRecordID)
 	if err != nil {
 		return fmt.Errorf("%w (id=%s)", ErrTrainingRecordNotFound, a.TrainingRecordID)
+	}
+	if strings.TrimSpace(a.StudentNo) == "" {
+		a.StudentNo = rec.StudentNo
 	}
 	return u.archiveRepo.Create(ctx, a)
 }

@@ -22,7 +22,7 @@ func (db *DB) TrainingRecord() repository.TrainingRecordRepository { return &Tra
 
 var _ repository.TrainingRecordRepository = (*TrainingRecordRepo)(nil)
 
-var trainingRecordColumns = `id::text, student_id::text, instructor_id::text, aircraft_id::text, training_date, engine_on_time, engine_off_time,
+var trainingRecordColumns = `id::text, student_id::text, COALESCE(student_no,''), instructor_id::text, aircraft_id::text, training_date, engine_on_time, engine_off_time,
 	flight_duration_minutes, is_local, import_source, COALESCE(raw_import_id::text,''), COALESCE(status::text,'normal'),
 	planned_duration_minutes, theory_duration_minutes, sim_duration_minutes, COALESCE(syllabus_outline,''), COALESCE(archive_display_no,''),
 	COALESCE(departure,''), COALESCE(destination,''), COALESCE(flight_type,''), COALESCE(task_type,''), landings,
@@ -38,7 +38,7 @@ type trainingRecordScanner interface {
 func scanTrainingRecord(rec *domain.TrainingRecord, sc trainingRecordScanner) error {
 	var emStart, emStop sql.NullFloat64
 	err := sc.Scan(
-		&rec.ID, &rec.StudentID, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
+		&rec.ID, &rec.StudentID, &rec.StudentNo, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
 		&rec.FlightDurationMinutes, &rec.IsLocal, &rec.ImportSource, &rec.RawImportID, &rec.Status,
 		&rec.PlannedDurationMinutes, &rec.TheoryDurationMinutes, &rec.SimDurationMinutes, &rec.SyllabusOutline, &rec.ArchiveDisplayNo,
 		&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings, &rec.TrainingPlanID,
@@ -294,7 +294,7 @@ func (r *TrainingRecordRepo) ListForCSVExport(ctx context.Context, filter *domai
 			i.name AS instructor_name,
 			s.name AS student_name,
 			COALESCE(ta.stage, '') AS archive_stage,
-			s.student_no,
+			COALESCE(NULLIF(TRIM(tr.student_no),''), s.student_no) AS student_no,
 			COALESCE(ta.progress_note, '') AS progress_note,
 			tr.flight_duration_minutes,
 			tr.landings,
@@ -482,19 +482,19 @@ func (r *TrainingRecordRepo) Create(ctx context.Context, rec *domain.TrainingRec
 		status = domain.RecordStatusNormal
 	}
 	return r.db.Pool.QueryRow(ctx, `
-		INSERT INTO training_records (student_id, instructor_id, aircraft_id, training_date, engine_on_time, engine_off_time,
+		INSERT INTO training_records (student_id, student_no, instructor_id, aircraft_id, training_date, engine_on_time, engine_off_time,
 			flight_duration_minutes, is_local, import_source, raw_import_id, status,
 			planned_duration_minutes, theory_duration_minutes, sim_duration_minutes, syllabus_outline, archive_display_no,
 			departure, destination, flight_type, task_type, landings, training_plan_id,
 			record_serial_no, business_type, engine_start_meter, engine_stop_meter,
 			video_timeliness, video_operator, video_validity, flight_data_ref)
-		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10::uuid, $11::training_record_status, $12, $13, $14, NULLIF($15,''), NULLIF($16,''), NULLIF($17,''), NULLIF($18,''), NULLIF($19,''), NULLIF($20,''), $21, $22::uuid,
-			NULLIF($23,''), NULLIF($24,''), $25, $26, NULLIF($27,''), NULLIF($28,''), NULLIF($29,''), NULLIF($30,''))
+		VALUES ($1::uuid, NULLIF(TRIM($2),''), $3::uuid, $4::uuid, $5, $6, $7, $8, $9, $10, $11::uuid, $12::training_record_status, $13, $14, $15, NULLIF($16,''), NULLIF($17,''), NULLIF($18,''), NULLIF($19,''), NULLIF($20,''), NULLIF($21,''), $22, $23::uuid,
+			NULLIF($24,''), NULLIF($25,''), $26, $27, NULLIF($28,''), NULLIF($29,''), NULLIF($30,''), NULLIF($31,''))
 		RETURNING id::text, created_at, updated_at`,
-		rec.StudentID, rec.InstructorID, rec.AircraftID, rec.TrainingDate, rec.EngineOnTime, rec.EngineOffTime,
+		rec.StudentID, rec.StudentNo, rec.InstructorID, rec.AircraftID, rec.TrainingDate, rec.EngineOnTime, rec.EngineOffTime,
 		rec.FlightDurationMinutes, rec.IsLocal, rec.ImportSource, nullEmpty(rec.RawImportID), status,
 		rec.PlannedDurationMinutes, rec.TheoryDurationMinutes, rec.SimDurationMinutes, rec.SyllabusOutline, rec.ArchiveDisplayNo,
-		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, rec.Landings, nullEmpty(rec.TrainingPlanID),
+		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, nullIntPtr(rec.Landings), nullEmpty(rec.TrainingPlanID),
 		rec.RecordSerialNo, rec.BusinessType, nullFloatPtr(rec.EngineStartMeter), nullFloatPtr(rec.EngineStopMeter),
 		rec.VideoTimeliness, rec.VideoOperator, rec.VideoValidity, rec.FlightDataRef,
 	).Scan(&rec.ID, &rec.CreatedAt, &rec.UpdatedAt)
@@ -514,23 +514,30 @@ func nullFloatPtr(f *float64) interface{} {
 	return *f
 }
 
+func nullIntPtr(i *int) interface{} {
+	if i == nil {
+		return nil
+	}
+	return *i
+}
+
 func (r *TrainingRecordRepo) Update(ctx context.Context, rec *domain.TrainingRecord) error {
 	_, err := r.db.Pool.Exec(ctx, `
-		UPDATE training_records SET student_id=$2::uuid, instructor_id=$3::uuid, aircraft_id=$4::uuid, training_date=$5,
-			engine_on_time=$6, engine_off_time=$7, flight_duration_minutes=$8, is_local=$9, import_source=$10, raw_import_id=$11::uuid,
-			status=$12::training_record_status, planned_duration_minutes=$13, theory_duration_minutes=$14, sim_duration_minutes=$15,
-			syllabus_outline=NULLIF($16,''), archive_display_no=NULLIF($17,''),
-			departure=NULLIF($18,''), destination=NULLIF($19,''), flight_type=NULLIF($20,''), task_type=NULLIF($21,''), landings=$22,
-			training_plan_id=$23::uuid,
-			record_serial_no=NULLIF($24,''), business_type=NULLIF($25,''),
-			engine_start_meter=$26, engine_stop_meter=$27,
-			video_timeliness=NULLIF($28,''), video_operator=NULLIF($29,''), video_validity=NULLIF($30,''), flight_data_ref=NULLIF($31,''),
+		UPDATE training_records SET student_id=$2::uuid, student_no=NULLIF(TRIM($3),''), instructor_id=$4::uuid, aircraft_id=$5::uuid, training_date=$6,
+			engine_on_time=$7, engine_off_time=$8, flight_duration_minutes=$9, is_local=$10, import_source=$11, raw_import_id=$12::uuid,
+			status=$13::training_record_status, planned_duration_minutes=$14, theory_duration_minutes=$15, sim_duration_minutes=$16,
+			syllabus_outline=NULLIF($17,''), archive_display_no=NULLIF($18,''),
+			departure=NULLIF($19,''), destination=NULLIF($20,''), flight_type=NULLIF($21,''), task_type=NULLIF($22,''), landings=$23,
+			training_plan_id=$24::uuid,
+			record_serial_no=NULLIF($25,''), business_type=NULLIF($26,''),
+			engine_start_meter=$27, engine_stop_meter=$28,
+			video_timeliness=NULLIF($29,''), video_operator=NULLIF($30,''), video_validity=NULLIF($31,''), flight_data_ref=NULLIF($32,''),
 			updated_at=NOW()
 		WHERE id=$1::uuid`,
-		rec.ID, rec.StudentID, rec.InstructorID, rec.AircraftID, rec.TrainingDate, rec.EngineOnTime, rec.EngineOffTime,
+		rec.ID, rec.StudentID, rec.StudentNo, rec.InstructorID, rec.AircraftID, rec.TrainingDate, rec.EngineOnTime, rec.EngineOffTime,
 		rec.FlightDurationMinutes, rec.IsLocal, rec.ImportSource, nullEmpty(rec.RawImportID),
 		rec.Status, rec.PlannedDurationMinutes, rec.TheoryDurationMinutes, rec.SimDurationMinutes, rec.SyllabusOutline, rec.ArchiveDisplayNo,
-		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, rec.Landings, nullEmpty(rec.TrainingPlanID),
+		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, nullIntPtr(rec.Landings), nullEmpty(rec.TrainingPlanID),
 		rec.RecordSerialNo, rec.BusinessType, nullFloatPtr(rec.EngineStartMeter), nullFloatPtr(rec.EngineStopMeter),
 		rec.VideoTimeliness, rec.VideoOperator, rec.VideoValidity, rec.FlightDataRef,
 	)

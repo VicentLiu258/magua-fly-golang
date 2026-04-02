@@ -976,7 +976,7 @@
 }
 ```
 
-**成功响应**：`data` 为完整训练记录（含 `id`、`record_serial_no`（非草稿时自动生成 `TR+YYYYMMDD+序号`）、`training_plan_id`（可空）、`created_at`、`updated_at`）。
+**成功响应**：`data` 为完整训练记录（含 `id`、`student_no`（与 `students.student_no` 同步的快照，创建/更新时若未传则由服务端按 `student_id` 填充）、`record_serial_no`（非草稿时自动生成 `TR+YYYYMMDD+序号`）、`training_plan_id`（可空）、`created_at`、`updated_at`）。
 
 #### 7.2.2 记录详情 `POST /api/v1/training-records/detail`
 
@@ -1052,7 +1052,7 @@
 
 **成功响应**：HTTP 200，`Content-Type: text/csv; charset=utf-8`，`Content-Disposition: attachment; filename="training_records_YYYYMMDD.csv"`，正文为 **UTF-8 BOM** + CSV。首行为表头，共 **37 列**，顺序与历史业务总表样稿一致。
 
-**已映射列（有数据则输出）**：记录编号（优先 `record_serial_no`（TR 业务号），否则回退 `archive_display_no`）、飞行日期与星期、计划开车/关车时刻（关联 `training_plans` 的 `start_time` / `end_time`，`HH24:MI`）、开车/关车时刻、机号（飞机 `code`）、始发/目的、本场或转场、任务类型、**带飞/单飞**（`flight_type`）、**业务类型**（`business_type`）、飞行教员、客户（学员姓名）、学员阶段与备注（档案）、客户编号（学号）、飞行时长（`H:MM`）/分钟数/小时数、起落架次、此前经历（见上）、**发动机小时表读数**（开车/关车）、年月（`Jan-06` 英文缩写）、**视频及时/拍摄人/视频有效**、航后讲评（档案 `instructor_review`）、**飞行数据**（`flight_data_ref` 文本）。
+**已映射列（有数据则输出）**：记录编号（优先 `record_serial_no`（TR 业务号），否则回退 `archive_display_no`）、飞行日期与星期、计划开车/关车时刻（关联 `training_plans` 的 `start_time` / `end_time`，`HH24:MI`）、开车/关车时刻、机号（飞机 `code`）、始发/目的、本场或转场、任务类型、**带飞/单飞**（`flight_type`）、**业务类型**（`business_type`）、飞行教员、客户（学员姓名）、学员阶段与备注（档案）、客户编号（学号：`COALESCE(training_records.student_no, students.student_no)`）、飞行时长（`H:MM`）/分钟数/小时数、起落架次、此前经历（见上）、**发动机小时表读数**（开车/关车）、年月（`Jan-06` 英文缩写）、**视频及时/拍摄人/视频有效**、航后讲评（档案 `instructor_review`）、**飞行数据**（`flight_data_ref` 文本）。
 
 **当前占空列（表头保留，单元格为空，后续可接合同/计费）**：关联合同、小时价值、本次价值、校验、校验结果。
 
@@ -1080,7 +1080,7 @@
 - **身份解析**（同时满足则自动创建 `training_records` 并关联 `raw_flight_imports`）：
   - **机号**：先按 `aircraft.code`（首尾去空格）匹配；若无记录，再按数据库侧 `lower(trim(code))` 或 `lower(trim(name))` 与 CSV 机号列规范化后比对，且须**唯一**命中；否则报错（如「机号未找到」「飞机匹配到 N 条」）。
   - **飞行教员**：先按教员姓名**原文字符串**精确匹配；若条数不为 1，再按 `lower(trim(name))` 精确匹配，且须**唯一**命中；否则报错（如「教员姓名匹配到 N 条」）。
-  - **学员**：**客户编号**列为学员 `id`（UUID）或 `student_no`（首尾去空格）时优先解析；若编号为空或解析失败，则用 **客户** 列姓名，按 `lower(trim(name))` 在库内**唯一**匹配。若填写 **客户** 列且已通过编号解析到学员，则姓名须在首尾去空格后与库内姓名 **Unicode 大小写无关**一致（`EqualFold`），否则报错「客户姓名与库内不一致」。仅姓名路径下 0 条为「学员姓名未匹配」，多条为「学员姓名匹配到 N 条」。
+  - **学员**：**客户编号**列（首尾去空格）**优先按学号** `students.student_no` 匹配；仅当未命中且单元格**形如 UUID**（36 位含连字符的十六进制）时，再按学员 `id` 查询，避免学号与 UUID 同形时误判。若编号为空或两路均未命中，则用 **客户** 列姓名，按 `lower(trim(name))` 在库内**唯一**匹配。自动入库成功后，`training_records.student_no` 与 `training_archives.student_no` 会写入对应学号快照（与 `students.student_no` 一致）。若填写 **客户** 列且已通过编号解析到学员，则姓名须在首尾去空格后与库内姓名 **Unicode 大小写无关**一致（`EqualFold`），否则报错「客户姓名与库内不一致」。仅姓名路径下 0 条为「学员姓名未匹配」，多条为「学员姓名匹配到 N 条」。
 - 自动入库失败时，该行仍写入 `raw_flight_imports`（`raw_data` 含 `source: "csv"` 与 `field_map`），可继续用 **7.3.2** 手工认领。
 
 **成功响应**（JSON）：

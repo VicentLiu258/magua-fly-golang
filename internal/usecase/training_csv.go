@@ -119,6 +119,7 @@ func (u *TrainingUseCase) ImportTrainingRecordsFromCSV(ctx context.Context, batc
 		}
 		rec := &domain.TrainingRecord{
 			StudentID:             stu.ID,
+			StudentNo:             stu.StudentNo,
 			InstructorID:          ins.ID,
 			AircraftID:            ac.ID,
 			TrainingDate:          trainingDate,
@@ -177,6 +178,7 @@ func (u *TrainingUseCase) ImportTrainingRecordsFromCSV(ctx context.Context, batc
 		arch := &domain.TrainingArchive{
 			TrainingRecordID:       rec.ID,
 			StudentID:              rec.StudentID,
+			StudentNo:              rec.StudentNo,
 			InstructorID:           rec.InstructorID,
 			TrainingDate:           rec.TrainingDate,
 			EngineOnTime:           rec.EngineOnTime,
@@ -333,6 +335,27 @@ func trainingCSVNamesMatchNormalized(csvName, dbName string) bool {
 	return strings.EqualFold(strings.TrimSpace(csvName), strings.TrimSpace(dbName))
 }
 
+// trainingCSVCellLooksLikeUUID 用于「客户编号」列：先按学号查，仅当像 UUID 时再按学员 id 查，避免学号形如 UUID 时被误判为 id。
+func trainingCSVCellLooksLikeUUID(s string) bool {
+	s = strings.TrimSpace(s)
+	if len(s) != 36 {
+		return false
+	}
+	if s[8] != '-' || s[13] != '-' || s[18] != '-' || s[23] != '-' {
+		return false
+	}
+	for _, c := range s {
+		if c == '-' {
+			continue
+		}
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func (u *TrainingUseCase) resolveTrainingCSVIdentities(ctx context.Context, row []string) (*domain.Student, *domain.Instructor, *domain.Aircraft, error) {
 	code := strings.TrimSpace(row[7])
 	if code == "" {
@@ -383,12 +406,12 @@ func (u *TrainingUseCase) resolveTrainingCSVIdentities(ctx context.Context, row 
 
 	var stu *domain.Student
 	if custID != "" {
-		stu, err = u.studentRepo.GetByID(ctx, custID)
+		stu, err = u.studentRepo.GetByStudentNo(ctx, custID)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil, nil, err
 		}
-		if stu == nil {
-			stu, err = u.studentRepo.GetByStudentNo(ctx, custID)
+		if stu == nil && trainingCSVCellLooksLikeUUID(custID) {
+			stu, err = u.studentRepo.GetByID(ctx, custID)
 			if err != nil {
 				if !errors.Is(err, pgx.ErrNoRows) {
 					return nil, nil, nil, err

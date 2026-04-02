@@ -29,6 +29,7 @@ const (
 type TrainingRecord struct {
 	ID                     string                `json:"id"`
 	StudentID              string                `json:"student_id"`
+	StudentNo              string                `json:"student_no,omitempty"` // 与 students.student_no 对应的快照
 	InstructorID           string                `json:"instructor_id"`
 	AircraftID             string                `json:"aircraft_id"`
 	TrainingDate           time.Time             `json:"training_date"`
@@ -117,6 +118,7 @@ type TrainingArchive struct {
 	ID                            string     `json:"id"`
 	TrainingRecordID              string     `json:"training_record_id"`
 	StudentID                     string     `json:"student_id"`
+	StudentNo                     string     `json:"student_no,omitempty"`
 	InstructorID                  string     `json:"instructor_id"`
 	TrainingDate                  time.Time  `json:"training_date"`
 	Stage                         string     `json:"stage,omitempty"`
