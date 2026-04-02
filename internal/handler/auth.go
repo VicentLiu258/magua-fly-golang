@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"magua-fly-golang/internal/domain"
+	"magua-fly-golang/internal/middleware"
 	"magua-fly-golang/internal/usecase"
 
 	"github.com/gin-gonic/gin"
@@ -81,4 +83,43 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		"msg":  "ok",
 		"data": user,
 	})
+}
+
+// Me POST /api/v1/users/me 当前用户信息（需 JWT）。
+func (h *AuthHandler) Me(c *gin.Context) {
+	claims := middleware.GetGinClaims(c)
+	if claims == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
+		return
+	}
+	user, err := h.authUC.GetMe(c.Request.Context(), claims.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": user})
+}
+
+// UpdateProfile POST /api/v1/users/update 更新当前用户资料（需 JWT）。
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	claims := middleware.GetGinClaims(c)
+	if claims == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
+		return
+	}
+	var req usecase.UpdateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	user, err := h.authUC.UpdateProfile(c.Request.Context(), claims.UserID, req)
+	if err != nil {
+		if errors.Is(err, usecase.ErrUsernameConflict) || errors.Is(err, usecase.ErrPhoneConflict) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": user})
 }

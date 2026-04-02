@@ -39,17 +39,18 @@ type InstructorHomeRequest struct {
 
 // HomeUseCase 各角色首页聚合
 type HomeUseCase struct {
-	studentRepo   repository.StudentRepository
-	userRepo      repository.UserRepository
-	taskRepo      repository.TaskRepository
-	archiveRepo   repository.TrainingArchiveRepository
+	studentRepo    repository.StudentRepository
+	userRepo       repository.UserRepository
+	taskRepo       repository.TaskRepository
+	archiveRepo    repository.TrainingArchiveRepository
 	planRepo       repository.TrainingPlanRepository
 	aircraftRepo   repository.AircraftRepository
 	recordRepo     repository.TrainingRecordRepository
 	instructorRepo repository.InstructorRepository
-	trainingUC    *TrainingUseCase
-	communityUC   *CommunityUseCase
-	theoryUC      *TheoryUseCase
+	contractRepo   repository.ContractRepository
+	trainingUC     *TrainingUseCase
+	communityUC    *CommunityUseCase
+	theoryUC       *TheoryUseCase
 }
 
 // NewHomeUseCase 创建首页聚合用例
@@ -62,6 +63,7 @@ func NewHomeUseCase(
 	instructorRepo repository.InstructorRepository,
 	aircraftRepo repository.AircraftRepository,
 	recordRepo repository.TrainingRecordRepository,
+	contractRepo repository.ContractRepository,
 	trainingUC *TrainingUseCase,
 	communityUC *CommunityUseCase,
 	theoryUC *TheoryUseCase,
@@ -75,6 +77,7 @@ func NewHomeUseCase(
 		aircraftRepo:   aircraftRepo,
 		recordRepo:     recordRepo,
 		instructorRepo: instructorRepo,
+		contractRepo:   contractRepo,
 		trainingUC:     trainingUC,
 		communityUC:    communityUC,
 		theoryUC:       theoryUC,
@@ -280,6 +283,23 @@ func (uc *HomeUseCase) StudentHome(ctx context.Context, userID string, req *Stud
 		warnings = append(warnings, "featured_articles_unavailable")
 	}
 
+	var contractItems []map[string]interface{}
+	if uc.contractRepo != nil {
+		if list, err := uc.contractRepo.ListByStudent(ctx, stu.ID); err != nil {
+			warnings = append(warnings, "contracts_unavailable")
+		} else {
+			contractItems = ContractListItemsForAPI(list)
+		}
+	} else {
+		warnings = append(warnings, "contracts_unavailable")
+	}
+	if contractItems == nil {
+		contractItems = []map[string]interface{}{}
+	}
+	contractsBlock := map[string]interface{}{
+		"items": contractItems,
+	}
+
 	data := map[string]interface{}{
 		"profile":               profile,
 		"tasks":                 tasksBlock,
@@ -287,6 +307,7 @@ func (uc *HomeUseCase) StudentHome(ctx context.Context, userID string, req *Stud
 		"last_training_archive": lastArchive,
 		"theory_summary":        theorySummary,
 		"subject_progress":      subjectProgress,
+		"contracts":             contractsBlock,
 		"user":                  userBlock,
 		"weather_snippet":       nil,
 		"community_posts":       communityPosts,

@@ -156,6 +156,34 @@
 }
 ```
 
+### 2.3 当前用户信息 `POST /api/v1/users/me`
+
+- **认证**：需要 JWT。
+- **请求体**：可空 `{}`；未使用的字段可省略。
+- **成功响应**：`data` 为当前用户 `users` 行（**不含**密码字段），字段与 §2.1 登录返回的 `user` 相同（`id`、`username`、`phone`、`email`、`role`、`employment_status`、`avatar_url`、`created_at`、`updated_at`）。
+
+### 2.4 更新当前用户资料 `POST /api/v1/users/update`
+
+- **认证**：需要 JWT。
+- **说明**：登录用户修改本人账号资料；**不可**通过本接口修改 `role`、`employment_status`（由管理员在人员管理中维护）。未传递的字段表示不修改。
+
+**请求体**（均为可选；至少传一项才会产生更新）：
+
+```json
+{
+  "username": "newname",
+  "phone": "13800000000",
+  "email": "u@example.com",
+  "avatar_url": "https://example.com/a.png",
+  "password": "new-secret"
+}
+```
+
+- `password`：非空时重置密码（服务端存储哈希）。
+- **冲突**：若 `username` 已被其他账号占用，返回 **`400`**，`msg` 为 `username already exists`；若 `phone` 已被其他账号占用，返回 **`400`**，`msg` 为 `phone already exists`。
+
+**成功响应**：`data` 为更新后的用户对象（不含密码）。
+
 ---
 
 ## 3. 短信登录 / 注册
@@ -226,7 +254,8 @@
   "offset": 0,
   "keyword": "",
   "responsible_instructor_id": "",
-  "flight_training_status": ""
+  "flight_training_status": "",
+  "training_course": ""
 }
 ```
 
@@ -235,8 +264,9 @@
 - `keyword`：**可选**。非空时按学员**姓名或学号**模糊匹配（`ILIKE`）。
 - `responsible_instructor_id`：**可选**。非空时按责任教员（`instructors.id`）精确过滤。
 - `flight_training_status`：**可选**。非空时按学飞状态精确过滤，须为 `in_progress`（进行中）| `paused`（已暂停）| `completed`（已完结）| `terminated`（已终止）；非法取值返回 **`400`**，`msg` 形如 `invalid flight_training_status`。
+- `training_course`：**可选**。非空时按训练课程阶段精确过滤，须为 `SPL` | `PPL` | `FD`（大小写不敏感，服务端按大写存储）；非法取值返回 **`400`**，`msg` 形如 `invalid training_course`。
 
-**成功响应**：每条在 `students` 档案字段外，若存在 **`user_id`**，会附带关联 **`users` 账号**上的 `username`、`phone`、`email`、`employment_status`、`personnel_category`（推导规则见文首）；无账号时上述账号字段通常为空或省略。档案侧常见字段还含 **`resident_city`**（常驻城市）、**`flight_training_status`**、**`responsible_instructor`**（`{ "id", "name" }`，来自 `instructors`）、`contract_info`、`training_progress_json` 等。
+**成功响应**：每条在 `students` 档案字段外，若存在 **`user_id`**，会附带关联 **`users` 账号**上的 `username`、`phone`、`email`、`employment_status`、`personnel_category`（推导规则见文首）；无账号时上述账号字段通常为空或省略。档案侧常见字段还含 **`resident_city`**（常驻城市）、**`flight_training_status`**、**`training_course`**（`SPL` / `PPL` / `FD`，未设置时为空或省略）、**`responsible_instructor`**（`{ "id", "name" }`，来自 `instructors`）、`contract_info`、`training_progress_json` 等。
 
 ```json
 {
@@ -256,6 +286,7 @@
         "personnel_category": "flight",
         "resident_city": "上海",
         "flight_training_status": "in_progress",
+        "training_course": "SPL",
         "responsible_instructor_id": "550e8400-e29b-41d4-a716-446655440002",
         "responsible_instructor": {
           "id": "550e8400-e29b-41d4-a716-446655440002",
@@ -351,6 +382,79 @@
 ```
 
 缺字段或非法 JSON 时，解析结果按 `0` 处理；`remaining = max(0, quota - used)`。
+
+### 4.1.2 学员训练信息汇总
+
+用于展示学员**学飞状态**、**责任教员**、**训练课程（SPL / PPL / FD）**、**是否夜航 / 是否转场**（由训练记录启发式汇总），以及**时长与架次**统计。字段持久化：`training_course`、`flight_training_status`、`responsible_instructor_id` 等在 `students` 表；时长统计部分来自 `contracts` 与 `training_records`（见下表）。
+
+| 接口 | 方法 | 权限 | 说明 |
+|------|------|------|------|
+| `POST /api/v1/students/my-training-summary` | 学员本人 | `role=student` | 根据 JWT 关联的 `students` 行汇总；无学员档案时 **`404`**。 |
+| `POST /api/v1/students/training-summary/detail` | 职员/教员 | `admin` / `staff` / `maintenance` / `instructor` | 请求体 `student_id`；`student` 返回 **`403`**。 |
+| `POST /api/v1/admin/students/training-summaries/list` | 后台列表 | **仅** `admin` | 分页列出学员并**逐条**附带完整汇总（与 `detail` 结构一致）；`page` 默认 `1`，`page_size` 默认 `20`、最大 `50`。筛选字段与 §4.1 列表相同（含 `training_course`）。 |
+| `POST /api/v1/admin/students/training-summary/save` | 更新概要 | **仅** `admin` | 更新 `training_course`、`flight_training_status`、`responsible_instructor_id`；未传的字段不修改。 |
+| `POST /api/v1/admin/students/training-summary/delete` | 清空课程阶段 | **仅** `admin` | 请求体 `student_id`，将 `training_course` 置空（**不**删除学员）。 |
+
+**`POST /api/v1/students/training-summary/detail` 请求体**：
+
+```json
+{
+  "student_id": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+**`POST /api/v1/admin/students/training-summary/save` 请求体**（`student_id` 必填；其余可选）：
+
+```json
+{
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
+  "training_course": "PPL",
+  "flight_training_status": "in_progress",
+  "responsible_instructor_id": "550e8400-e29b-41d4-a716-446655440002"
+}
+```
+
+- `training_course`：`SPL` | `PPL` | `FD`；传空字符串可清空（与 `POST /api/v1/admin/students/save` 中 `training_course` 语义一致）。
+- `responsible_instructor_id`：传空字符串可清空责任教员；教员不存在时 **`404`**。
+
+**成功响应 `data` 结构示例**：
+
+```json
+{
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
+  "name": "张三",
+  "student_no": "S000001",
+  "flight_training_status": "in_progress",
+  "training_course": "SPL",
+  "responsible_instructor_id": "550e8400-e29b-41d4-a716-446655440002",
+  "responsible_instructor": {
+    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "name": "教员A"
+  },
+  "has_night_flight": true,
+  "has_cross_country": false,
+  "duration": {
+    "total_minutes": 3600,
+    "paid_minutes": 3500,
+    "flown_minutes": 1200,
+    "ledger_flown_minutes": 1180
+  },
+  "flights": {
+    "normal_record_count": 42
+  }
+}
+```
+
+- **`flight_training_status`**：`in_progress` | `paused` | `completed` | `terminated`。
+- **`has_night_flight`**：在 `status=normal` 的训练记录中，若 `flight_type` / `task_type` 含「夜」或 `night`（不区分大小写），则为 `true`。
+- **`has_cross_country`**：存在 `status=normal` 且 **`is_local = false`**（转场）的记录时为 `true`。
+- **`duration.total_minutes`**：优先取 `students.contract_duration_minutes`（大于 0 时）；否则为**未取消**合同（`contracts.status <> 'cancelled'`）的 `total_minutes` 之和。
+- **`duration.paid_minutes`**：未取消合同的 `total_minutes` 之和（**已购/合同约定分钟**，非财务回款金额）。
+- **`duration.flown_minutes`**：`training_records` 中 `status=normal` 的 `flight_duration_minutes` 之和。
+- **`duration.ledger_flown_minutes`**：`students.flown_minutes` 台账字段，可能与记录汇总不一致。
+- **`flights.normal_record_count`**：`status=normal` 的训练记录条数。
+
+**其他维护方式**：`POST /api/v1/admin/students/save` 支持可选字段 **`training_course`**（字符串 `SPL`/`PPL`/`FD`；更新时传 `""` 可清空）；与 `training-summary/save` 二选一即可。
 
 ### 4.2 教员列表 `POST /api/v1/instructors/list`
 
@@ -2764,9 +2868,11 @@
 | 登录密码 | `password` | `users.password_hash`（创建时可空则无法密码登录直至后续设置；更新时非空则重置） |
 | 常驻城市 | `resident_city` | `students.resident_city`（见下行语义） |
 | 学飞状态 | `flight_training_status` | `students.flight_training_status`（见下行枚举） |
+| 训练课程 | `training_course` | `students.training_course`：`SPL` / `PPL` / `FD`；**更新**时传 `""` 可清空 |
 
 - **`resident_city`（常驻城市）**：字符串，可空。**新建**时请求中省略或 `null` 表示空；**更新**时请求体**省略该字段**或 **`resident_city`: `null`** 表示不修改原值；显式传 `""` 可清空 city。
 - **`flight_training_status`**：取值 `in_progress` | `paused` | `completed` | `terminated`。**新建**时省略默认为 `in_progress`；**更新**时省略则不修改。非法取值返回 `400`。
+- **`training_course`**：**可选**。`SPL` | `PPL` | `FD`。**新建**时省略表示未指定；**更新**时省略则不修改；显式传 `""` 可清空。非法取值返回 `400`。
 
 **请求体（示例）**：
 
@@ -2782,6 +2888,7 @@
   "password": "secret",
   "employment_status": "active",
   "flight_training_status": "in_progress",
+  "training_course": "SPL",
   "contract_duration_minutes": 3600,
   "flown_minutes": 0,
   "training_progress": "",
@@ -3142,6 +3249,26 @@
       "completed": 10,
       "total": 20
     },
+    "contracts": {
+      "items": [
+        {
+          "id": "c-uuid-1",
+          "contract_no": "HT-2026-001",
+          "sign_date": "2026-03-20",
+          "start_date": "2026-04-01",
+          "end_date": "2027-06-01",
+          "total_minutes": 4000,
+          "price_total": 168000.0,
+          "currency": "CNY",
+          "status": "active",
+          "payment_mode": "installment",
+          "payment_schedule": [
+            { "amount": 84000, "due_date": "2026-05-01" },
+            { "amount": 84000, "due_date": "2026-11-01" }
+          ]
+        }
+      ]
+    },
     "user": {
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "display_name": "张三",
@@ -3208,6 +3335,7 @@
 | 字段 | 状态 |
 |------|------|
 | `profile`、`tasks`、`upcoming_training`、`last_training_archive` | 已实现 |
+| `contracts.items` | 已实现：与 **§16.4** `data.items` 字段一致（当前学员全部合同，`created_at` 倒序）；查询失败时 `items` 为空且 `warnings` 含 `contracts_unavailable` |
 | `theory_summary`、`subject_progress` | 已返回结构，当前后端统计可能为简化/占位，可后续对接 §8、大纲科目接口 |
 | `user`、`community_posts`、`featured_articles`、`warnings` | **已实现**：`user` 来自 `users`；`community_posts` 为广场 `global` 前 N 条（见 `posts_limit`）；`featured_articles` 为理论文档列表前 N 条（`cover_image_url` 暂空）；子块失败时 `warnings` 含如 `community_posts_unavailable` |
 | `weather_snippet`、`featured_products`、`notifications`、`events` | **未实现**：当前为 `null` 或空数组 |

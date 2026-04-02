@@ -565,3 +565,47 @@ func (r *TrainingRecordRepo) UpdateStatus(ctx context.Context, id string, status
 	_, err := r.db.Pool.Exec(ctx, `UPDATE training_records SET status = $2::training_record_status, updated_at = NOW() WHERE id = $1::uuid`, id, string(status))
 	return err
 }
+
+// AggregateStudentStats 汇总学员有效训练记录（排除 status=deleted）。
+func (r *TrainingRecordRepo) AggregateStudentStats(ctx context.Context, studentID string) (flownMinutes int, normalCount int, hasNight bool, hasCrossCountry bool, err error) {
+	var sum sql.NullInt64
+	var cnt int64
+	var night, xc sql.NullBool
+	err = r.db.Pool.QueryRow(ctx, `
+		SELECT
+			COALESCE(SUM(CASE WHEN status = 'normal' THEN COALESCE(flight_duration_minutes, 0) ELSE 0 END), 0)::bigint,
+			COUNT(*) FILTER (WHERE status = 'normal'),
+			COALESCE(BOOL_OR(
+				status = 'normal' AND (
+					LOWER(COALESCE(flight_type, '')) LIKE '%夜%'
+					OR LOWER(COALESCE(flight_type, '')) LIKE '%night%'
+					OR LOWER(COALESCE(task_type, '')) LIKE '%夜%'
+					OR LOWER(COALESCE(task_type, '')) LIKE '%night%'
+				)
+			), false),
+			COALESCE(BOOL_OR(status = 'normal' AND NOT is_local), false)
+		FROM training_records
+		WHERE student_id = $1::uuid
+		  AND status <> 'deleted'`,
+		studentID,
+	).Scan(&sum, &cnt, &night, &xc)
+	if err != nil {
+		return 0, 0, false, false, err
+	}
+	if sum.Valid {
+		v := sum.Int64
+		if v > int64(math.MaxInt32) {
+			flownMinutes = math.MaxInt32
+		} else {
+			flownMinutes = int(v)
+		}
+	}
+	normalCount = int(cnt)
+	if night.Valid {
+		hasNight = night.Bool
+	}
+	if xc.Valid {
+		hasCrossCountry = xc.Bool
+	}
+	return flownMinutes, normalCount, hasNight, hasCrossCountry, nil
+}

@@ -156,6 +156,7 @@ func main() {
 		pgDB.Instructor(),
 		pgDB.Aircraft(),
 		pgDB.TrainingRecord(),
+		pgDB.Contract(),
 		trainingUC,
 		communityUC,
 		theoryUC,
@@ -164,6 +165,12 @@ func main() {
 	personnelUC := usecase.NewPersonnelUseCase(pgDB.Personnel(), pgDB.User(), pgDB.Student(), pgDB.Instructor())
 	personnelHandler := handler.NewPersonnelHandler(personnelUC)
 	studentImportUC := usecase.NewStudentImportUseCase(pgDB.Student(), pgDB.Instructor())
+	studentTrainingSummaryUC := usecase.NewStudentTrainingSummaryUseCase(
+		pgDB.Student(),
+		pgDB.Contract(),
+		pgDB.TrainingRecord(),
+		pgDB.Instructor(),
+	)
 	studentHandler := handler.NewStudentHandler(
 		pgDB.Student(),
 		pgDB.User(),
@@ -178,6 +185,7 @@ func main() {
 		homeUC,
 		personnelUC,
 		studentImportUC,
+		studentTrainingSummaryUC,
 	)
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor(), pgDB.User(), homeUC)
 

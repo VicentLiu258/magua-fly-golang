@@ -49,6 +49,7 @@ func studentSelectColumns(alias string) string {
 		%[1]straining_progress_json,
 		%[1]sresponsible_instructor_id::text,
 		%[1]sflight_training_status::text,
+		COALESCE(%[1]straining_course,''),
 		%[1]screated_at,
 		%[1]supdated_at`, p)
 }
@@ -82,6 +83,7 @@ func scanStudentFromScanner(scan func(dest ...any) error, s *domain.Student) err
 		&s.TrainingProgressJSON,
 		&s.ResponsibleInstructorID,
 		&s.FlightTrainingStatus,
+		&s.TrainingCourse,
 		&s.CreatedAt,
 		&s.UpdatedAt,
 	)
@@ -207,6 +209,11 @@ func (r *StudentRepo) List(ctx context.Context, p repository.StudentListParams) 
 		args = append(args, fts)
 		argNum++
 	}
+	if tc := strings.TrimSpace(p.TrainingCourse); tc != "" {
+		where = append(where, fmt.Sprintf("s.training_course = $%d", argNum))
+		args = append(args, strings.ToUpper(tc))
+		argNum++
+	}
 	q += joins
 	q += " WHERE " + strings.Join(where, " AND ")
 	q += fmt.Sprintf(" ORDER BY s.id LIMIT $%d OFFSET $%d", argNum, argNum+1)
@@ -255,7 +262,8 @@ func (r *StudentRepo) Create(ctx context.Context, s *domain.Student) error {
 			training_progress,
 			training_progress_json,
 			responsible_instructor_id,
-			flight_training_status
+			flight_training_status,
+			training_course
 		)
 		VALUES (
 			$1::uuid, $2, $3, NULLIF(TRIM($4),''),
@@ -263,7 +271,8 @@ func (r *StudentRepo) Create(ctx context.Context, s *domain.Student) error {
 			NULLIF(TRIM($8),''), NULLIF(TRIM($9),''), NULLIF(TRIM($10),''), NULLIF(TRIM($11),''),
 			NULLIF(TRIM($12),''), NULLIF(TRIM($13),''), NULLIF(TRIM($14),''),
 			NULLIF(TRIM($15),''), NULLIF(TRIM($16),''), NULLIF(TRIM($17),''), $18,
-			$19, $20, $21, $22, $23, $24::uuid, $25::student_flight_training_status
+			$19, $20, $21, $22, $23, $24::uuid, $25::student_flight_training_status,
+			NULLIF(TRIM($26),'')
 		)
 		RETURNING id::text, created_at, updated_at`,
 		nullUUID(s.UserID),
@@ -291,6 +300,7 @@ func (r *StudentRepo) Create(ctx context.Context, s *domain.Student) error {
 		s.TrainingProgressJSON,
 		nullUUID(s.ResponsibleInstructorID),
 		flightTrainingStatusOrDefault(s.FlightTrainingStatus),
+		nullTrainingCourse(s.TrainingCourse),
 	).Scan(&s.ID, &s.CreatedAt, &s.UpdatedAt)
 }
 
@@ -322,6 +332,7 @@ func (r *StudentRepo) Update(ctx context.Context, s *domain.Student) error {
 		    training_progress_json=$24,
 		    responsible_instructor_id=$25::uuid,
 		    flight_training_status=$26::student_flight_training_status,
+		    training_course=$27,
 		    updated_at=NOW()
 		WHERE id=$1::uuid AND deleted_at IS NULL`,
 		s.ID,
@@ -350,8 +361,17 @@ func (r *StudentRepo) Update(ctx context.Context, s *domain.Student) error {
 		s.TrainingProgressJSON,
 		nullUUID(s.ResponsibleInstructorID),
 		flightTrainingStatusOrDefault(s.FlightTrainingStatus),
+		nullTrainingCourse(s.TrainingCourse),
 	)
 	return err
+}
+
+func nullTrainingCourse(s string) interface{} {
+	v := strings.TrimSpace(strings.ToUpper(s))
+	if v == "" {
+		return nil
+	}
+	return v
 }
 
 func flightTrainingStatusOrDefault(s domain.FlightTrainingStatus) string {

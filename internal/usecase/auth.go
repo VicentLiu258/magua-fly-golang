@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/pkg/jwt"
@@ -278,4 +281,97 @@ func (u *AuthUseCase) ensureProfileForUser(ctx context.Context, user *domain.Use
 	default:
 		return nil
 	}
+}
+
+// GetMe 返回当前账号信息（不含密码哈希）。
+func (u *AuthUseCase) GetMe(ctx context.Context, userID string) (*domain.User, error) {
+	user, err := u.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	user.PasswordHash = ""
+	return user, nil
+}
+
+// UpdateProfileRequest 用户自助更新资料（不可修改 role、employment_status，该两项仅管理员通过人员管理接口维护）。
+type UpdateProfileRequest struct {
+	Username  string `json:"username"`
+	Phone     string `json:"phone"`
+	Email     string `json:"email"`
+	AvatarURL string `json:"avatar_url"`
+	Password  string `json:"password"`
+}
+
+// UpdateProfile 更新当前用户资料。
+func (u *AuthUseCase) UpdateProfile(ctx context.Context, userID string, req UpdateProfileRequest) (*domain.User, error) {
+	user, err := u.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if req.Username != "" {
+		if err := u.checkUsernameAvailableForProfile(ctx, req.Username, user.ID); err != nil {
+			return nil, err
+		}
+		user.Username = strings.TrimSpace(req.Username)
+	}
+	if req.Phone != "" {
+		if err := u.checkPhoneAvailable(ctx, req.Phone, user.ID); err != nil {
+			return nil, err
+		}
+		user.Phone = strings.TrimSpace(req.Phone)
+	}
+	if req.Email != "" {
+		user.Email = strings.TrimSpace(req.Email)
+	}
+	if req.AvatarURL != "" {
+		user.AvatarURL = strings.TrimSpace(req.AvatarURL)
+	}
+	if req.Password != "" {
+		h, err := password.Hash(req.Password)
+		if err != nil {
+			return nil, err
+		}
+		user.PasswordHash = h
+	}
+	if err := u.userRepo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+	user.PasswordHash = ""
+	return user, nil
+}
+
+func (u *AuthUseCase) checkUsernameAvailableForProfile(ctx context.Context, username, excludeUserID string) error {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return nil
+	}
+	other, err := u.userRepo.GetByUsername(ctx, username)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if excludeUserID != "" && other.ID == excludeUserID {
+		return nil
+	}
+	return ErrUsernameConflict
+}
+
+func (u *AuthUseCase) checkPhoneAvailable(ctx context.Context, phone, excludeUserID string) error {
+	phone = strings.TrimSpace(phone)
+	if phone == "" {
+		return nil
+	}
+	other, err := u.userRepo.GetByPhone(ctx, phone)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if excludeUserID != "" && other.ID == excludeUserID {
+		return nil
+	}
+	return ErrPhoneConflict
 }

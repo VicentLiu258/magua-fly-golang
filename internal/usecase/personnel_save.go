@@ -38,6 +38,8 @@ type SavePersonnelRequest struct {
 	TrainingProgress        string          `json:"training_progress"`
 	ResponsibleInstructorID *string         `json:"responsible_instructor_id"`
 	FlightTrainingStatus    string          `json:"flight_training_status"`
+	// TrainingCourse 训练课程 SPL / PPL / FD；nil 表示创建/更新时不修改该字段；指向空字符串表示清空。
+	TrainingCourse          *string         `json:"training_course"`
 	ContractInfo            json.RawMessage `json:"contract_info"`
 	TrainingProgressJSON    json.RawMessage `json:"training_progress_json"`
 	// EmploymentStatus 任职状态：active | resigned | part_time；空表示新建默认 active，更新时不改。
@@ -191,6 +193,15 @@ func (u *PersonnelUseCase) createStudent(ctx context.Context, req *SavePersonnel
 	} else {
 		s.FlightTrainingStatus = domain.FlightTrainingInProgress
 	}
+	if req.TrainingCourse != nil {
+		t := strings.TrimSpace(*req.TrainingCourse)
+		if t != "" {
+			if _, ok := domain.ParseTrainingCourse(t); !ok {
+				return nil, ErrInvalidArgument
+			}
+			s.TrainingCourse = strings.ToUpper(t)
+		}
+	}
 	if err := u.studentRepo.Create(ctx, s); err != nil {
 		return nil, err
 	}
@@ -226,6 +237,16 @@ func (u *PersonnelUseCase) updateStudent(ctx context.Context, studentID string, 
 	if t := strings.TrimSpace(req.FlightTrainingStatus); t != "" {
 		if fs, ok := domain.ParseFlightTrainingStatus(t); ok {
 			s.FlightTrainingStatus = fs
+		} else {
+			return nil, ErrInvalidArgument
+		}
+	}
+	if req.TrainingCourse != nil {
+		t := strings.TrimSpace(*req.TrainingCourse)
+		if t == "" {
+			s.TrainingCourse = ""
+		} else if _, ok := domain.ParseTrainingCourse(t); ok {
+			s.TrainingCourse = strings.ToUpper(t)
 		} else {
 			return nil, ErrInvalidArgument
 		}

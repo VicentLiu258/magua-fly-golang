@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/middleware"
 	"magua-fly-golang/internal/pkg/studentcontract"
@@ -33,6 +35,7 @@ type StudentHandler struct {
 	homeUC           *usecase.HomeUseCase
 	personnelUC      *usecase.PersonnelUseCase
 	studentImportUC  *usecase.StudentImportUseCase
+	trainingSummaryUC *usecase.StudentTrainingSummaryUseCase
 }
 
 // NewStudentHandler creates a StudentHandler.
@@ -50,21 +53,23 @@ func NewStudentHandler(
 	homeUC *usecase.HomeUseCase,
 	personnelUC *usecase.PersonnelUseCase,
 	studentImportUC *usecase.StudentImportUseCase,
+	trainingSummaryUC *usecase.StudentTrainingSummaryUseCase,
 ) *StudentHandler {
 	return &StudentHandler{
-		studentRepo:     studentRepo,
-		userRepo:        userRepo,
-		taskRepo:        taskRepo,
-		archiveRepo:     archiveRepo,
-		planRepo:        planRepo,
-		instrRepo:       instrRepo,
-		aircraftRepo:    aircraftRepo,
-		theoryRepo:      theoryRepo,
-		contractRepo:    contractRepo,
-		trainingUC:      trainingUC,
-		homeUC:          homeUC,
-		personnelUC:     personnelUC,
-		studentImportUC: studentImportUC,
+		studentRepo:       studentRepo,
+		userRepo:          userRepo,
+		taskRepo:          taskRepo,
+		archiveRepo:       archiveRepo,
+		planRepo:          planRepo,
+		instrRepo:         instrRepo,
+		aircraftRepo:      aircraftRepo,
+		theoryRepo:        theoryRepo,
+		contractRepo:      contractRepo,
+		trainingUC:        trainingUC,
+		homeUC:            homeUC,
+		personnelUC:       personnelUC,
+		studentImportUC:   studentImportUC,
+		trainingSummaryUC: trainingSummaryUC,
 	}
 }
 
@@ -77,7 +82,7 @@ func (h *StudentHandler) List(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
-	var keyword, responsibleInstructorID, flightTrainingStatus string
+	var keyword, responsibleInstructorID, flightTrainingStatus, trainingCourse string
 	if len(bytes.TrimSpace(raw)) > 0 {
 		var body struct {
 			Limit                   int    `json:"limit"`
@@ -85,6 +90,7 @@ func (h *StudentHandler) List(c *gin.Context) {
 			Keyword                 string `json:"keyword"`
 			ResponsibleInstructorID string `json:"responsible_instructor_id"`
 			FlightTrainingStatus    string `json:"flight_training_status"`
+			TrainingCourse          string `json:"training_course"`
 		}
 		if err := json.Unmarshal(raw, &body); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
@@ -104,6 +110,13 @@ func (h *StudentHandler) List(c *gin.Context) {
 		keyword = body.Keyword
 		responsibleInstructorID = body.ResponsibleInstructorID
 		flightTrainingStatus = body.FlightTrainingStatus
+		trainingCourse = body.TrainingCourse
+	}
+	if trainingCourse != "" {
+		if _, ok := domain.ParseTrainingCourse(trainingCourse); !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid training_course", "data": nil})
+			return
+		}
 	}
 	if flightTrainingStatus != "" {
 		if _, ok := domain.ParseFlightTrainingStatus(flightTrainingStatus); !ok {
@@ -122,6 +135,7 @@ func (h *StudentHandler) List(c *gin.Context) {
 		Keyword:                 keyword,
 		ResponsibleInstructorID: responsibleInstructorID,
 		FlightTrainingStatus:    flightTrainingStatus,
+		TrainingCourse:          trainingCourse,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
@@ -150,6 +164,7 @@ func (h *StudentHandler) List(c *gin.Context) {
 			Name string `json:"name"`
 		} `json:"responsible_instructor,omitempty"`
 		FlightTrainingStatus string    `json:"flight_training_status,omitempty"`
+		TrainingCourse       string    `json:"training_course,omitempty"`
 		CreatedAt            time.Time `json:"created_at"`
 		UpdatedAt            time.Time `json:"updated_at"`
 	}
@@ -168,6 +183,7 @@ func (h *StudentHandler) List(c *gin.Context) {
 			TrainingProgressJSON:    s.TrainingProgressJSON,
 			ResponsibleInstructorID: s.ResponsibleInstructorID,
 			FlightTrainingStatus:    string(s.FlightTrainingStatus),
+			TrainingCourse:          s.TrainingCourse,
 			CreatedAt:               s.CreatedAt,
 			UpdatedAt:               s.UpdatedAt,
 		}
@@ -206,6 +222,7 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 		Keyword                 string `json:"keyword"`
 		ResponsibleInstructorID string `json:"responsible_instructor_id"`
 		FlightTrainingStatus    string `json:"flight_training_status"`
+		TrainingCourse          string `json:"training_course"`
 		Page                    int    `json:"page"`
 		PageSize                int    `json:"page_size"`
 	}
@@ -216,6 +233,12 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 	if body.FlightTrainingStatus != "" {
 		if _, ok := domain.ParseFlightTrainingStatus(body.FlightTrainingStatus); !ok {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid flight_training_status", "data": nil})
+			return
+		}
+	}
+	if body.TrainingCourse != "" {
+		if _, ok := domain.ParseTrainingCourse(body.TrainingCourse); !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid training_course", "data": nil})
 			return
 		}
 	}
@@ -235,6 +258,7 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 		Keyword:                 body.Keyword,
 		ResponsibleInstructorID: body.ResponsibleInstructorID,
 		FlightTrainingStatus:    body.FlightTrainingStatus,
+		TrainingCourse:          body.TrainingCourse,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
@@ -256,6 +280,7 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 		RemainingMinutes        *int   `json:"remaining_minutes,omitempty"`
 		TrainingProgress        string `json:"training_progress"`
 		FlightTrainingStatus    string `json:"flight_training_status,omitempty"`
+		TrainingCourse          string `json:"training_course,omitempty"`
 		ResponsibleInstructor   *struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
@@ -273,6 +298,7 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 			FlownMinutes:            s.FlownMinutes,
 			TrainingProgress:        s.TrainingProgress,
 			FlightTrainingStatus:    string(s.FlightTrainingStatus),
+			TrainingCourse:          s.TrainingCourse,
 		}
 		if s.ContractDurationMinutes != nil {
 			rem := *s.ContractDurationMinutes - s.FlownMinutes
@@ -410,6 +436,7 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 			"remaining_minutes":         remaining,
 			"training_progress":         s.TrainingProgress,
 			"flight_training_status":    string(s.FlightTrainingStatus),
+			"training_course":           s.TrainingCourse,
 		},
 		"account": gin.H{
 			"username":           username,
@@ -591,35 +618,7 @@ func (h *StudentHandler) AdminContractsListByStudent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
-	var items []gin.H
-	for _, ct := range list {
-		item := gin.H{
-			"id":               ct.ID,
-			"contract_no":      ct.ContractNo,
-			"total_minutes":      ct.TotalMinutes,
-			"price_total":        ct.PriceTotal,
-			"currency":           ct.Currency,
-			"status":             ct.Status,
-			"payment_mode":       ct.PaymentMode,
-			"payment_schedule":   ct.PaymentSchedule,
-		}
-		if ct.SignDate != nil {
-			item["sign_date"] = ct.SignDate.Format("2006-01-02")
-		} else {
-			item["sign_date"] = nil
-		}
-		if ct.StartDate != nil {
-			item["start_date"] = ct.StartDate.Format("2006-01-02")
-		} else {
-			item["start_date"] = nil
-		}
-		if ct.EndDate != nil {
-			item["end_date"] = ct.EndDate.Format("2006-01-02")
-		} else {
-			item["end_date"] = nil
-		}
-		items = append(items, item)
-	}
+	items := usecase.ContractListItemsForAPI(list)
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"msg":  "ok",
@@ -722,6 +721,197 @@ func (h *StudentHandler) MyHome(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": data})
+}
+
+// MyTrainingSummary 学员本人训练信息汇总 POST /api/v1/students/my-training-summary
+func (h *StudentHandler) MyTrainingSummary(c *gin.Context) {
+	claims := middleware.GetGinClaims(c)
+	if claims == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
+		return
+	}
+	if domain.UserRole(claims.Role) != domain.RoleStudent {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "forbidden", "data": nil})
+		return
+	}
+	if h.trainingSummaryUC == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "training summary not configured", "data": nil})
+		return
+	}
+	s, err := h.studentRepo.GetByUserID(c.Request.Context(), claims.UserID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "student not found", "data": nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	if s == nil {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "student not found", "data": nil})
+		return
+	}
+	data, err := h.trainingSummaryUC.Build(c.Request.Context(), s.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": data})
+}
+
+// TrainingSummaryDetail 职员/教员查看某学员训练汇总 POST /api/v1/students/training-summary/detail
+func (h *StudentHandler) TrainingSummaryDetail(c *gin.Context) {
+	claims := middleware.GetGinClaims(c)
+	if claims == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
+		return
+	}
+	if !isStaffLikeRole(claims.Role) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "forbidden", "data": nil})
+		return
+	}
+	if h.trainingSummaryUC == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "training summary not configured", "data": nil})
+		return
+	}
+	var body struct {
+		StudentID string `json:"student_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	data, err := h.trainingSummaryUC.Build(c.Request.Context(), body.StudentID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "student not found", "data": nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": data})
+}
+
+// AdminTrainingSummarySave 管理员更新学员训练概要 POST /api/v1/admin/students/training-summary/save
+func (h *StudentHandler) AdminTrainingSummarySave(c *gin.Context) {
+	if h.trainingSummaryUC == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "training summary not configured", "data": nil})
+		return
+	}
+	var body struct {
+		StudentID               string  `json:"student_id" binding:"required"`
+		TrainingCourse          *string `json:"training_course"`
+		FlightTrainingStatus    *string `json:"flight_training_status"`
+		ResponsibleInstructorID *string `json:"responsible_instructor_id"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	req := &usecase.SaveStudentTrainingProfileRequest{
+		TrainingCourse:          body.TrainingCourse,
+		FlightTrainingStatus:    body.FlightTrainingStatus,
+		ResponsibleInstructorID: body.ResponsibleInstructorID,
+	}
+	s, err := h.trainingSummaryUC.SaveProfile(c.Request.Context(), body.StudentID, req)
+	if err != nil {
+		if errors.Is(err, usecase.ErrInvalidArgument) {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+			return
+		}
+		if errors.Is(err, usecase.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "not found", "data": nil})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": s})
+}
+
+// AdminTrainingSummaryDeleteCourse 管理员清空训练课程阶段 POST /api/v1/admin/students/training-summary/delete
+func (h *StudentHandler) AdminTrainingSummaryDeleteCourse(c *gin.Context) {
+	if h.trainingSummaryUC == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "training summary not configured", "data": nil})
+		return
+	}
+	var body struct {
+		StudentID string `json:"student_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	if err := h.trainingSummaryUC.ClearTrainingCourse(c.Request.Context(), body.StudentID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": nil})
+}
+
+// AdminTrainingSummariesList 管理员分页查询学员训练汇总列表 POST /api/v1/admin/students/training-summaries/list
+func (h *StudentHandler) AdminTrainingSummariesList(c *gin.Context) {
+	if h.trainingSummaryUC == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "training summary not configured", "data": nil})
+		return
+	}
+	var body struct {
+		Keyword                 string `json:"keyword"`
+		ResponsibleInstructorID string `json:"responsible_instructor_id"`
+		FlightTrainingStatus    string `json:"flight_training_status"`
+		TrainingCourse          string `json:"training_course"`
+		Page                    int    `json:"page"`
+		PageSize                int    `json:"page_size"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	if body.FlightTrainingStatus != "" {
+		if _, ok := domain.ParseFlightTrainingStatus(body.FlightTrainingStatus); !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid flight_training_status", "data": nil})
+			return
+		}
+	}
+	if body.TrainingCourse != "" {
+		if _, ok := domain.ParseTrainingCourse(body.TrainingCourse); !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid training_course", "data": nil})
+			return
+		}
+	}
+	if body.Page <= 0 {
+		body.Page = 1
+	}
+	if body.PageSize <= 0 || body.PageSize > 50 {
+		body.PageSize = 20
+	}
+	limit := body.PageSize
+	offset := (body.Page - 1) * body.PageSize
+	list, err := h.studentRepo.List(c.Request.Context(), repository.StudentListParams{
+		Limit:                   limit,
+		Offset:                  offset,
+		OnlyActiveEmployment:    false,
+		Keyword:                 body.Keyword,
+		ResponsibleInstructorID: body.ResponsibleInstructorID,
+		FlightTrainingStatus:    body.FlightTrainingStatus,
+		TrainingCourse:          body.TrainingCourse,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+		return
+	}
+	ctx := c.Request.Context()
+	out := make([]interface{}, 0, len(list))
+	for _, s := range list {
+		sum, err := h.trainingSummaryUC.Build(ctx, s.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
+			return
+		}
+		out = append(out, sum)
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": gin.H{"items": out}})
 }
 
 func isStaffLikeRole(role string) bool {

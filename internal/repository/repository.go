@@ -26,7 +26,7 @@ type UserRepository interface {
 	ListByRoles(ctx context.Context, roles []domain.UserRole) ([]*domain.User, error)
 }
 
-// StudentListParams 学员分页列表；Keyword 按姓名或学号模糊匹配；ResponsibleInstructorID、FlightTrainingStatus 非空时精确过滤。
+// StudentListParams 学员分页列表；Keyword 按姓名或学号模糊匹配；ResponsibleInstructorID、FlightTrainingStatus、TrainingCourse 非空时精确过滤。
 type StudentListParams struct {
 	Limit                   int
 	Offset                  int
@@ -34,6 +34,7 @@ type StudentListParams struct {
 	Keyword                 string
 	ResponsibleInstructorID string
 	FlightTrainingStatus    string
+	TrainingCourse          string
 }
 
 // StudentRepository defines student persistence.
@@ -161,6 +162,8 @@ type TrainingRecordRepository interface {
 	UpdateStatus(ctx context.Context, id string, status domain.TrainingRecordStatus) error
 	// AllocateRecordSerialNo 按 training_date 所在自然日递增并返回 TR+YYYYMMDD+三位序号。
 	AllocateRecordSerialNo(ctx context.Context, trainingDate time.Time) (string, error)
+	// AggregateStudentStats 按学员汇总有效训练记录：已飞分钟、正常条数、是否含夜航/转场（启发式规则与首页统计一致）。
+	AggregateStudentStats(ctx context.Context, studentID string) (flownMinutes int, normalCount int, hasNight bool, hasCrossCountry bool, err error)
 }
 
 // TrainingArchiveRepository defines training archive persistence.

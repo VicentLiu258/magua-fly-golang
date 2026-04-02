@@ -61,6 +61,26 @@ const (
 	FlightTrainingTerminated FlightTrainingStatus = "terminated"  // 已终止
 )
 
+// TrainingCourse 训练课程阶段（students.training_course）。
+type TrainingCourse string
+
+const (
+	TrainingCourseSPL TrainingCourse = "SPL"
+	TrainingCoursePPL TrainingCourse = "PPL"
+	TrainingCourseFD  TrainingCourse = "FD"
+)
+
+// ParseTrainingCourse 解析 API 训练课程码。
+func ParseTrainingCourse(s string) (TrainingCourse, bool) {
+	t := strings.TrimSpace(strings.ToUpper(s))
+	switch TrainingCourse(t) {
+	case TrainingCourseSPL, TrainingCoursePPL, TrainingCourseFD:
+		return TrainingCourse(t), true
+	default:
+		return "", false
+	}
+}
+
 // ParseFlightTrainingStatus 解析 API/DB 学飞状态码。
 func ParseFlightTrainingStatus(s string) (FlightTrainingStatus, bool) {
 	t := strings.TrimSpace(s)
@@ -142,6 +162,8 @@ type Student struct {
 	TrainingProgressJSON    []byte               `json:"training_progress_json,omitempty"`
 	ResponsibleInstructorID *string              `json:"responsible_instructor_id,omitempty"`
 	FlightTrainingStatus    FlightTrainingStatus `json:"flight_training_status,omitempty"`
+	// TrainingCourse 训练课程阶段 SPL / PPL / FD（空表示未指定）
+	TrainingCourse          string               `json:"training_course,omitempty"`
 	CreatedAt               time.Time            `json:"created_at"`
 	UpdatedAt               time.Time            `json:"updated_at"`
 }
