@@ -73,6 +73,9 @@ func main() {
 		pgDB.TrainingArchiveSubject(),
 		pgDB.NextTrainingSubject(),
 		pgDB.Task(),
+		pgDB.Student(),
+		pgDB.Instructor(),
+		pgDB.Aircraft(),
 	)
 	aircraftAvatarGridFS, err := mongoClient.NewGridFSBucket("aircraft_avatars")
 	if err != nil {

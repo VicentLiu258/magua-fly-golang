@@ -53,6 +53,8 @@ type InstructorRepository interface {
 	GetByUserID(ctx context.Context, userID string) (*domain.Instructor, error)
 	// List onlyActiveEmployment：true 时仅返回关联用户为在职的教员。
 	List(ctx context.Context, onlyActiveEmployment bool) ([]*domain.Instructor, error)
+	// ListByExactName 按姓名精确匹配（未删除），用于 CSV 等导入；多条时由调用方判重。
+	ListByExactName(ctx context.Context, name string) ([]*domain.Instructor, error)
 	Create(ctx context.Context, i *domain.Instructor) error
 	Update(ctx context.Context, i *domain.Instructor) error
 }
@@ -67,6 +69,7 @@ type PersonnelRepository interface {
 // AircraftRepository defines aircraft persistence.
 type AircraftRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Aircraft, error)
+	GetByCode(ctx context.Context, code string) (*domain.Aircraft, error)
 	List(ctx context.Context) ([]*domain.Aircraft, error)
 	Create(ctx context.Context, a *domain.Aircraft) error
 	Update(ctx context.Context, id string, name, status *string) error
@@ -150,6 +153,8 @@ type TrainingRecordRepository interface {
 	Create(ctx context.Context, r *domain.TrainingRecord) error
 	Update(ctx context.Context, r *domain.TrainingRecord) error
 	UpdateStatus(ctx context.Context, id string, status domain.TrainingRecordStatus) error
+	// AllocateRecordSerialNo 按 training_date 所在自然日递增并返回 TR+YYYYMMDD+三位序号。
+	AllocateRecordSerialNo(ctx context.Context, trainingDate time.Time) (string, error)
 }
 
 // TrainingArchiveRepository defines training archive persistence.

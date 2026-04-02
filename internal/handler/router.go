@@ -81,6 +81,8 @@ func Router(
 		authGroup.POST("/api/v1/training-records/delete", training.DeleteRecord)
 		authGroup.POST("/api/v1/training-records/list", training.ListRecords)
 		authGroup.POST("/api/v1/training-records/export", training.ExportRecordsCSV)
+		authGroup.POST("/api/v1/training-records/import/template", training.ImportTemplateCSV)
+		authGroup.POST("/api/v1/training-records/import/csv", training.ImportCSVFile)
 		authGroup.POST("/api/v1/training-records/import", training.ImportRecords)
 		authGroup.POST("/api/v1/training-records/claim", training.ClaimImport)
 		authGroup.POST("/api/v1/training-records/import/pending", training.ListPendingImports)

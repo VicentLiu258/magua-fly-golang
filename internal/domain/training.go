@@ -50,6 +50,14 @@ type TrainingRecord struct {
 	TaskType               string                `json:"task_type,omitempty"`
 	Landings               *int                  `json:"landings,omitempty"`
 	TrainingPlanID         string                `json:"training_plan_id,omitempty"`
+	RecordSerialNo         string                `json:"record_serial_no,omitempty"` // TR+YYYYMMDD+序号
+	BusinessType           string                `json:"business_type,omitempty"`
+	EngineStartMeter       *float64              `json:"engine_start_meter,omitempty"`
+	EngineStopMeter        *float64              `json:"engine_stop_meter,omitempty"`
+	VideoTimeliness        string                `json:"video_timeliness,omitempty"`
+	VideoOperator          string                `json:"video_operator,omitempty"`
+	VideoValidity          string                `json:"video_validity,omitempty"`
+	FlightDataRef          string                `json:"flight_data_ref,omitempty"`
 	CreatedAt              time.Time             `json:"created_at"`
 	UpdatedAt              time.Time             `json:"updated_at"`
 }
@@ -92,6 +100,9 @@ type TrainingRecordListResult struct {
 
 // MaxTrainingRecordExportRows 单次 CSV 导出行数上限（避免内存与响应过大）。
 const MaxTrainingRecordExportRows = 50000
+
+// MaxTrainingRecordCSVImportRows 单次 CSV 导入行数上限。
+const MaxTrainingRecordCSVImportRows = 50000
 
 // TrainingRecordCSVHeaders 与业务样稿一致的总表列名（37 列）。
 var TrainingRecordCSVHeaders = []string{

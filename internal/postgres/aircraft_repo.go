@@ -55,6 +55,12 @@ func (r *AircraftRepo) GetByID(ctx context.Context, id string) (*domain.Aircraft
 	)
 }
 
+func (r *AircraftRepo) GetByCode(ctx context.Context, code string) (*domain.Aircraft, error) {
+	return scanAircraftRow(
+		r.db.Pool.QueryRow(ctx, aircraftSelectBase+` WHERE code = $1`, code),
+	)
+}
+
 func (r *AircraftRepo) List(ctx context.Context) ([]*domain.Aircraft, error) {
 	rows, err := r.db.Pool.Query(ctx, aircraftSelectBase+` ORDER BY id`)
 	if err != nil {

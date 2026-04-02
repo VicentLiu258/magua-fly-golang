@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -35,6 +36,9 @@ type TrainingUseCase struct {
 	archiveSubjRepo  repository.TrainingArchiveSubjectRepository
 	nextSubjRepo     repository.NextTrainingSubjectRepository
 	taskRepo         repository.TaskRepository
+	studentRepo      repository.StudentRepository
+	instructorRepo   repository.InstructorRepository
+	aircraftRepo     repository.AircraftRepository
 }
 
 // NewTrainingUseCase 创建 TrainingUseCase
@@ -50,6 +54,9 @@ func NewTrainingUseCase(
 	archiveSubjRepo repository.TrainingArchiveSubjectRepository,
 	nextSubjRepo repository.NextTrainingSubjectRepository,
 	taskRepo repository.TaskRepository,
+	studentRepo repository.StudentRepository,
+	instructorRepo repository.InstructorRepository,
+	aircraftRepo repository.AircraftRepository,
 ) *TrainingUseCase {
 	return &TrainingUseCase{
 		recordRepo:       recordRepo,
@@ -63,6 +70,9 @@ func NewTrainingUseCase(
 		archiveSubjRepo:  archiveSubjRepo,
 		nextSubjRepo:     nextSubjRepo,
 		taskRepo:         taskRepo,
+		studentRepo:      studentRepo,
+		instructorRepo:   instructorRepo,
+		aircraftRepo:     aircraftRepo,
 	}
 }
 
@@ -89,6 +99,22 @@ type AdminCreateSyllabusSubjectInput struct {
 
 // CreateRecord 创建训练记录（基础录入）
 func (u *TrainingUseCase) CreateRecord(ctx context.Context, rec *domain.TrainingRecord) error {
+	if rec.Status == "" {
+		rec.Status = domain.RecordStatusNormal
+	}
+	if rec.Departure == "" {
+		rec.Departure = "莲洲"
+	}
+	if rec.Destination == "" {
+		rec.Destination = "莲洲"
+	}
+	if rec.RecordSerialNo == "" && rec.Status != domain.RecordStatusDraft {
+		s, err := u.recordRepo.AllocateRecordSerialNo(ctx, rec.TrainingDate)
+		if err != nil {
+			return err
+		}
+		rec.RecordSerialNo = s
+	}
 	return u.recordRepo.Create(ctx, rec)
 }
 
@@ -126,6 +152,17 @@ func (u *TrainingUseCase) GetRecord(ctx context.Context, id string) (*domain.Tra
 
 // UpdateRecord 更新记录
 func (u *TrainingUseCase) UpdateRecord(ctx context.Context, rec *domain.TrainingRecord) error {
+	prev, err := u.recordRepo.GetByID(ctx, rec.ID)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(rec.RecordSerialNo) == "" && prev != nil && strings.TrimSpace(prev.RecordSerialNo) == "" && rec.Status == domain.RecordStatusNormal {
+		s, err := u.recordRepo.AllocateRecordSerialNo(ctx, rec.TrainingDate)
+		if err != nil {
+			return err
+		}
+		rec.RecordSerialNo = s
+	}
 	return u.recordRepo.Update(ctx, rec)
 }
 
@@ -184,7 +221,7 @@ func (u *TrainingUseCase) ClaimImport(ctx context.Context, rawImportID string, s
 		return nil, nil // 已认领，可返回错误或已存在记录
 	}
 	rec := &domain.TrainingRecord{
-		StudentID:            studentID,
+		StudentID:             studentID,
 		InstructorID:          instructorID,
 		AircraftID:            aircraftID,
 		ImportSource:          domain.ImportImport,
@@ -202,22 +239,29 @@ func (u *TrainingUseCase) ClaimImport(ctx context.Context, rawImportID string, s
 	} else {
 		rec.TrainingDate = time.Now().Truncate(24 * time.Hour)
 	}
-	if err := u.recordRepo.Create(ctx, rec); err != nil {
+	applyRawImportPayloadToRecord(raw.RawData, rec)
+	if rec.Departure == "" {
+		rec.Departure = "莲洲"
+	}
+	if rec.Destination == "" {
+		rec.Destination = "莲洲"
+	}
+	if err := u.CreateRecord(ctx, rec); err != nil {
 		return nil, err
 	}
 	if err := u.rawImportRepo.SetTrainingRecordID(ctx, rawImportID, rec.ID); err != nil {
 		return nil, err
 	}
-	// 可选：创建 training_archives
 	archive := &domain.TrainingArchive{
-		TrainingRecordID:       rec.ID,
-		StudentID:              rec.StudentID,
-		InstructorID:           rec.InstructorID,
-		TrainingDate:           rec.TrainingDate,
-		EngineOnTime:           rec.EngineOnTime,
-		EngineOffTime:          rec.EngineOffTime,
-		FlightDurationMinutes:  rec.FlightDurationMinutes,
+		TrainingRecordID:      rec.ID,
+		StudentID:             rec.StudentID,
+		InstructorID:          rec.InstructorID,
+		TrainingDate:          rec.TrainingDate,
+		EngineOnTime:          rec.EngineOnTime,
+		EngineOffTime:         rec.EngineOffTime,
+		FlightDurationMinutes: rec.FlightDurationMinutes,
 	}
+	applyRawImportPayloadToArchive(raw.RawData, archive)
 	_ = u.archiveRepo.Create(ctx, archive)
 	return rec, nil
 }
@@ -656,17 +700,31 @@ func (u *TrainingUseCase) resolveSyllabusSubjectIDForNextTraining(ctx context.Co
 	return sec.SyllabusSubjectID, nil
 }
 
-// TrainingRecordFieldsConfig 返回录入字段配置（静态）
+// TrainingRecordFieldsConfig 返回录入字段配置（静态，与图一总表及 JSON 字段 key 对齐）
 func TrainingRecordFieldsConfig() ([]byte, error) {
 	cfg := []map[string]interface{}{
+		{"key": "record_serial_no", "label": "记录编号", "type": "string", "readonly": true, "hint": "TR+YYYYMMDD+序号，创建时自动生成"},
 		{"key": "student_id", "label": "学员", "type": "select", "required": true},
-		{"key": "instructor_id", "label": "带飞教员", "type": "select", "required": true},
-		{"key": "training_date", "label": "训练日期", "type": "date", "required": true},
+		{"key": "instructor_id", "label": "飞行教员", "type": "select", "required": true},
+		{"key": "aircraft_id", "label": "机号", "type": "select", "required": true},
+		{"key": "training_date", "label": "飞行日期", "type": "date", "required": true},
 		{"key": "training_plan_id", "label": "关联训练计划", "type": "string", "readonly": true},
-		{"key": "engine_on_time", "label": "开车时间", "type": "time"},
-		{"key": "engine_off_time", "label": "关车时间", "type": "time"},
+		{"key": "engine_on_time", "label": "开车时刻", "type": "time", "required": true},
+		{"key": "engine_off_time", "label": "关车时刻", "type": "time", "required": true},
+		{"key": "departure", "label": "始发", "type": "string", "default": "莲洲"},
+		{"key": "destination", "label": "目的", "type": "string", "default": "莲洲"},
+		{"key": "is_local", "label": "本场/转场", "type": "select", "options": []string{"本场", "转场"}, "required": true},
+		{"key": "task_type", "label": "任务类型", "type": "select", "required": true, "options": []string{"训练", "体验", "试飞", "调机", "验证", "内训", "熟练", "娱乐", "评估"}},
+		{"key": "flight_type", "label": "带飞/单飞", "type": "string"},
+		{"key": "business_type", "label": "业务类型", "type": "select", "required": true, "options": []string{"运行消耗", "体验飞行", "学员培训", "试飞体验", "熟练飞行", "趣味飞行", "执照招待", "体验招待", "体验接待", "换时", "员工福利"}},
 		{"key": "flight_duration_minutes", "label": "飞行时长(分钟)", "type": "number"},
-		{"key": "is_local", "label": "本场/转场", "type": "boolean"},
+		{"key": "landings", "label": "起落架次", "type": "number"},
+		{"key": "engine_start_meter", "label": "发动机开车(表读数)", "type": "number", "required": true},
+		{"key": "engine_stop_meter", "label": "发动机关车(表读数)", "type": "number", "required": true},
+		{"key": "video_timeliness", "label": "视频及时", "type": "select", "options": []string{"T+0", "T+1", "T+2", ">T+2"}},
+		{"key": "video_operator", "label": "拍摄人", "type": "select", "options": []string{"罗俊杰", "陈辉"}},
+		{"key": "video_validity", "label": "视频有效", "type": "select", "options": []string{"正常", "异常", "缺失"}},
+		{"key": "flight_data_ref", "label": "飞行数据", "type": "string", "hint": "附件 URL 或存储标识"},
 		{"key": "import_source", "label": "来源", "type": "select", "options": []string{"manual", "import", "schedule"}},
 		{"key": "status", "label": "状态", "type": "select", "options": []string{"draft", "normal", "cancelled", "deleted", "expired"}},
 	}

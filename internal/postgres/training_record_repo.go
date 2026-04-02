@@ -27,17 +27,42 @@ var trainingRecordColumns = `id::text, student_id::text, instructor_id::text, ai
 	planned_duration_minutes, theory_duration_minutes, sim_duration_minutes, COALESCE(syllabus_outline,''), COALESCE(archive_display_no,''),
 	COALESCE(departure,''), COALESCE(destination,''), COALESCE(flight_type,''), COALESCE(task_type,''), landings,
 	COALESCE(training_plan_id::text,''),
+	COALESCE(record_serial_no,''), COALESCE(business_type,''), engine_start_meter, engine_stop_meter,
+	COALESCE(video_timeliness,''), COALESCE(video_operator,''), COALESCE(video_validity,''), COALESCE(flight_data_ref,''),
 	created_at, updated_at`
 
-func (r *TrainingRecordRepo) GetByID(ctx context.Context, id string) (*domain.TrainingRecord, error) {
-	var rec domain.TrainingRecord
-	err := r.db.Pool.QueryRow(ctx, `SELECT `+trainingRecordColumns+` FROM training_records WHERE id = $1::uuid`, id).Scan(
+type trainingRecordScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTrainingRecord(rec *domain.TrainingRecord, sc trainingRecordScanner) error {
+	var emStart, emStop sql.NullFloat64
+	err := sc.Scan(
 		&rec.ID, &rec.StudentID, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
 		&rec.FlightDurationMinutes, &rec.IsLocal, &rec.ImportSource, &rec.RawImportID, &rec.Status,
 		&rec.PlannedDurationMinutes, &rec.TheoryDurationMinutes, &rec.SimDurationMinutes, &rec.SyllabusOutline, &rec.ArchiveDisplayNo,
 		&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings, &rec.TrainingPlanID,
+		&rec.RecordSerialNo, &rec.BusinessType, &emStart, &emStop,
+		&rec.VideoTimeliness, &rec.VideoOperator, &rec.VideoValidity, &rec.FlightDataRef,
 		&rec.CreatedAt, &rec.UpdatedAt,
 	)
+	if err != nil {
+		return err
+	}
+	if emStart.Valid {
+		v := emStart.Float64
+		rec.EngineStartMeter = &v
+	}
+	if emStop.Valid {
+		v := emStop.Float64
+		rec.EngineStopMeter = &v
+	}
+	return nil
+}
+
+func (r *TrainingRecordRepo) GetByID(ctx context.Context, id string) (*domain.TrainingRecord, error) {
+	var rec domain.TrainingRecord
+	err := scanTrainingRecord(&rec, r.db.Pool.QueryRow(ctx, `SELECT `+trainingRecordColumns+` FROM training_records WHERE id = $1::uuid`, id))
 	if err != nil {
 		return nil, err
 	}
@@ -46,13 +71,7 @@ func (r *TrainingRecordRepo) GetByID(ctx context.Context, id string) (*domain.Tr
 
 func (r *TrainingRecordRepo) FindByTrainingPlanID(ctx context.Context, trainingPlanID string) (*domain.TrainingRecord, error) {
 	var rec domain.TrainingRecord
-	err := r.db.Pool.QueryRow(ctx, `SELECT `+trainingRecordColumns+` FROM training_records WHERE training_plan_id = $1::uuid`, trainingPlanID).Scan(
-		&rec.ID, &rec.StudentID, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
-		&rec.FlightDurationMinutes, &rec.IsLocal, &rec.ImportSource, &rec.RawImportID, &rec.Status,
-		&rec.PlannedDurationMinutes, &rec.TheoryDurationMinutes, &rec.SimDurationMinutes, &rec.SyllabusOutline, &rec.ArchiveDisplayNo,
-		&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings, &rec.TrainingPlanID,
-		&rec.CreatedAt, &rec.UpdatedAt,
-	)
+	err := scanTrainingRecord(&rec, r.db.Pool.QueryRow(ctx, `SELECT `+trainingRecordColumns+` FROM training_records WHERE training_plan_id = $1::uuid`, trainingPlanID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -71,13 +90,7 @@ func (r *TrainingRecordRepo) ListByStudent(ctx context.Context, studentID string
 	var list []*domain.TrainingRecord
 	for rows.Next() {
 		var rec domain.TrainingRecord
-		if err := rows.Scan(
-			&rec.ID, &rec.StudentID, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
-			&rec.FlightDurationMinutes, &rec.IsLocal, &rec.ImportSource, &rec.RawImportID, &rec.Status,
-			&rec.PlannedDurationMinutes, &rec.TheoryDurationMinutes, &rec.SimDurationMinutes, &rec.SyllabusOutline, &rec.ArchiveDisplayNo,
-			&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings, &rec.TrainingPlanID,
-			&rec.CreatedAt, &rec.UpdatedAt,
-		); err != nil {
+		if err := scanTrainingRecord(&rec, rows); err != nil {
 			return nil, err
 		}
 		list = append(list, &rec)
@@ -150,13 +163,7 @@ func (r *TrainingRecordRepo) List(ctx context.Context, filter *domain.TrainingRe
 	var list []*domain.TrainingRecord
 	for rows.Next() {
 		var rec domain.TrainingRecord
-		if err := rows.Scan(
-			&rec.ID, &rec.StudentID, &rec.InstructorID, &rec.AircraftID, &rec.TrainingDate, &rec.EngineOnTime, &rec.EngineOffTime,
-			&rec.FlightDurationMinutes, &rec.IsLocal, &rec.ImportSource, &rec.RawImportID, &rec.Status,
-			&rec.PlannedDurationMinutes, &rec.TheoryDurationMinutes, &rec.SimDurationMinutes, &rec.SyllabusOutline, &rec.ArchiveDisplayNo,
-			&rec.Departure, &rec.Destination, &rec.FlightType, &rec.TaskType, &rec.Landings, &rec.TrainingPlanID,
-			&rec.CreatedAt, &rec.UpdatedAt,
-		); err != nil {
+		if err := scanTrainingRecord(&rec, rows); err != nil {
 			return nil, 0, err
 		}
 		list = append(list, &rec)
@@ -266,6 +273,7 @@ func (r *TrainingRecordRepo) ListForCSVExport(ctx context.Context, filter *domai
 
 	q := fmt.Sprintf(`
 		SELECT
+			COALESCE(NULLIF(tr.record_serial_no, ''), '') AS record_serial_no,
 			COALESCE(NULLIF(tr.archive_display_no, ''), '') AS archive_display_no,
 			tr.training_date,
 			tr.engine_on_time,
@@ -275,6 +283,14 @@ func (r *TrainingRecordRepo) ListForCSVExport(ctx context.Context, filter *domai
 			COALESCE(tr.destination, '') AS destination,
 			tr.is_local,
 			COALESCE(tr.task_type, '') AS task_type,
+			COALESCE(tr.flight_type, '') AS flight_type,
+			COALESCE(tr.business_type, '') AS business_type,
+			tr.engine_start_meter,
+			tr.engine_stop_meter,
+			COALESCE(tr.video_timeliness, '') AS video_timeliness,
+			COALESCE(tr.video_operator, '') AS video_operator,
+			COALESCE(tr.video_validity, '') AS video_validity,
+			COALESCE(tr.flight_data_ref, '') AS flight_data_ref,
 			i.name AS instructor_name,
 			s.name AS student_name,
 			COALESCE(ta.stage, '') AS archive_stage,
@@ -304,10 +320,13 @@ func (r *TrainingRecordRepo) ListForCSVExport(ctx context.Context, filter *domai
 
 	var out [][]string
 	for rows.Next() {
-		var archiveNo string
+		var recordSerial, archiveNo string
 		var trainingDate time.Time
 		var engineOn, engineOff sql.NullTime
-		var aircraftCode, departure, destination, taskType, instructorName, studentName, archiveStage, studentNo, progressNote string
+		var aircraftCode, departure, destination, taskType, flightType, businessType string
+		var emStart, emStop sql.NullFloat64
+		var videoTL, videoOp, videoVal, flightDataRef string
+		var instructorName, studentName, archiveStage, studentNo, progressNote string
 		var flightMin sql.NullInt32
 		var landings sql.NullInt32
 		var planStart, planEnd sql.NullString
@@ -316,15 +335,18 @@ func (r *TrainingRecordRepo) ListForCSVExport(ctx context.Context, filter *domai
 
 		var isLocal bool
 		if err := rows.Scan(
-			&archiveNo, &trainingDate, &engineOn, &engineOff, &aircraftCode, &departure, &destination,
-			&isLocal, &taskType, &instructorName, &studentName, &archiveStage, &studentNo, &progressNote,
+			&recordSerial, &archiveNo, &trainingDate, &engineOn, &engineOff, &aircraftCode, &departure, &destination,
+			&isLocal, &taskType, &flightType, &businessType, &emStart, &emStop,
+			&videoTL, &videoOp, &videoVal, &flightDataRef,
+			&instructorName, &studentName, &archiveStage, &studentNo, &progressNote,
 			&flightMin, &landings, &planStart, &planEnd, &priorCum, &instructorReview,
 		); err != nil {
 			return nil, err
 		}
 		out = append(out, formatTrainingRecordCSVRow(
-			archiveNo, trainingDate, engineOn, engineOff, aircraftCode, departure, destination,
-			isLocal, taskType, instructorName, studentName, archiveStage, studentNo, progressNote,
+			recordSerial, archiveNo, trainingDate, engineOn, engineOff, aircraftCode, departure, destination,
+			isLocal, taskType, flightType, businessType, emStart, emStop, videoTL, videoOp, videoVal, flightDataRef,
+			instructorName, studentName, archiveStage, studentNo, progressNote,
 			flightMin, landings, planStart, planEnd, priorCum, instructorReview,
 		))
 	}
@@ -337,12 +359,15 @@ func (r *TrainingRecordRepo) ListForCSVExport(ctx context.Context, filter *domai
 var chineseWeekdays = []string{"星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"}
 
 func formatTrainingRecordCSVRow(
-	archiveNo string,
+	recordSerial, archiveNo string,
 	trainingDate time.Time,
 	engineOn, engineOff sql.NullTime,
 	aircraftCode, departure, destination string,
 	isLocal bool,
-	taskType, instructorName, studentName, archiveStage, studentNo, progressNote string,
+	taskType, flightType, businessType string,
+	emStart, emStop sql.NullFloat64,
+	videoTL, videoOp, videoVal, flightDataRef string,
+	instructorName, studentName, archiveStage, studentNo, progressNote string,
 	flightMin sql.NullInt32,
 	landings sql.NullInt32,
 	planStart, planEnd sql.NullString,
@@ -383,9 +408,21 @@ func formatTrainingRecordCSVRow(
 		priorStr = strconv.FormatFloat(math.Round(p*10)/10, 'f', 1, 64)
 	}
 
+	displayNo := archiveNo
+	if strings.TrimSpace(recordSerial) != "" {
+		displayNo = recordSerial
+	}
+	var emStartStr, emStopStr string
+	if emStart.Valid {
+		emStartStr = strconv.FormatFloat(emStart.Float64, 'f', -1, 64)
+	}
+	if emStop.Valid {
+		emStopStr = strconv.FormatFloat(emStop.Float64, 'f', -1, 64)
+	}
+
 	n := len(domain.TrainingRecordCSVHeaders)
 	row := make([]string, n)
-	row[0] = archiveNo
+	row[0] = displayNo
 	row[1] = flightDateStr
 	row[2] = weekday
 	row[3] = planS
@@ -397,8 +434,8 @@ func formatTrainingRecordCSVRow(
 	row[9] = destination
 	row[10] = localStr
 	row[11] = taskType
-	row[12] = ""
-	row[13] = ""
+	row[12] = flightType
+	row[13] = businessType
 	row[14] = instructorName
 	row[15] = studentName
 	row[16] = archiveStage
@@ -409,20 +446,20 @@ func formatTrainingRecordCSVRow(
 	row[21] = hoursStr
 	row[22] = landStr
 	row[23] = priorStr
-	row[24] = ""
-	row[25] = ""
+	row[24] = emStartStr
+	row[25] = emStopStr
 	row[26] = yearMonth
 	row[27] = ""
 	row[28] = ""
 	row[29] = ""
 	row[30] = ""
 	row[31] = ""
-	row[32] = ""
-	row[33] = ""
-	row[34] = ""
+	row[32] = videoTL
+	row[33] = videoOp
+	row[34] = videoVal
 	row[35] = instructorReview
 	if n > 36 {
-		row[36] = ""
+		row[36] = flightDataRef
 	}
 	return row
 }
@@ -448,13 +485,18 @@ func (r *TrainingRecordRepo) Create(ctx context.Context, rec *domain.TrainingRec
 		INSERT INTO training_records (student_id, instructor_id, aircraft_id, training_date, engine_on_time, engine_off_time,
 			flight_duration_minutes, is_local, import_source, raw_import_id, status,
 			planned_duration_minutes, theory_duration_minutes, sim_duration_minutes, syllabus_outline, archive_display_no,
-			departure, destination, flight_type, task_type, landings, training_plan_id)
-		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10::uuid, $11::training_record_status, $12, $13, $14, NULLIF($15,''), NULLIF($16,''), NULLIF($17,''), NULLIF($18,''), NULLIF($19,''), NULLIF($20,''), $21, $22::uuid)
+			departure, destination, flight_type, task_type, landings, training_plan_id,
+			record_serial_no, business_type, engine_start_meter, engine_stop_meter,
+			video_timeliness, video_operator, video_validity, flight_data_ref)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10::uuid, $11::training_record_status, $12, $13, $14, NULLIF($15,''), NULLIF($16,''), NULLIF($17,''), NULLIF($18,''), NULLIF($19,''), NULLIF($20,''), $21, $22::uuid,
+			NULLIF($23,''), NULLIF($24,''), $25, $26, NULLIF($27,''), NULLIF($28,''), NULLIF($29,''), NULLIF($30,''))
 		RETURNING id::text, created_at, updated_at`,
 		rec.StudentID, rec.InstructorID, rec.AircraftID, rec.TrainingDate, rec.EngineOnTime, rec.EngineOffTime,
 		rec.FlightDurationMinutes, rec.IsLocal, rec.ImportSource, nullEmpty(rec.RawImportID), status,
 		rec.PlannedDurationMinutes, rec.TheoryDurationMinutes, rec.SimDurationMinutes, rec.SyllabusOutline, rec.ArchiveDisplayNo,
 		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, rec.Landings, nullEmpty(rec.TrainingPlanID),
+		rec.RecordSerialNo, rec.BusinessType, nullFloatPtr(rec.EngineStartMeter), nullFloatPtr(rec.EngineStopMeter),
+		rec.VideoTimeliness, rec.VideoOperator, rec.VideoValidity, rec.FlightDataRef,
 	).Scan(&rec.ID, &rec.CreatedAt, &rec.UpdatedAt)
 }
 
@@ -465,6 +507,13 @@ func nullEmpty(s string) interface{} {
 	return s
 }
 
+func nullFloatPtr(f *float64) interface{} {
+	if f == nil {
+		return nil
+	}
+	return *f
+}
+
 func (r *TrainingRecordRepo) Update(ctx context.Context, rec *domain.TrainingRecord) error {
 	_, err := r.db.Pool.Exec(ctx, `
 		UPDATE training_records SET student_id=$2::uuid, instructor_id=$3::uuid, aircraft_id=$4::uuid, training_date=$5,
@@ -472,14 +521,37 @@ func (r *TrainingRecordRepo) Update(ctx context.Context, rec *domain.TrainingRec
 			status=$12::training_record_status, planned_duration_minutes=$13, theory_duration_minutes=$14, sim_duration_minutes=$15,
 			syllabus_outline=NULLIF($16,''), archive_display_no=NULLIF($17,''),
 			departure=NULLIF($18,''), destination=NULLIF($19,''), flight_type=NULLIF($20,''), task_type=NULLIF($21,''), landings=$22,
-			training_plan_id=$23::uuid, updated_at=NOW()
+			training_plan_id=$23::uuid,
+			record_serial_no=NULLIF($24,''), business_type=NULLIF($25,''),
+			engine_start_meter=$26, engine_stop_meter=$27,
+			video_timeliness=NULLIF($28,''), video_operator=NULLIF($29,''), video_validity=NULLIF($30,''), flight_data_ref=NULLIF($31,''),
+			updated_at=NOW()
 		WHERE id=$1::uuid`,
 		rec.ID, rec.StudentID, rec.InstructorID, rec.AircraftID, rec.TrainingDate, rec.EngineOnTime, rec.EngineOffTime,
 		rec.FlightDurationMinutes, rec.IsLocal, rec.ImportSource, nullEmpty(rec.RawImportID),
 		rec.Status, rec.PlannedDurationMinutes, rec.TheoryDurationMinutes, rec.SimDurationMinutes, rec.SyllabusOutline, rec.ArchiveDisplayNo,
 		rec.Departure, rec.Destination, rec.FlightType, rec.TaskType, rec.Landings, nullEmpty(rec.TrainingPlanID),
+		rec.RecordSerialNo, rec.BusinessType, nullFloatPtr(rec.EngineStartMeter), nullFloatPtr(rec.EngineStopMeter),
+		rec.VideoTimeliness, rec.VideoOperator, rec.VideoValidity, rec.FlightDataRef,
 	)
 	return err
+}
+
+// AllocateRecordSerialNo 生成并登记当日下一个 TR 序号（与 training_record_daily_seq 同步）。
+func (r *TrainingRecordRepo) AllocateRecordSerialNo(ctx context.Context, trainingDate time.Time) (string, error) {
+	d := trainingDate.In(time.Local)
+	day := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.Local)
+	var seq int
+	err := r.db.Pool.QueryRow(ctx, `
+		INSERT INTO training_record_daily_seq (seq_date, last_seq)
+		VALUES ($1::date, 1)
+		ON CONFLICT (seq_date) DO UPDATE
+		SET last_seq = training_record_daily_seq.last_seq + 1
+		RETURNING last_seq`, day).Scan(&seq)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("TR%s%03d", day.Format("20060102"), seq), nil
 }
 
 func (r *TrainingRecordRepo) UpdateStatus(ctx context.Context, id string, status domain.TrainingRecordStatus) error {

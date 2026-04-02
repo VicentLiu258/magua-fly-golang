@@ -928,55 +928,7 @@
 
 **请求体**：空 `{}` 或省略。
 
-**成功响应**：
-
-```json
-{
-  "code": 200,
-  "msg": "ok",
-  "data": {
-    "fields": [
-      {
-        "key": "student_id",
-        "label": "学员",
-        "type": "select",
-        "required": true
-      },
-      {
-        "key": "instructor_id",
-        "label": "带飞教员",
-        "type": "select",
-        "required": true
-      },
-      {
-        "key": "training_date",
-        "label": "训练日期",
-        "type": "date",
-        "required": true
-      },
-      {
-        "key": "training_plan_id",
-        "label": "关联训练计划",
-        "type": "string",
-        "readonly": true
-      },
-      { "key": "engine_on_time", "label": "开车时间", "type": "time" },
-      {
-        "key": "import_source",
-        "label": "来源",
-        "type": "select",
-        "options": ["manual", "import", "schedule"]
-      },
-      {
-        "key": "status",
-        "label": "状态",
-        "type": "select",
-        "options": ["draft", "normal", "cancelled", "deleted", "expired"]
-      }
-    ]
-  }
-}
-```
+**成功响应**：`data.fields` 为字段元数据数组（与图一总表及 JSON 字段对齐），包含但不限于：`record_serial_no`（只读，TR 业务编号）、`student_id`、`instructor_id`、`aircraft_id`、`training_date`、`departure`/`destination`（默认莲洲）、`is_local`、`task_type`、`flight_type`、`business_type`、`engine_on_time`/`engine_off_time`、`engine_start_meter`/`engine_stop_meter`、`landings`、`video_timeliness`、`video_operator`、`video_validity`、`flight_data_ref`、`import_source`、`status` 等；选项类字段带 `options` 中文枚举。具体以服务端 `TrainingRecordFieldsConfig` 返回为准。
 
 ### 7.2 训练记录 CRUD 与列表
 
@@ -1008,11 +960,23 @@
   "landings": 5,
   "syllabus_outline": "1#",
   "archive_display_no": "1#672",
+  "departure": "莲洲",
+  "destination": "莲洲",
+  "flight_type": "带飞",
+  "task_type": "训练",
+  "record_serial_no": "",
+  "business_type": "学员培训",
+  "engine_start_meter": 100.5,
+  "engine_stop_meter": 101.6,
+  "video_timeliness": "T+0",
+  "video_operator": "罗俊杰",
+  "video_validity": "正常",
+  "flight_data_ref": "",
   "status": "normal"
 }
 ```
 
-**成功响应**：`data` 为完整训练记录（含 `id`、`training_plan_id`（可空）、`created_at`、`updated_at`）。
+**成功响应**：`data` 为完整训练记录（含 `id`、`record_serial_no`（非草稿时自动生成 `TR+YYYYMMDD+序号`）、`training_plan_id`（可空）、`created_at`、`updated_at`）。
 
 #### 7.2.2 记录详情 `POST /api/v1/training-records/detail`
 
@@ -1022,7 +986,7 @@
 
 #### 7.2.3 更新记录 `POST /api/v1/training-records/update`
 
-**请求体**：`{ "id": "550e8400-e29b-41d4-a716-446655440011", "student_id": "550e8400-e29b-41d4-a716-446655440001", "instructor_id": "550e8400-e29b-41d4-a716-446655440002", ... }`（需传 `id`，其余为可选更新字段）。补全排期草稿时可传 `engine_on_time`、`engine_off_time`、`flight_duration_minutes`、`archive_display_no`、`landings`、`syllabus_outline`、`theory_duration_minutes`、`sim_duration_minutes`、`departure`、`destination`、`flight_type`、`task_type` 等，并将 `status` 设为 `normal`。
+**请求体**：`{ "id": "550e8400-e29b-41d4-a716-446655440011", "student_id": "550e8400-e29b-41d4-a716-446655440001", "instructor_id": "550e8400-e29b-41d4-a716-446655440002", ... }`（需传 `id`，其余为可选更新字段）。补全排期草稿时可传 `engine_on_time`、`engine_off_time`、`flight_duration_minutes`、`archive_display_no`、`landings`、`syllabus_outline`、`theory_duration_minutes`、`sim_duration_minutes`、`departure`、`destination`、`flight_type`、`task_type`、`record_serial_no`、`business_type`、`engine_start_meter`、`engine_stop_meter`、`video_timeliness`、`video_operator`、`video_validity`、`flight_data_ref` 等，并将 `status` 设为 `normal`。**首次**将草稿转为 `normal` 且尚未有业务编号时，服务端会自动分配 `record_serial_no`（若仍为空）。
 
 **成功响应**：`data` 为更新后的记录。
 
@@ -1088,15 +1052,52 @@
 
 **成功响应**：HTTP 200，`Content-Type: text/csv; charset=utf-8`，`Content-Disposition: attachment; filename="training_records_YYYYMMDD.csv"`，正文为 **UTF-8 BOM** + CSV。首行为表头，共 **37 列**，顺序与历史业务总表样稿一致。
 
-**已映射列（有数据则输出）**：记录编号（`archive_display_no`）、飞行日期与星期、计划开车/关车时刻（关联 `training_plans` 的 `start_time` / `end_time`，`HH24:MI`）、开车/关车时刻、机号（飞机 `code`）、始发/目的、本场或转场、任务类型、飞行教员、客户（学员姓名）、学员阶段与备注（档案）、客户编号（学号）、飞行时长（`H:MM`）/分钟数/小时数、起落架次、此前经历（见上）、年月（`Jan-06` 英文缩写）、航后讲评（档案 `instructor_review`）。
+**已映射列（有数据则输出）**：记录编号（优先 `record_serial_no`（TR 业务号），否则回退 `archive_display_no`）、飞行日期与星期、计划开车/关车时刻（关联 `training_plans` 的 `start_time` / `end_time`，`HH24:MI`）、开车/关车时刻、机号（飞机 `code`）、始发/目的、本场或转场、任务类型、**带飞/单飞**（`flight_type`）、**业务类型**（`business_type`）、飞行教员、客户（学员姓名）、学员阶段与备注（档案）、客户编号（学号）、飞行时长（`H:MM`）/分钟数/小时数、起落架次、此前经历（见上）、**发动机小时表读数**（开车/关车）、年月（`Jan-06` 英文缩写）、**视频及时/拍摄人/视频有效**、航后讲评（档案 `instructor_review`）、**飞行数据**（`flight_data_ref` 文本）。
 
-**当前占空列（表头保留，单元格为空）**：带飞/单飞、业务类型、发动机开车/关车（小时表读数）、关联合同、小时价值、本次价值、校验、校验结果、视频及时、拍摄人、视频有效、飞行数据。后续若扩展库表或合同计费，可再填入。
+**当前占空列（表头保留，单元格为空，后续可接合同/计费）**：关联合同、小时价值、本次价值、校验、校验结果。
 
 **错误**：筛选结果行数超过 **50000**（常量 `MaxTrainingRecordExportRows`）时返回 **400**，提示缩小范围后重试。
 
 ### 7.3 飞行数据导入与认领（外部数据流水，非排期草稿）
 
 本节接口处理**机载/外部文件导入**后的待认领行，与 **7.2.0** 中 `import_source=schedule` 的排期草稿无关。
+
+#### 7.3.0 下载空白总表模板 `POST /api/v1/training-records/import/template`
+
+**请求体**：空 `{}` 或省略。
+
+**成功响应**：HTTP 200，`Content-Type: text/csv; charset=utf-8`，`Content-Disposition: attachment; filename="training_records_template_YYYYMMDD.csv"`，正文为 **UTF-8 BOM** + 一行表头（与 **7.2.6** 相同的 37 列中文表头，与 `domain.TrainingRecordCSVHeaders` 一致），无数据行。
+
+#### 7.3.0b 上传总表 CSV 批量导入 `POST /api/v1/training-records/import/csv`
+
+**请求**：`Content-Type: multipart/form-data`，字段 **`file`**（CSV 文件）；可选字段 **`batch_id`**（批次号，默认当前 Unix 秒）。
+
+表头必须与模板**完全一致**（列名与顺序）。数据行解析规则要点：
+
+- **飞行日期**：`YYYY/M/D`、`YYYY-MM-DD` 等。
+- **开车/关车时刻**：与导出一致的 `YYYY/M/D HH:MM`，或当日 `HH:MM`，或四位数 `1301` 表示 `13:01`。
+- **本场/转场**：`本场` 或 `转场`。
+- **身份解析**（同时满足则自动创建 `training_records` 并关联 `raw_flight_imports`）：**机号**列 = `aircraft.code`；**飞行教员**列 = 教员姓名（**精确唯一**）；**客户编号**列 = 学员 `id`（UUID）或 `student_no`；若填写 **客户** 列则须与库内姓名一致。
+- 自动入库失败时，该行仍写入 `raw_flight_imports`（`raw_data` 含 `source: "csv"` 与 `field_map`），可继续用 **7.3.2** 手工认领。
+
+**成功响应**（JSON）：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "batch_id": "1712345678",
+    "inserted_raw": 10,
+    "auto_claimed": 8,
+    "pending_raw": 2,
+    "errors": [{ "row": 5, "msg": "教员姓名匹配到 0 条" }],
+    "raw_import_ids": ["..."]
+  }
+}
+```
+
+单文件建议不超过约 **64MB**；总行数（含表头）不超过 **50001**（与 `MaxTrainingRecordCSVImportRows` 一致）。
 
 #### 7.3.1 批量导入 `POST /api/v1/training-records/import`
 
@@ -1132,7 +1133,7 @@
 }
 ```
 
-**成功响应**：`data` 为创建的 `training_record`（及关联档案）。
+**成功响应**：`data` 为创建的 `training_record`（及关联档案）。若 `raw_flight_imports.raw_data` 为 JSON 且含 `{"source":"csv","field_map":{...}}`（或兼容字段名），认领时会将 `field_map` 中的始发/目的、任务类型、业务类型、表读数、视频字段、`landings` 等合并写入 `training_records`，并将 `stage`、`remark`/`progress_note`、`instructor_review` 等合并入 `training_archives`（与 CSV 自动导入一致）。
 
 #### 7.3.3 待认领列表 `POST /api/v1/training-records/import/pending`
 

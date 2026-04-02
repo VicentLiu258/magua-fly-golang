@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -36,21 +38,33 @@ func respErr(c *gin.Context, code int, msg string) {
 // CreateRecord POST /api/v1/training-records
 func (h *TrainingHandler) CreateRecord(c *gin.Context) {
 	var body struct {
-		StudentID              string  `json:"student_id" binding:"required"`
-		InstructorID           string  `json:"instructor_id" binding:"required"`
-		AircraftID             string  `json:"aircraft_id" binding:"required"`
-		TrainingDate           string  `json:"training_date" binding:"required"`
-		EngineOnTime           *string `json:"engine_on_time"`
-		EngineOffTime          *string `json:"engine_off_time"`
-		FlightDurationMinutes  *int   `json:"flight_duration_minutes"`
-		IsLocal                *bool  `json:"is_local"`
-		PlannedDurationMinutes *int   `json:"planned_duration_minutes"`
-		TheoryDurationMinutes  *int   `json:"theory_duration_minutes"`
-		SimDurationMinutes     *int   `json:"sim_duration_minutes"`
-		Landings               *int   `json:"landings"`
-		SyllabusOutline        string `json:"syllabus_outline"`
-		ArchiveDisplayNo       string `json:"archive_display_no"`
-		Status                 string `json:"status"`
+		StudentID              string   `json:"student_id" binding:"required"`
+		InstructorID           string   `json:"instructor_id" binding:"required"`
+		AircraftID             string   `json:"aircraft_id" binding:"required"`
+		TrainingDate           string   `json:"training_date" binding:"required"`
+		EngineOnTime           *string  `json:"engine_on_time"`
+		EngineOffTime          *string  `json:"engine_off_time"`
+		FlightDurationMinutes  *int     `json:"flight_duration_minutes"`
+		IsLocal                *bool    `json:"is_local"`
+		PlannedDurationMinutes *int     `json:"planned_duration_minutes"`
+		TheoryDurationMinutes  *int     `json:"theory_duration_minutes"`
+		SimDurationMinutes     *int     `json:"sim_duration_minutes"`
+		Landings               *int     `json:"landings"`
+		SyllabusOutline        string   `json:"syllabus_outline"`
+		ArchiveDisplayNo       string   `json:"archive_display_no"`
+		Departure              string   `json:"departure"`
+		Destination            string   `json:"destination"`
+		FlightType             string   `json:"flight_type"`
+		TaskType               string   `json:"task_type"`
+		RecordSerialNo         string   `json:"record_serial_no"`
+		BusinessType           string   `json:"business_type"`
+		EngineStartMeter       *float64 `json:"engine_start_meter"`
+		EngineStopMeter        *float64 `json:"engine_stop_meter"`
+		VideoTimeliness        string   `json:"video_timeliness"`
+		VideoOperator          string   `json:"video_operator"`
+		VideoValidity          string   `json:"video_validity"`
+		FlightDataRef          string   `json:"flight_data_ref"`
+		Status                 string   `json:"status"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
@@ -73,6 +87,18 @@ func (h *TrainingHandler) CreateRecord(c *gin.Context) {
 		Landings:               body.Landings,
 		SyllabusOutline:        body.SyllabusOutline,
 		ArchiveDisplayNo:       body.ArchiveDisplayNo,
+		Departure:              body.Departure,
+		Destination:            body.Destination,
+		FlightType:             body.FlightType,
+		TaskType:               body.TaskType,
+		RecordSerialNo:         body.RecordSerialNo,
+		BusinessType:           body.BusinessType,
+		EngineStartMeter:       body.EngineStartMeter,
+		EngineStopMeter:        body.EngineStopMeter,
+		VideoTimeliness:        body.VideoTimeliness,
+		VideoOperator:          body.VideoOperator,
+		VideoValidity:          body.VideoValidity,
+		FlightDataRef:          body.FlightDataRef,
 		ImportSource:           domain.ImportManual,
 		Status:                 domain.RecordStatusNormal,
 	}
@@ -138,11 +164,19 @@ func (h *TrainingHandler) UpdateRecord(c *gin.Context) {
 		Landings               *int    `json:"landings"`
 		SyllabusOutline        *string `json:"syllabus_outline"`
 		ArchiveDisplayNo       *string `json:"archive_display_no"`
-		Departure              *string `json:"departure"`
-		Destination            *string `json:"destination"`
-		FlightType             *string `json:"flight_type"`
-		TaskType               *string `json:"task_type"`
-		Status                 *string `json:"status"`
+		Departure              *string  `json:"departure"`
+		Destination            *string  `json:"destination"`
+		FlightType             *string  `json:"flight_type"`
+		TaskType               *string  `json:"task_type"`
+		RecordSerialNo         *string  `json:"record_serial_no"`
+		BusinessType           *string  `json:"business_type"`
+		EngineStartMeter       *float64 `json:"engine_start_meter"`
+		EngineStopMeter        *float64 `json:"engine_stop_meter"`
+		VideoTimeliness        *string  `json:"video_timeliness"`
+		VideoOperator          *string  `json:"video_operator"`
+		VideoValidity          *string  `json:"video_validity"`
+		FlightDataRef          *string  `json:"flight_data_ref"`
+		Status                 *string  `json:"status"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respErr(c, http.StatusBadRequest, err.Error())
@@ -209,6 +243,30 @@ func (h *TrainingHandler) UpdateRecord(c *gin.Context) {
 	}
 	if body.TaskType != nil {
 		rec.TaskType = *body.TaskType
+	}
+	if body.RecordSerialNo != nil {
+		rec.RecordSerialNo = *body.RecordSerialNo
+	}
+	if body.BusinessType != nil {
+		rec.BusinessType = *body.BusinessType
+	}
+	if body.EngineStartMeter != nil {
+		rec.EngineStartMeter = body.EngineStartMeter
+	}
+	if body.EngineStopMeter != nil {
+		rec.EngineStopMeter = body.EngineStopMeter
+	}
+	if body.VideoTimeliness != nil {
+		rec.VideoTimeliness = *body.VideoTimeliness
+	}
+	if body.VideoOperator != nil {
+		rec.VideoOperator = *body.VideoOperator
+	}
+	if body.VideoValidity != nil {
+		rec.VideoValidity = *body.VideoValidity
+	}
+	if body.FlightDataRef != nil {
+		rec.FlightDataRef = *body.FlightDataRef
 	}
 	if body.Status != nil {
 		rec.Status = domain.TrainingRecordStatus(*body.Status)
@@ -374,6 +432,50 @@ func (h *TrainingHandler) ExportRecordsCSV(c *gin.Context) {
 		}
 	}
 	w.Flush()
+}
+
+// ImportTemplateCSV POST /api/v1/training-records/import/template — 下载空白 CSV（仅表头，UTF-8 BOM）。
+func (h *TrainingHandler) ImportTemplateCSV(c *gin.Context) {
+	filename := "training_records_template_" + time.Now().Format("20060102") + ".csv"
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="`+filename+`"`)
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		return
+	}
+	w := csv.NewWriter(c.Writer)
+	if err := w.Write(domain.TrainingRecordCSVHeaders); err != nil {
+		return
+	}
+	w.Flush()
+}
+
+// ImportCSVFile POST /api/v1/training-records/import/csv — multipart 字段 file；可选 batch_id。
+func (h *TrainingHandler) ImportCSVFile(c *gin.Context) {
+	file, _, err := c.Request.FormFile("file")
+	if err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 64<<20+1))
+	if err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(data) > 64<<20 {
+		respErr(c, http.StatusBadRequest, "文件过大")
+		return
+	}
+	batchID := c.PostForm("batch_id")
+	if batchID == "" {
+		batchID = strconv.FormatInt(time.Now().Unix(), 10)
+	}
+	result, err := h.uc.ImportTrainingRecordsFromCSV(c.Request.Context(), batchID, bytes.NewReader(data))
+	if err != nil {
+		respErr(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	respOK(c, result)
 }
 
 // ImportRecords POST /api/v1/training-records/import
