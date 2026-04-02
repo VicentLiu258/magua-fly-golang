@@ -175,6 +175,8 @@ func Router(
 			adminOnly.POST("/api/v1/admin/students/list", student.AdminList)
 			adminOnly.POST("/api/v1/admin/students/detail", student.AdminDetail)
 			adminOnly.POST("/api/v1/admin/students/save", student.AdminSave)
+			adminOnly.POST("/api/v1/admin/students/import/template-csv", student.AdminRegistryCSVTemplate)
+			adminOnly.POST("/api/v1/admin/students/import/csv", student.AdminRegistryImportCSV)
 			adminOnly.POST("/api/v1/admin/contracts/list-by-student", student.AdminContractsListByStudent)
 			adminOnly.POST("/api/v1/admin/contracts/create", contract.AdminContractCreate)
 			adminOnly.POST("/api/v1/admin/contracts/update", contract.AdminContractUpdate)

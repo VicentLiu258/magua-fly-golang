@@ -210,6 +210,8 @@ type RawFlightImportRepository interface {
 	Create(ctx context.Context, r *domain.RawFlightImport) error
 	ListPending(ctx context.Context, limit, offset int) ([]*domain.RawFlightImport, error)
 	GetByID(ctx context.Context, id string) (*domain.RawFlightImport, error)
+	// Delete 认领成功后删除原始导入行；training_records.raw_import_id 仍保留字符串快照。
+	Delete(ctx context.Context, id string) error
 	SetTrainingRecordID(ctx context.Context, id string, recordID string) error
 }
 

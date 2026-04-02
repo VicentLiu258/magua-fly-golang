@@ -1,0 +1,15 @@
+ALTER TABLE students
+    DROP COLUMN IF EXISTS registry_extra,
+    DROP COLUMN IF EXISTS transfer_base,
+    DROP COLUMN IF EXISTS pause_reason,
+    DROP COLUMN IF EXISTS service_status_raw,
+    DROP COLUMN IF EXISTS region,
+    DROP COLUMN IF EXISTS mailing_address,
+    DROP COLUMN IF EXISTS permanent_address,
+    DROP COLUMN IF EXISTS education_level,
+    DROP COLUMN IF EXISTS license_archive_no,
+    DROP COLUMN IF EXISTS birth_place,
+    DROP COLUMN IF EXISTS id_document_no,
+    DROP COLUMN IF EXISTS birth_date,
+    DROP COLUMN IF EXISTS gender,
+    DROP COLUMN IF EXISTS contact_phone;

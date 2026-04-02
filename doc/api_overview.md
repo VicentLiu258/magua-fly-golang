@@ -1081,7 +1081,8 @@
   - **机号**：先按 `aircraft.code`（首尾去空格）匹配；若无记录，再按数据库侧 `lower(trim(code))` 或 `lower(trim(name))` 与 CSV 机号列规范化后比对，且须**唯一**命中；否则报错（如「机号未找到」「飞机匹配到 N 条」）。
   - **飞行教员**：先按教员姓名**原文字符串**精确匹配；若条数不为 1，再按 `lower(trim(name))` 精确匹配，且须**唯一**命中；否则报错（如「教员姓名匹配到 N 条」）。
   - **学员**：**客户编号**列（首尾去空格）**优先按学号** `students.student_no` 匹配；仅当未命中且单元格**形如 UUID**（36 位含连字符的十六进制）时，再按学员 `id` 查询，避免学号与 UUID 同形时误判。若编号为空或两路均未命中，则用 **客户** 列姓名，按 `lower(trim(name))` 在库内**唯一**匹配。自动入库成功后，`training_records.student_no` 与 `training_archives.student_no` 会写入对应学号快照（与 `students.student_no` 一致）。若填写 **客户** 列且已通过编号解析到学员，则姓名须在首尾去空格后与库内姓名 **Unicode 大小写无关**一致（`EqualFold`），否则报错「客户姓名与库内不一致」。仅姓名路径下 0 条为「学员姓名未匹配」，多条为「学员姓名匹配到 N 条」。
-- 自动入库失败时，该行仍写入 `raw_flight_imports`（`raw_data` 含 `source: "csv"` 与 `field_map`），可继续用 **7.3.2** 手工认领。
+- **自动入库成功**时：先写入 `training_records` 并关联 `raw_flight_imports.training_record_id`，再**删除**该 `raw_flight_imports` 行，避免待认领列表堆积；`training_records.raw_import_id` 仍保存导入行 id。
+- 自动入库失败时，该行仍保留在 `raw_flight_imports`（`raw_data` 含 `source: "csv"` 与 `field_map`），可继续用 **7.3.2** 手工认领。
 
 **成功响应**（JSON）：
 
@@ -1136,11 +1137,13 @@
 }
 ```
 
-**成功响应**：`data` 为创建的 `training_record`（及关联档案）。若 `raw_flight_imports.raw_data` 为 JSON 且含 `{"source":"csv","field_map":{...}}`（或兼容字段名），认领时会将 `field_map` 中的始发/目的、任务类型、业务类型、表读数、视频字段、`landings` 等合并写入 `training_records`，并将 `stage`、`remark`/`progress_note`、`instructor_review` 等合并入 `training_archives`（与 CSV 自动导入一致）。
+**成功响应**：`data` 为创建的 `training_record`（及关联档案）。若 `raw_flight_imports.raw_data` 为 JSON 且含 `{"source":"csv","field_map":{...}}`（或兼容字段名），认领时会将 `field_map` 中的始发/目的、任务类型、业务类型、表读数、视频字段、`landings` 等合并写入 `training_records`，并将 `stage`、`remark`/`progress_note`、`instructor_review` 等合并入 `training_archives`（与 CSV 自动导入一致）。认领并写入成功后，会**删除**对应的 `raw_flight_imports` 行（`training_records.raw_import_id` 仍保留导入行 id 字符串，便于追溯）。
 
 #### 7.3.3 待认领列表 `POST /api/v1/training-records/import/pending`
 
 **请求体**：`{ "limit": 50, "offset": 0 }` 或空。
+
+**列表范围**：仅返回 `raw_flight_imports` 中 **`training_record_id` 为空**（尚未关联训练记录）的行。CSV **自动认领成功**或 **7.3.2 手工认领成功**后，会先关联再删除该导入行，故不会继续出现在本列表中。
 
 **成功响应**：`data`: `{ "items": [ ... ] }`。
 
@@ -2635,7 +2638,7 @@
 
 ### 13. 学员信息管理（后台）API（设计稿）
 
-> 说明：本节为基于当前数据库结构的后台“学员信息管理”接口设计，实际落地时可按本规范实现到对应 Handler 中。与学员 / 教员 / 地面职员相关的**统一软删除**见 **§13.4**，**统一新建/编辑**见 **§13.5**（均仅 `admin`）。**任职状态**维护见 **§13.3**、**§13.5** 的 `employment_status` 字段。
+> 说明：本节为基于当前数据库结构的后台“学员信息管理”接口设计，实际落地时可按本规范实现到对应 Handler 中。**学员总表 CSV 模板与批量导入**见 **§13.4**。与学员 / 教员 / 地面职员相关的**统一软删除**见 **§13.5**，**统一新建/编辑**见 **§13.6**（均仅 `admin`）。**任职状态**维护见 **§13.3**、**§13.6** 的 `employment_status` 字段。
 
 #### 13.1 学员列表（后台）`POST /api/v1/admin/students/list`
 
@@ -2747,7 +2750,7 @@
 #### 13.3 新建 / 更新学员（后台）`POST /api/v1/admin/students/save`
 
 - **认证**：需要；**仅** `admin`。
-- **说明**：用于后台创建或编辑学员信息；实现上与 **§13.5** `kind = "student"` 相同（本接口**无需**传 `kind`，服务端固定按学员处理）。创建时维护 `users`（`role = student`）与 `students`；**更新**时若学员已关联 `user_id`，可同时修改该账号的 `username` / `phone` / `email` / `avatar_url` / `password`（密码非空则重置）及 **`employment_status`**。
+- **说明**：用于后台创建或编辑学员信息；实现上与 **§13.6** `kind = "student"` 相同（本接口**无需**传 `kind`，服务端固定按学员处理）。创建时维护 `users`（`role = student`）与 `students`；**更新**时若学员已关联 `user_id`，可同时修改该账号的 `username` / `phone` / `email` / `avatar_url` / `password`（密码非空则重置）及 **`employment_status`**。
 
 **「先录基本信息」与请求字段对照**（可与合同、进度等分步保存；未列字段见下文可选说明）：
 
@@ -2800,7 +2803,97 @@
   - 返回新建的学员主键与账号信息。
 - 当 `student_id` 非空时，更新已存在学员档案；若存在关联账号，同步更新账号字段（见上文）。
 
-#### 13.4 人员软删除（后台）`POST /api/v1/admin/personnel/delete`
+#### 13.4 学员总表 CSV 模板与批量导入
+
+用于与「学员信息总表」一致的 **UTF-8 CSV** 批量导入：主键 `students.id` 仍为 UUID（库内生成）；**学员编号**列对应 **`students.student_no`**，导入时无需、也不应传 UUID。扩展字段见迁移 **`034_students_registry_fields`**（如 `contact_phone`、`registry_extra` 等）。
+
+##### 13.4.1 下载表头模板 `POST /api/v1/admin/students/import/template-csv`
+
+- **认证**：需要；**仅** `role = "admin"`。
+- **请求**：无请求体；可不传 JSON。
+- **响应**：`Content-Type: text/csv; charset=utf-8`；`Content-Disposition: attachment; filename="student_registry_template.csv"`；正文为 **UTF-8 BOM** + **一行表头**（无数据行）。
+
+**表头列名（顺序固定，导入文件首行须与此完全一致）**：
+
+| 序号 | 列名 |
+|------|------|
+| 1 | 学员编号 |
+| 2 | 姓名 |
+| 3 | 责任教员 |
+| 4 | 港澳外 |
+| 5 | 服务状态 |
+| 6 | 中断原因 |
+| 7 | 转场 |
+| 8 | 两周 |
+| 9 | 三个月结束 |
+| 10 | 工作日飞行 |
+| 11 | 上午飞行 |
+| 12 | 体验次数 |
+| 13 | 体验剩余 |
+| 14 | 视频记录 |
+| 15 | 定制拍摄 |
+| 16 | 拍摄剩余 |
+| 17 | 总合同小时 |
+| 18 | 证件号码 |
+| 19 | 出生日期 |
+| 20 | 出生地 |
+| 21 | 性别 |
+| 22 | 执照档案号 |
+| 23 | 手机号 |
+| 24 | 学历 |
+| 25 | 永久地址 |
+| 26 | 通讯地址 |
+
+##### 13.4.2 批量导入 `POST /api/v1/admin/students/import/csv`
+
+- **认证**：需要；**仅** `role = "admin"`。
+- **Content-Type**：`multipart/form-data`（与文首「默认 JSON」的约定不同，以本接口为准）。
+
+**表单字段**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `file` | file | 是 | UTF-8 CSV；第 1 行为表头，须与 **§13.4.1** 一致 |
+| `update_existing` | string | 否 | 为 `1` 或 `true` 时：若 **`student_no` 已存在**则更新该学员；否则重复学号记错且不更新 |
+
+**限制**：
+
+- 上传文件大小：**≤ 32 MiB**。
+- 数据行（不含表头）：**≤ 5000**；含表头总行数超过 **5001** 时整次请求失败（`400`）。
+
+**成功响应**：
+
+```json
+{
+  "code": 200,
+  "msg": "ok",
+  "data": {
+    "created": 10,
+    "updated": 2,
+    "skipped": 0,
+    "errors": [
+      { "row": 15, "msg": "学号已存在（跳过或开启 update_existing）" }
+    ]
+  }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `created` | 新建学员条数 |
+| `updated` | 因 `update_existing` 而更新的条数 |
+| `skipped` | 跳过的行（如学号与姓名均为空等） |
+| `errors` | 可选；`row` 为文件行号（**表头为第 1 行**，数据从第 2 行起）；部分行失败时仍可能返回 `200`，由客户端结合 `errors` 处理 |
+
+**错误**：未上传 `file`、文件过大、CSV 无法解析、表头与模板不一致、行数超限等为 **`400`**（`msg` 说明原因）；服务端未配置导入能力时为 **`500`**（`msg: student import not configured`）。
+
+**业务说明（摘要）**：
+
+- **责任教员**：`待分配` 或空 → 不关联教员；多个姓名以英文逗号、中文逗号等分隔时，按顺序在教员表中匹配，取**第一个唯一匹配**的教员 ID。
+- **学飞状态**：由「服务状态」「中断原因」等映射到 `students.flight_training_status`（`in_progress` / `paused` / `completed` 等）。
+- **总合同小时**：形如 `36+10+20` 时，服务端可解析并写入 **`contract_duration_minutes`**（按小时段之和换算为分钟）；其余列中未映射到独立字段的部分写入 **`registry_extra`**（JSON）。
+
+#### 13.5 人员软删除（后台）`POST /api/v1/admin/personnel/delete`
 
 - **认证**：需要；**仅** `role = "admin"` 可调用，否则 HTTP `403`（`code: 403`，`msg: forbidden`）。
 - **说明**：对学员、教员或地面职员账号做**软删除**（数据库字段 `deleted_at`），不物理删行。与 **`employment_status`** 独立：日常「离职 / 兼职」可只改任职状态保留档案；软删多用于彻底从业务列表移除并允许用户名/学号复用。软删除后：
@@ -2846,7 +2939,7 @@
 | `403` | `403` | 非 `admin` 调用；或 `kind = "staff"` 但用户角色不是 `staff`/`maintenance` |
 | `404` | `404` | 目标不存在或已被软删除（`msg: not found`） |
 
-#### 13.5 人员新建 / 编辑（后台）`POST /api/v1/admin/personnel/save`
+#### 13.6 人员新建 / 编辑（后台）`POST /api/v1/admin/personnel/save`
 
 - **认证**：需要；**仅** `role = "admin"` 可调用，否则 HTTP `403`。
 - **说明**：用同一套协议维护学员、教员、地面职员（`staff` / `maintenance`）档案及对应 `users` 账号字段。与 **§13.3** 学员专用接口二选一即可；本接口便于前台「人员管理」统一表单。
@@ -2957,7 +3050,7 @@
 | `POST /api/v1/instructors/my-home` | `instructor` |
 | `POST /api/v1/admin/home` | `admin` |
 | `POST /api/v1/admin/students/*`、`POST /api/v1/admin/contracts/*` | **仅** `admin` |
-| `POST /api/v1/admin/personnel/delete`、`POST /api/v1/admin/personnel/save` | **仅** `admin`（见 §13.4、§13.5） |
+| `POST /api/v1/admin/personnel/delete`、`POST /api/v1/admin/personnel/save` | **仅** `admin`（见 §13.5、§13.6） |
 | 路径含 **`/admin/`** 的训练/大纲/题库管理接口（如 `POST /api/v1/syllabus-subjects/admin/*`、`POST /api/v1/theory/questions/admin/*` 等） | **仅** `admin` |
 
 未登录统一 `401`；已登录但非 `admin` 访问上表中的管理接口为 **`403`**。

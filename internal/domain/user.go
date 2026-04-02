@@ -120,6 +120,20 @@ type Student struct {
 	Name                    string  `json:"name"`
 	StudentNo               string  `json:"student_no"`
 	ResidentCity            string  `json:"resident_city,omitempty"`
+	ContactPhone            string  `json:"contact_phone,omitempty"`
+	Gender                  string  `json:"gender,omitempty"`
+	BirthDate               *time.Time `json:"birth_date,omitempty"`
+	IDDocumentNo            string  `json:"id_document_no,omitempty"`
+	BirthPlace              string  `json:"birth_place,omitempty"`
+	LicenseArchiveNo        string  `json:"license_archive_no,omitempty"`
+	EducationLevel          string  `json:"education_level,omitempty"`
+	PermanentAddress        string  `json:"permanent_address,omitempty"`
+	MailingAddress          string  `json:"mailing_address,omitempty"`
+	Region                  string  `json:"region,omitempty"`
+	ServiceStatusRaw        string  `json:"service_status_raw,omitempty"`
+	PauseReason             string  `json:"pause_reason,omitempty"`
+	TransferBase            string  `json:"transfer_base,omitempty"`
+	RegistryExtra           []byte  `json:"registry_extra,omitempty"`
 	ContractInfo            []byte  `json:"contract_info,omitempty"`
 	ContractDurationMinutes *int    `json:"contract_duration_minutes,omitempty"`
 	FlownMinutes            int     `json:"flown_minutes"`

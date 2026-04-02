@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"io"
@@ -28,9 +29,10 @@ type StudentHandler struct {
 	aircraftRepo repository.AircraftRepository
 	theoryRepo   repository.TheoryAttemptRepository
 	contractRepo repository.ContractRepository
-	trainingUC   *usecase.TrainingUseCase
-	homeUC       *usecase.HomeUseCase
-	personnelUC  *usecase.PersonnelUseCase
+	trainingUC       *usecase.TrainingUseCase
+	homeUC           *usecase.HomeUseCase
+	personnelUC      *usecase.PersonnelUseCase
+	studentImportUC  *usecase.StudentImportUseCase
 }
 
 // NewStudentHandler creates a StudentHandler.
@@ -47,20 +49,22 @@ func NewStudentHandler(
 	trainingUC *usecase.TrainingUseCase,
 	homeUC *usecase.HomeUseCase,
 	personnelUC *usecase.PersonnelUseCase,
+	studentImportUC *usecase.StudentImportUseCase,
 ) *StudentHandler {
 	return &StudentHandler{
-		studentRepo:  studentRepo,
-		userRepo:     userRepo,
-		taskRepo:     taskRepo,
-		archiveRepo:  archiveRepo,
-		planRepo:     planRepo,
-		instrRepo:    instrRepo,
-		aircraftRepo: aircraftRepo,
-		theoryRepo:   theoryRepo,
-		contractRepo: contractRepo,
-		trainingUC:   trainingUC,
-		homeUC:       homeUC,
-		personnelUC:  personnelUC,
+		studentRepo:     studentRepo,
+		userRepo:        userRepo,
+		taskRepo:        taskRepo,
+		archiveRepo:     archiveRepo,
+		planRepo:        planRepo,
+		instrRepo:       instrRepo,
+		aircraftRepo:    aircraftRepo,
+		theoryRepo:      theoryRepo,
+		contractRepo:    contractRepo,
+		trainingUC:      trainingUC,
+		homeUC:          homeUC,
+		personnelUC:     personnelUC,
+		studentImportUC: studentImportUC,
 	}
 }
 
@@ -621,6 +625,50 @@ func (h *StudentHandler) AdminContractsListByStudent(c *gin.Context) {
 		"msg":  "ok",
 		"data": gin.H{"items": items},
 	})
+}
+
+// AdminRegistryCSVTemplate 下载学员总表 CSV 表头模板 POST /api/v1/admin/students/import/template-csv
+func (h *StudentHandler) AdminRegistryCSVTemplate(c *gin.Context) {
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="student_registry_template.csv"`)
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		return
+	}
+	w := csv.NewWriter(c.Writer)
+	_ = w.Write(domain.StudentRegistryCSVHeaders)
+	w.Flush()
+}
+
+// AdminRegistryImportCSV 批量导入学员总表 CSV POST /api/v1/admin/students/import/csv — multipart 字段 file；可选 update_existing=1|true 覆盖同学号
+func (h *StudentHandler) AdminRegistryImportCSV(c *gin.Context) {
+	if h.studentImportUC == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "student import not configured", "data": nil})
+		return
+	}
+	file, _, err := c.Request.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 32<<20+1))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	if len(data) > 32<<20 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "文件过大", "data": nil})
+		return
+	}
+	updateExisting := c.PostForm("update_existing") == "1" || c.PostForm("update_existing") == "true"
+	result, err := h.studentImportUC.ImportRegistryCSV(c.Request.Context(), bytes.NewReader(data), usecase.StudentRegistryImportOptions{
+		UpdateExisting: updateExisting,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "ok", "data": result})
 }
 
 // AdminSave 后台学员创建 / 更新 POST /api/v1/admin/students/save

@@ -173,6 +173,8 @@ func (u *TrainingUseCase) ImportTrainingRecordsFromCSV(ctx context.Context, batc
 		}
 		if err := u.rawImportRepo.SetTrainingRecordID(ctx, raw.ID, rec.ID); err != nil {
 			out.Errors = append(out.Errors, TrainingCSVRowError{Row: lineNum, Msg: "关联 raw: " + err.Error()})
+		} else if err := u.rawImportRepo.Delete(ctx, raw.ID); err != nil {
+			out.Errors = append(out.Errors, TrainingCSVRowError{Row: lineNum, Msg: "清理导入缓存: " + err.Error()})
 		}
 
 		arch := &domain.TrainingArchive{

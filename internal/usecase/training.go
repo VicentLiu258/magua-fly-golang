@@ -274,6 +274,7 @@ func (u *TrainingUseCase) ClaimImport(ctx context.Context, rawImportID string, s
 	}
 	applyRawImportPayloadToArchive(raw.RawData, archive)
 	_ = u.archiveRepo.Create(ctx, archive)
+	_ = u.rawImportRepo.Delete(ctx, rawImportID)
 	return rec, nil
 }
 

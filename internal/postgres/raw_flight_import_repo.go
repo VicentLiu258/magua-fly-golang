@@ -60,3 +60,14 @@ func (r *RawFlightImportRepo) SetTrainingRecordID(ctx context.Context, id string
 	_, err := r.db.Pool.Exec(ctx, `UPDATE raw_flight_imports SET training_record_id = $2::uuid WHERE id = $1::uuid`, id, recordID)
 	return err
 }
+
+func (r *RawFlightImportRepo) Delete(ctx context.Context, id string) error {
+	tag, err := r.db.Pool.Exec(ctx, `DELETE FROM raw_flight_imports WHERE id = $1::uuid`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return repository.ErrNotFound
+	}
+	return nil
+}

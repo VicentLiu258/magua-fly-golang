@@ -163,6 +163,7 @@ func main() {
 	homeHandler := handler.NewHomeHandler(homeUC)
 	personnelUC := usecase.NewPersonnelUseCase(pgDB.Personnel(), pgDB.User(), pgDB.Student(), pgDB.Instructor())
 	personnelHandler := handler.NewPersonnelHandler(personnelUC)
+	studentImportUC := usecase.NewStudentImportUseCase(pgDB.Student(), pgDB.Instructor())
 	studentHandler := handler.NewStudentHandler(
 		pgDB.Student(),
 		pgDB.User(),
@@ -176,6 +177,7 @@ func main() {
 		trainingUC,
 		homeUC,
 		personnelUC,
+		studentImportUC,
 	)
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor(), pgDB.User(), homeUC)
 
