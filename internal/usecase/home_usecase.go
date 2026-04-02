@@ -548,7 +548,11 @@ func (uc *HomeUseCase) AdminHome(ctx context.Context, adminUserID string) (map[s
 	activeStudents := 0
 	const pageSize = 500
 	for off := 0; ; off += pageSize {
-		batch, err := uc.studentRepo.List(ctx, pageSize, off, false)
+		batch, err := uc.studentRepo.List(ctx, repository.StudentListParams{
+			Limit:                pageSize,
+			Offset:               off,
+			OnlyActiveEmployment: false,
+		})
 		if err != nil {
 			warnings = append(warnings, "active_students_partial")
 			break

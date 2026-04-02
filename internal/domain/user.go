@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // UserRole represents user role in the system.
 type UserRole string
@@ -48,6 +51,27 @@ func DerivePersonnelCategory(r UserRole) PersonnelCategory {
 	}
 }
 
+// FlightTrainingStatus 学飞状态（students.flight_training_status）。
+type FlightTrainingStatus string
+
+const (
+	FlightTrainingInProgress FlightTrainingStatus = "in_progress" // 进行中
+	FlightTrainingPaused     FlightTrainingStatus = "paused"      // 已暂停
+	FlightTrainingCompleted  FlightTrainingStatus = "completed"   // 已完结
+	FlightTrainingTerminated FlightTrainingStatus = "terminated"  // 已终止
+)
+
+// ParseFlightTrainingStatus 解析 API/DB 学飞状态码。
+func ParseFlightTrainingStatus(s string) (FlightTrainingStatus, bool) {
+	t := strings.TrimSpace(s)
+	switch FlightTrainingStatus(t) {
+	case FlightTrainingInProgress, FlightTrainingPaused, FlightTrainingCompleted, FlightTrainingTerminated:
+		return FlightTrainingStatus(t), true
+	default:
+		return "", false
+	}
+}
+
 // RoleUsesStaffSchedule 是否使用 staff_schedules 做日排班（地面工作人员，含 staff 与机务）。
 func RoleUsesStaffSchedule(r UserRole) bool {
 	return r == RoleStaff || r == RoleMaintenance
@@ -55,16 +79,16 @@ func RoleUsesStaffSchedule(r UserRole) bool {
 
 // User is the account entity.
 type User struct {
-	ID                string           `json:"id"`
-	Username          string           `json:"username"`
-	PasswordHash      string           `json:"-"`
-	Phone             string           `json:"phone,omitempty"`
-	Email             string           `json:"email,omitempty"`
-	Role              UserRole         `json:"role"`
-	EmploymentStatus  EmploymentStatus `json:"employment_status"`
-	AvatarURL         string           `json:"avatar_url,omitempty"`
-	CreatedAt         time.Time        `json:"created_at"`
-	UpdatedAt         time.Time        `json:"updated_at"`
+	ID               string           `json:"id"`
+	Username         string           `json:"username"`
+	PasswordHash     string           `json:"-"`
+	Phone            string           `json:"phone,omitempty"`
+	Email            string           `json:"email,omitempty"`
+	Role             UserRole         `json:"role"`
+	EmploymentStatus EmploymentStatus `json:"employment_status"`
+	AvatarURL        string           `json:"avatar_url,omitempty"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
 }
 
 // SmsScene represents the scenario for SMS verification codes.
@@ -79,31 +103,32 @@ const (
 
 // SmsVerificationCode records a verification code sent to a phone for a given scene.
 type SmsVerificationCode struct {
-	ID        string    `json:"id"`
-	Phone     string    `json:"phone"`
-	Scene     SmsScene  `json:"scene"`
-	Code      string    `json:"-"`
-	IP        string    `json:"ip,omitempty"`
-	ExpiredAt time.Time `json:"expired_at"`
+	ID        string     `json:"id"`
+	Phone     string     `json:"phone"`
+	Scene     SmsScene   `json:"scene"`
+	Code      string     `json:"-"`
+	IP        string     `json:"ip,omitempty"`
+	ExpiredAt time.Time  `json:"expired_at"`
 	UsedAt    *time.Time `json:"used_at,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 // Student extends user profile for trainees.
 type Student struct {
-	ID                      string    `json:"id"`
-	UserID                  *string   `json:"user_id,omitempty"`
-	Name                    string    `json:"name"`
-	StudentNo               string    `json:"student_no"`
-	ContractInfo            []byte    `json:"contract_info,omitempty"`
-	ContractDurationMinutes *int      `json:"contract_duration_minutes,omitempty"`
-	FlownMinutes            int       `json:"flown_minutes"`
-	TrainingProgress        string    `json:"training_progress,omitempty"`
+	ID                      string  `json:"id"`
+	UserID                  *string `json:"user_id,omitempty"`
+	Name                    string  `json:"name"`
+	StudentNo               string  `json:"student_no"`
+	ContractInfo            []byte  `json:"contract_info,omitempty"`
+	ContractDurationMinutes *int    `json:"contract_duration_minutes,omitempty"`
+	FlownMinutes            int     `json:"flown_minutes"`
+	TrainingProgress        string  `json:"training_progress,omitempty"`
 	// TrainingProgressJSON 结构化训练进度，映射 students.training_progress_json
-	TrainingProgressJSON   []byte    `json:"training_progress_json,omitempty"`
-	ResponsibleInstructorID *string   `json:"responsible_instructor_id,omitempty"`
-	CreatedAt               time.Time `json:"created_at"`
-	UpdatedAt               time.Time `json:"updated_at"`
+	TrainingProgressJSON    []byte               `json:"training_progress_json,omitempty"`
+	ResponsibleInstructorID *string              `json:"responsible_instructor_id,omitempty"`
+	FlightTrainingStatus    FlightTrainingStatus `json:"flight_training_status,omitempty"`
+	CreatedAt               time.Time            `json:"created_at"`
+	UpdatedAt               time.Time            `json:"updated_at"`
 }
 
 // Instructor extends user for instructors.

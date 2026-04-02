@@ -36,6 +36,7 @@ type SavePersonnelRequest struct {
 	FlownMinutes            int             `json:"flown_minutes"`
 	TrainingProgress        string          `json:"training_progress"`
 	ResponsibleInstructorID *string         `json:"responsible_instructor_id"`
+	FlightTrainingStatus    string          `json:"flight_training_status"`
 	ContractInfo            json.RawMessage `json:"contract_info"`
 	TrainingProgressJSON    json.RawMessage `json:"training_progress_json"`
 	// EmploymentStatus 任职状态：active | resigned | part_time；空表示新建默认 active，更新时不改。
@@ -177,6 +178,15 @@ func (u *PersonnelUseCase) createStudent(ctx context.Context, req *SavePersonnel
 	if err := mergeTrainingProgressJSON(&s.TrainingProgressJSON, req.TrainingProgressJSON); err != nil {
 		return nil, err
 	}
+	if t := strings.TrimSpace(req.FlightTrainingStatus); t != "" {
+		if fs, ok := domain.ParseFlightTrainingStatus(t); ok {
+			s.FlightTrainingStatus = fs
+		} else {
+			return nil, ErrInvalidArgument
+		}
+	} else {
+		s.FlightTrainingStatus = domain.FlightTrainingInProgress
+	}
 	if err := u.studentRepo.Create(ctx, s); err != nil {
 		return nil, err
 	}
@@ -205,6 +215,13 @@ func (u *PersonnelUseCase) updateStudent(ctx context.Context, studentID string, 
 	}
 	if err := mergeTrainingProgressJSON(&s.TrainingProgressJSON, req.TrainingProgressJSON); err != nil {
 		return nil, err
+	}
+	if t := strings.TrimSpace(req.FlightTrainingStatus); t != "" {
+		if fs, ok := domain.ParseFlightTrainingStatus(t); ok {
+			s.FlightTrainingStatus = fs
+		} else {
+			return nil, ErrInvalidArgument
+		}
 	}
 	if err := u.studentRepo.Update(ctx, s); err != nil {
 		return nil, err

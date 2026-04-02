@@ -26,13 +26,23 @@ type UserRepository interface {
 	ListByRoles(ctx context.Context, roles []domain.UserRole) ([]*domain.User, error)
 }
 
+// StudentListParams 学员分页列表；Keyword 按姓名或学号模糊匹配；ResponsibleInstructorID、FlightTrainingStatus 非空时精确过滤。
+type StudentListParams struct {
+	Limit                   int
+	Offset                  int
+	OnlyActiveEmployment    bool
+	Keyword                 string
+	ResponsibleInstructorID string
+	FlightTrainingStatus    string
+}
+
 // StudentRepository defines student persistence.
 type StudentRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Student, error)
 	GetByUserID(ctx context.Context, userID string) (*domain.Student, error)
 	GetByStudentNo(ctx context.Context, studentNo string) (*domain.Student, error)
-	// List onlyActiveEmployment：true 时排除已关联账号且任职状态非 active 的学员（无 user_id 的档案仍返回）。
-	List(ctx context.Context, limit, offset int, onlyActiveEmployment bool) ([]*domain.Student, error)
+	// List：OnlyActiveEmployment 为 true 时排除已关联账号且任职状态非 active 的学员（无 user_id 的档案仍返回）。
+	List(ctx context.Context, p StudentListParams) ([]*domain.Student, error)
 	Create(ctx context.Context, s *domain.Student) error
 	Update(ctx context.Context, s *domain.Student) error
 }

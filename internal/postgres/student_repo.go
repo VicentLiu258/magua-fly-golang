@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/repository"
@@ -26,6 +28,7 @@ func (r *StudentRepo) GetByID(ctx context.Context, id string) (*domain.Student, 
 		       COALESCE(training_progress,''),
 		       training_progress_json,
 		       responsible_instructor_id::text,
+		       flight_training_status::text,
 		       created_at,
 		       updated_at
 		FROM students WHERE id = $1::uuid AND deleted_at IS NULL`, id).Scan(
@@ -39,6 +42,7 @@ func (r *StudentRepo) GetByID(ctx context.Context, id string) (*domain.Student, 
 		&s.TrainingProgress,
 		&s.TrainingProgressJSON,
 		&s.ResponsibleInstructorID,
+		&s.FlightTrainingStatus,
 		&s.CreatedAt,
 		&s.UpdatedAt,
 	)
@@ -61,6 +65,7 @@ func (r *StudentRepo) GetByUserID(ctx context.Context, userID string) (*domain.S
 		       COALESCE(training_progress,''),
 		       training_progress_json,
 		       responsible_instructor_id::text,
+		       flight_training_status::text,
 		       created_at,
 		       updated_at
 		FROM students WHERE user_id = $1::uuid AND deleted_at IS NULL`, userID).Scan(
@@ -74,6 +79,7 @@ func (r *StudentRepo) GetByUserID(ctx context.Context, userID string) (*domain.S
 		&s.TrainingProgress,
 		&s.TrainingProgressJSON,
 		&s.ResponsibleInstructorID,
+		&s.FlightTrainingStatus,
 		&s.CreatedAt,
 		&s.UpdatedAt,
 	)
@@ -96,6 +102,7 @@ func (r *StudentRepo) GetByStudentNo(ctx context.Context, studentNo string) (*do
 		       COALESCE(training_progress,''),
 		       training_progress_json,
 		       responsible_instructor_id::text,
+		       flight_training_status::text,
 		       created_at,
 		       updated_at
 		FROM students WHERE student_no = $1 AND deleted_at IS NULL`, studentNo).Scan(
@@ -109,6 +116,7 @@ func (r *StudentRepo) GetByStudentNo(ctx context.Context, studentNo string) (*do
 		&s.TrainingProgress,
 		&s.TrainingProgressJSON,
 		&s.ResponsibleInstructorID,
+		&s.FlightTrainingStatus,
 		&s.CreatedAt,
 		&s.UpdatedAt,
 	)
@@ -118,7 +126,19 @@ func (r *StudentRepo) GetByStudentNo(ctx context.Context, studentNo string) (*do
 	return &s, nil
 }
 
-func (r *StudentRepo) List(ctx context.Context, limit, offset int, onlyActiveEmployment bool) ([]*domain.Student, error) {
+func (r *StudentRepo) List(ctx context.Context, p repository.StudentListParams) ([]*domain.Student, error) {
+	limit := p.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	offset := p.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
 	q := `
 		SELECT s.id::text,
 		       s.user_id::text,
@@ -130,19 +150,42 @@ func (r *StudentRepo) List(ctx context.Context, limit, offset int, onlyActiveEmp
 		       COALESCE(s.training_progress,''),
 		       s.training_progress_json,
 		       s.responsible_instructor_id::text,
+		       s.flight_training_status::text,
 		       s.created_at,
 		       s.updated_at
 		FROM students s`
-	if onlyActiveEmployment {
-		q += `
-		LEFT JOIN users u ON u.id = s.user_id AND u.deleted_at IS NULL
-		WHERE s.deleted_at IS NULL
-		  AND (s.user_id IS NULL OR u.employment_status = 'active')`
-	} else {
-		q += ` WHERE s.deleted_at IS NULL`
+	var joins string
+	if p.OnlyActiveEmployment {
+		joins = `
+		LEFT JOIN users u ON u.id = s.user_id AND u.deleted_at IS NULL`
 	}
-	q += ` ORDER BY s.id LIMIT $1 OFFSET $2`
-	rows, err := r.db.Pool.Query(ctx, q, limit, offset)
+	where := []string{"s.deleted_at IS NULL"}
+	if p.OnlyActiveEmployment {
+		where = append(where, "(s.user_id IS NULL OR u.employment_status = 'active')")
+	}
+	args := []interface{}{}
+	argNum := 1
+	if kw := strings.TrimSpace(p.Keyword); kw != "" {
+		where = append(where, fmt.Sprintf("(s.name ILIKE $%d OR s.student_no ILIKE $%d)", argNum, argNum))
+		args = append(args, "%"+kw+"%")
+		argNum++
+	}
+	if rid := strings.TrimSpace(p.ResponsibleInstructorID); rid != "" {
+		where = append(where, fmt.Sprintf("s.responsible_instructor_id = $%d::uuid", argNum))
+		args = append(args, rid)
+		argNum++
+	}
+	if fts := strings.TrimSpace(p.FlightTrainingStatus); fts != "" {
+		where = append(where, fmt.Sprintf("s.flight_training_status = $%d::student_flight_training_status", argNum))
+		args = append(args, fts)
+		argNum++
+	}
+	q += joins
+	q += " WHERE " + strings.Join(where, " AND ")
+	q += fmt.Sprintf(" ORDER BY s.id LIMIT $%d OFFSET $%d", argNum, argNum+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.db.Pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +204,7 @@ func (r *StudentRepo) List(ctx context.Context, limit, offset int, onlyActiveEmp
 			&s.TrainingProgress,
 			&s.TrainingProgressJSON,
 			&s.ResponsibleInstructorID,
+			&s.FlightTrainingStatus,
 			&s.CreatedAt,
 			&s.UpdatedAt,
 		); err != nil {
@@ -182,9 +226,10 @@ func (r *StudentRepo) Create(ctx context.Context, s *domain.Student) error {
 			flown_minutes,
 			training_progress,
 			training_progress_json,
-			responsible_instructor_id
+			responsible_instructor_id,
+			flight_training_status
 		)
-		VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::uuid)
+		VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::uuid, $10::student_flight_training_status)
 		RETURNING id::text, created_at, updated_at`,
 		nullUUID(s.UserID),
 		s.Name,
@@ -195,6 +240,7 @@ func (r *StudentRepo) Create(ctx context.Context, s *domain.Student) error {
 		s.TrainingProgress,
 		s.TrainingProgressJSON,
 		nullUUID(s.ResponsibleInstructorID),
+		flightTrainingStatusOrDefault(s.FlightTrainingStatus),
 	).Scan(&s.ID, &s.CreatedAt, &s.UpdatedAt)
 }
 
@@ -210,6 +256,7 @@ func (r *StudentRepo) Update(ctx context.Context, s *domain.Student) error {
 		    training_progress=$8,
 		    training_progress_json=$9,
 		    responsible_instructor_id=$10::uuid,
+		    flight_training_status=$11::student_flight_training_status,
 		    updated_at=NOW()
 		WHERE id=$1::uuid AND deleted_at IS NULL`,
 		s.ID,
@@ -222,7 +269,14 @@ func (r *StudentRepo) Update(ctx context.Context, s *domain.Student) error {
 		s.TrainingProgress,
 		s.TrainingProgressJSON,
 		nullUUID(s.ResponsibleInstructorID),
+		flightTrainingStatusOrDefault(s.FlightTrainingStatus),
 	)
 	return err
 }
 
+func flightTrainingStatusOrDefault(s domain.FlightTrainingStatus) string {
+	if s == "" {
+		return string(domain.FlightTrainingInProgress)
+	}
+	return string(s)
+}

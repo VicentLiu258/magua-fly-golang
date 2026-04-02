@@ -73,10 +73,14 @@ func (h *StudentHandler) List(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
+	var keyword, responsibleInstructorID, flightTrainingStatus string
 	if len(bytes.TrimSpace(raw)) > 0 {
 		var body struct {
-			Limit  int `json:"limit"`
-			Offset int `json:"offset"`
+			Limit                   int    `json:"limit"`
+			Offset                  int    `json:"offset"`
+			Keyword                 string `json:"keyword"`
+			ResponsibleInstructorID string `json:"responsible_instructor_id"`
+			FlightTrainingStatus    string `json:"flight_training_status"`
 		}
 		if err := json.Unmarshal(raw, &body); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
@@ -93,35 +97,56 @@ func (h *StudentHandler) List(c *gin.Context) {
 		} else if body.Offset < 0 {
 			offset = 0
 		}
+		keyword = body.Keyword
+		responsibleInstructorID = body.ResponsibleInstructorID
+		flightTrainingStatus = body.FlightTrainingStatus
+	}
+	if flightTrainingStatus != "" {
+		if _, ok := domain.ParseFlightTrainingStatus(flightTrainingStatus); !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid flight_training_status", "data": nil})
+			return
+		}
 	}
 	onlyActive := true
 	if claims := middleware.GetGinClaims(c); claims != nil && domain.UserRole(claims.Role) == domain.RoleAdmin {
 		onlyActive = false
 	}
-	list, err := h.studentRepo.List(c.Request.Context(), limit, offset, onlyActive)
+	list, err := h.studentRepo.List(c.Request.Context(), repository.StudentListParams{
+		Limit:                   limit,
+		Offset:                  offset,
+		OnlyActiveEmployment:    onlyActive,
+		Keyword:                 keyword,
+		ResponsibleInstructorID: responsibleInstructorID,
+		FlightTrainingStatus:    flightTrainingStatus,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
 	ctx := c.Request.Context()
 	type listItem struct {
-		ID                      string    `json:"id"`
-		UserID                  *string   `json:"user_id,omitempty"`
-		Name                    string    `json:"name"`
-		StudentNo               string    `json:"student_no"`
-		Username                string    `json:"username,omitempty"`
-		Phone                   string    `json:"phone,omitempty"`
-		Email                   string    `json:"email,omitempty"`
-		EmploymentStatus        string    `json:"employment_status,omitempty"`
-		PersonnelCategory       string    `json:"personnel_category,omitempty"`
-		ContractInfo            []byte    `json:"contract_info,omitempty"`
-		ContractDurationMinutes *int      `json:"contract_duration_minutes,omitempty"`
-		FlownMinutes            int       `json:"flown_minutes"`
-		TrainingProgress        string    `json:"training_progress,omitempty"`
-		TrainingProgressJSON    []byte    `json:"training_progress_json,omitempty"`
-		ResponsibleInstructorID *string   `json:"responsible_instructor_id,omitempty"`
-		CreatedAt               time.Time `json:"created_at"`
-		UpdatedAt               time.Time `json:"updated_at"`
+		ID                      string  `json:"id"`
+		UserID                  *string `json:"user_id,omitempty"`
+		Name                    string  `json:"name"`
+		StudentNo               string  `json:"student_no"`
+		Username                string  `json:"username,omitempty"`
+		Phone                   string  `json:"phone,omitempty"`
+		Email                   string  `json:"email,omitempty"`
+		EmploymentStatus        string  `json:"employment_status,omitempty"`
+		PersonnelCategory       string  `json:"personnel_category,omitempty"`
+		ContractInfo            []byte  `json:"contract_info,omitempty"`
+		ContractDurationMinutes *int    `json:"contract_duration_minutes,omitempty"`
+		FlownMinutes            int     `json:"flown_minutes"`
+		TrainingProgress        string  `json:"training_progress,omitempty"`
+		TrainingProgressJSON    []byte  `json:"training_progress_json,omitempty"`
+		ResponsibleInstructorID *string `json:"responsible_instructor_id,omitempty"`
+		ResponsibleInstructor   *struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"responsible_instructor,omitempty"`
+		FlightTrainingStatus string    `json:"flight_training_status,omitempty"`
+		CreatedAt            time.Time `json:"created_at"`
+		UpdatedAt            time.Time `json:"updated_at"`
 	}
 	out := make([]listItem, 0, len(list))
 	for _, s := range list {
@@ -136,6 +161,7 @@ func (h *StudentHandler) List(c *gin.Context) {
 			TrainingProgress:        s.TrainingProgress,
 			TrainingProgressJSON:    s.TrainingProgressJSON,
 			ResponsibleInstructorID: s.ResponsibleInstructorID,
+			FlightTrainingStatus:    string(s.FlightTrainingStatus),
 			CreatedAt:               s.CreatedAt,
 			UpdatedAt:               s.UpdatedAt,
 		}
@@ -146,6 +172,17 @@ func (h *StudentHandler) List(c *gin.Context) {
 				it.Email = u.Email
 				it.EmploymentStatus = string(u.EmploymentStatus)
 				it.PersonnelCategory = string(domain.DerivePersonnelCategory(u.Role))
+			}
+		}
+		if s.ResponsibleInstructorID != nil {
+			if ins, err := h.instrRepo.GetByID(ctx, *s.ResponsibleInstructorID); err == nil && ins != nil {
+				it.ResponsibleInstructor = &struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				}{
+					ID:   ins.ID,
+					Name: ins.Name,
+				}
 			}
 		}
 		out = append(out, it)
@@ -160,14 +197,21 @@ func (h *StudentHandler) List(c *gin.Context) {
 // AdminList 后台学员列表 POST /api/v1/admin/students/list
 func (h *StudentHandler) AdminList(c *gin.Context) {
 	var body struct {
-		Keyword                string `json:"keyword"`
+		Keyword                 string `json:"keyword"`
 		ResponsibleInstructorID string `json:"responsible_instructor_id"`
-		Page                   int    `json:"page"`
-		PageSize               int    `json:"page_size"`
+		FlightTrainingStatus    string `json:"flight_training_status"`
+		Page                    int    `json:"page"`
+		PageSize                int    `json:"page_size"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
+	}
+	if body.FlightTrainingStatus != "" {
+		if _, ok := domain.ParseFlightTrainingStatus(body.FlightTrainingStatus); !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid flight_training_status", "data": nil})
+			return
+		}
 	}
 	if body.Page <= 0 {
 		body.Page = 1
@@ -178,7 +222,14 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 	limit := body.PageSize
 	offset := (body.Page - 1) * body.PageSize
 
-	list, err := h.studentRepo.List(c.Request.Context(), limit, offset, false)
+	list, err := h.studentRepo.List(c.Request.Context(), repository.StudentListParams{
+		Limit:                   limit,
+		Offset:                  offset,
+		OnlyActiveEmployment:    false,
+		Keyword:                 body.Keyword,
+		ResponsibleInstructorID: body.ResponsibleInstructorID,
+		FlightTrainingStatus:    body.FlightTrainingStatus,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
@@ -197,6 +248,7 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 		FlownMinutes            int    `json:"flown_minutes"`
 		RemainingMinutes        *int   `json:"remaining_minutes,omitempty"`
 		TrainingProgress        string `json:"training_progress"`
+		FlightTrainingStatus    string `json:"flight_training_status,omitempty"`
 		ResponsibleInstructor   *struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
@@ -206,12 +258,13 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 	var out []item
 	for _, s := range list {
 		it := item{
-			StudentID:        s.ID,
-			Name:             s.Name,
-			StudentNo:        s.StudentNo,
+			StudentID:               s.ID,
+			Name:                    s.Name,
+			StudentNo:               s.StudentNo,
 			ContractDurationMinutes: s.ContractDurationMinutes,
-			FlownMinutes:           s.FlownMinutes,
-			TrainingProgress:       s.TrainingProgress,
+			FlownMinutes:            s.FlownMinutes,
+			TrainingProgress:        s.TrainingProgress,
+			FlightTrainingStatus:    string(s.FlightTrainingStatus),
 		}
 		if s.ContractDurationMinutes != nil {
 			rem := *s.ContractDurationMinutes - s.FlownMinutes
@@ -300,9 +353,9 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 	if len(archives) > 0 {
 		a := archives[0]
 		latestArchive = gin.H{
-			"id":                     a.ID,
-			"training_date":          a.TrainingDate.Format("2006-01-02"),
-			"stage":                  a.Stage,
+			"id":                      a.ID,
+			"training_date":           a.TrainingDate.Format("2006-01-02"),
+			"stage":                   a.Stage,
 			"flight_duration_minutes": a.FlightDurationMinutes,
 		}
 	}
@@ -338,21 +391,22 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 
 	resp := gin.H{
 		"basic": gin.H{
-			"student_id":               s.ID,
-			"name":                     s.Name,
-			"student_no":               s.StudentNo,
+			"student_id":                s.ID,
+			"name":                      s.Name,
+			"student_no":                s.StudentNo,
 			"contract_duration_minutes": s.ContractDurationMinutes,
-			"flown_minutes":            s.FlownMinutes,
-			"remaining_minutes":        remaining,
-			"training_progress":        s.TrainingProgress,
+			"flown_minutes":             s.FlownMinutes,
+			"remaining_minutes":         remaining,
+			"training_progress":         s.TrainingProgress,
+			"flight_training_status":    string(s.FlightTrainingStatus),
 		},
 		"account": gin.H{
-			"username":            username,
-			"phone":               phone,
-			"email":               email,
-			"role":                "student",
-			"employment_status":   employmentStatus,
-			"personnel_category":  personnelCategory,
+			"username":           username,
+			"phone":              phone,
+			"email":              email,
+			"role":               "student",
+			"employment_status":  employmentStatus,
+			"personnel_category": personnelCategory,
 		},
 		"responsible_instructor": responsibleInstructor,
 		"latest_archive":         latestArchive,
@@ -452,11 +506,11 @@ func (h *StudentHandler) StaffOverview(c *gin.Context) {
 	}
 
 	training := gin.H{
-		"training_progress":         s.TrainingProgress,
-		"training_progress_json":    trainingProgressJSON,
-		"pending_task_count":        pendingCount,
-		"latest_archive":            latestArchive,
-		"upcoming_training":         upcoming,
+		"training_progress":      s.TrainingProgress,
+		"training_progress_json": trainingProgressJSON,
+		"pending_task_count":     pendingCount,
+		"latest_archive":         latestArchive,
+		"upcoming_training":      upcoming,
 	}
 
 	syllabusProgress := gin.H{"completed": 0, "total": 0}
@@ -483,8 +537,8 @@ func (h *StudentHandler) StaffOverview(c *gin.Context) {
 	entitlements := gin.H{
 		"flight": gin.H{
 			"contract_duration_minutes": s.ContractDurationMinutes,
-			"flown_minutes":               s.FlownMinutes,
-			"remaining_minutes":           remaining,
+			"flown_minutes":             s.FlownMinutes,
+			"remaining_minutes":         remaining,
 		},
 		"learning_points": ent.LearningPoints,
 		"guest_experience": gin.H{
@@ -498,10 +552,10 @@ func (h *StudentHandler) StaffOverview(c *gin.Context) {
 		"code": 200,
 		"msg":  "ok",
 		"data": gin.H{
-			"profile":            profile,
-			"training":           training,
-			"syllabus_progress":  syllabusProgress,
-			"entitlements":       entitlements,
+			"profile":           profile,
+			"training":          training,
+			"syllabus_progress": syllabusProgress,
+			"entitlements":      entitlements,
 		},
 	})
 }
