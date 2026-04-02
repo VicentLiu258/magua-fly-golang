@@ -329,6 +329,10 @@ func clockParts(s string) (h, m int, err error) {
 	return h, m, err
 }
 
+func trainingCSVNamesMatchNormalized(csvName, dbName string) bool {
+	return strings.EqualFold(strings.TrimSpace(csvName), strings.TrimSpace(dbName))
+}
+
 func (u *TrainingUseCase) resolveTrainingCSVIdentities(ctx context.Context, row []string) (*domain.Student, *domain.Instructor, *domain.Aircraft, error) {
 	code := strings.TrimSpace(row[7])
 	if code == "" {
@@ -336,10 +340,24 @@ func (u *TrainingUseCase) resolveTrainingCSVIdentities(ctx context.Context, row 
 	}
 	ac, err := u.aircraftRepo.GetByCode(ctx, code)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil, nil, fmt.Errorf("机号未找到")
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil, nil, err
 		}
-		return nil, nil, nil, err
+		ac = nil
+	}
+	if ac == nil {
+		list, err := u.aircraftRepo.ListByCodeOrNameNormalized(ctx, code)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		switch len(list) {
+		case 0:
+			return nil, nil, nil, fmt.Errorf("机号未找到")
+		case 1:
+			ac = list[0]
+		default:
+			return nil, nil, nil, fmt.Errorf("飞机匹配到 %d 条", len(list))
+		}
 	}
 
 	insName := strings.TrimSpace(row[14])
@@ -351,32 +369,62 @@ func (u *TrainingUseCase) resolveTrainingCSVIdentities(ctx context.Context, row 
 		return nil, nil, nil, err
 	}
 	if len(inss) != 1 {
+		inss, err = u.instructorRepo.ListByNormalizedName(ctx, insName)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	if len(inss) != 1 {
 		return nil, nil, nil, fmt.Errorf("教员姓名匹配到 %d 条", len(inss))
 	}
 
 	custID := strings.TrimSpace(row[17])
-	if custID == "" {
-		return nil, nil, nil, fmt.Errorf("客户编号为空")
-	}
-	stu, err := u.studentRepo.GetByID(ctx, custID)
-	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil, nil, err
-		}
-		stu = nil
-	}
-	if stu == nil {
-		stu, err = u.studentRepo.GetByStudentNo(ctx, custID)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, nil, nil, fmt.Errorf("学员未找到")
-			}
-			return nil, nil, nil, err
-		}
-	}
 	nameWant := strings.TrimSpace(row[15])
-	if nameWant != "" && stu.Name != nameWant {
-		return nil, nil, nil, fmt.Errorf("客户姓名与库内不一致")
+
+	var stu *domain.Student
+	if custID != "" {
+		stu, err = u.studentRepo.GetByID(ctx, custID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil, nil, err
+		}
+		if stu == nil {
+			stu, err = u.studentRepo.GetByStudentNo(ctx, custID)
+			if err != nil {
+				if !errors.Is(err, pgx.ErrNoRows) {
+					return nil, nil, nil, err
+				}
+				stu = nil
+			}
+		}
 	}
-	return stu, inss[0], ac, nil
+
+	if stu != nil {
+		if nameWant != "" && !trainingCSVNamesMatchNormalized(nameWant, stu.Name) {
+			return nil, nil, nil, fmt.Errorf("客户姓名与库内不一致")
+		}
+		return stu, inss[0], ac, nil
+	}
+
+	if nameWant == "" {
+		if custID != "" {
+			return nil, nil, nil, fmt.Errorf("学员未找到")
+		}
+		return nil, nil, nil, fmt.Errorf("客户编号与客户均为空")
+	}
+
+	students, err := u.studentRepo.ListByNormalizedName(ctx, nameWant)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	switch len(students) {
+	case 0:
+		if custID != "" {
+			return nil, nil, nil, fmt.Errorf("学员未找到")
+		}
+		return nil, nil, nil, fmt.Errorf("学员姓名未匹配")
+	case 1:
+		return students[0], inss[0], ac, nil
+	default:
+		return nil, nil, nil, fmt.Errorf("学员姓名匹配到 %d 条", len(students))
+	}
 }

@@ -89,6 +89,27 @@ func (r *InstructorRepo) ListByExactName(ctx context.Context, name string) ([]*d
 	return list, rows.Err()
 }
 
+func (r *InstructorRepo) ListByNormalizedName(ctx context.Context, name string) ([]*domain.Instructor, error) {
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at
+		FROM instructors
+		WHERE deleted_at IS NULL
+		  AND lower(trim(name)) = lower(trim($1))`, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []*domain.Instructor
+	for rows.Next() {
+		var i domain.Instructor
+		if err := rows.Scan(&i.ID, &i.UserID, &i.Name, &i.DisplayColor, &i.CreatedAt, &i.UpdatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, &i)
+	}
+	return list, rows.Err()
+}
+
 func (r *InstructorRepo) Create(ctx context.Context, i *domain.Instructor) error {
 	return r.db.Pool.QueryRow(ctx, `
 		INSERT INTO instructors (user_id, name, display_color) VALUES ($1::uuid, $2, $3)

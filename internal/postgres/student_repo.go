@@ -132,6 +132,55 @@ func (r *StudentRepo) GetByStudentNo(ctx context.Context, studentNo string) (*do
 	return &s, nil
 }
 
+func (r *StudentRepo) ListByNormalizedName(ctx context.Context, name string) ([]*domain.Student, error) {
+	rows, err := r.db.Pool.Query(ctx, `
+		SELECT s.id::text,
+		       s.user_id::text,
+		       s.name,
+		       s.student_no,
+		       COALESCE(s.resident_city,''),
+		       s.contract_info,
+		       s.contract_duration_minutes,
+		       s.flown_minutes,
+		       COALESCE(s.training_progress,''),
+		       s.training_progress_json,
+		       s.responsible_instructor_id::text,
+		       s.flight_training_status::text,
+		       s.created_at,
+		       s.updated_at
+		FROM students s
+		WHERE s.deleted_at IS NULL
+		  AND lower(trim(s.name)) = lower(trim($1))`, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []*domain.Student
+	for rows.Next() {
+		var s domain.Student
+		if err := rows.Scan(
+			&s.ID,
+			&s.UserID,
+			&s.Name,
+			&s.StudentNo,
+			&s.ResidentCity,
+			&s.ContractInfo,
+			&s.ContractDurationMinutes,
+			&s.FlownMinutes,
+			&s.TrainingProgress,
+			&s.TrainingProgressJSON,
+			&s.ResponsibleInstructorID,
+			&s.FlightTrainingStatus,
+			&s.CreatedAt,
+			&s.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		list = append(list, &s)
+	}
+	return list, rows.Err()
+}
+
 func (r *StudentRepo) List(ctx context.Context, p repository.StudentListParams) ([]*domain.Student, error) {
 	limit := p.Limit
 	if limit <= 0 {

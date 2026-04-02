@@ -41,6 +41,8 @@ type StudentRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Student, error)
 	GetByUserID(ctx context.Context, userID string) (*domain.Student, error)
 	GetByStudentNo(ctx context.Context, studentNo string) (*domain.Student, error)
+	// ListByNormalizedName 按 lower(trim(name)) 精确匹配（未删除），用于 CSV 导入；多条时由调用方判重。
+	ListByNormalizedName(ctx context.Context, name string) ([]*domain.Student, error)
 	// List：OnlyActiveEmployment 为 true 时排除已关联账号且任职状态非 active 的学员（无 user_id 的档案仍返回）。
 	List(ctx context.Context, p StudentListParams) ([]*domain.Student, error)
 	Create(ctx context.Context, s *domain.Student) error
@@ -55,6 +57,8 @@ type InstructorRepository interface {
 	List(ctx context.Context, onlyActiveEmployment bool) ([]*domain.Instructor, error)
 	// ListByExactName 按姓名精确匹配（未删除），用于 CSV 等导入；多条时由调用方判重。
 	ListByExactName(ctx context.Context, name string) ([]*domain.Instructor, error)
+	// ListByNormalizedName 按 lower(trim(name)) 精确匹配（未删除），用于 CSV 导入。
+	ListByNormalizedName(ctx context.Context, name string) ([]*domain.Instructor, error)
 	Create(ctx context.Context, i *domain.Instructor) error
 	Update(ctx context.Context, i *domain.Instructor) error
 }
@@ -70,6 +74,8 @@ type PersonnelRepository interface {
 type AircraftRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Aircraft, error)
 	GetByCode(ctx context.Context, code string) (*domain.Aircraft, error)
+	// ListByCodeOrNameNormalized 按 lower(trim(code)) 或 lower(trim(name)) 匹配；0/多条由调用方根据 len 判断。
+	ListByCodeOrNameNormalized(ctx context.Context, codeOrName string) ([]*domain.Aircraft, error)
 	List(ctx context.Context) ([]*domain.Aircraft, error)
 	Create(ctx context.Context, a *domain.Aircraft) error
 	Update(ctx context.Context, id string, name, status *string) error

@@ -61,6 +61,25 @@ func (r *AircraftRepo) GetByCode(ctx context.Context, code string) (*domain.Airc
 	)
 }
 
+func (r *AircraftRepo) ListByCodeOrNameNormalized(ctx context.Context, codeOrName string) ([]*domain.Aircraft, error) {
+	rows, err := r.db.Pool.Query(ctx, aircraftSelectBase+`
+		WHERE lower(trim(code)) = lower(trim($1))
+		   OR lower(trim(COALESCE(name,''))) = lower(trim($1))`, codeOrName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []*domain.Aircraft
+	for rows.Next() {
+		a, err := scanAircraftRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, a)
+	}
+	return list, rows.Err()
+}
+
 func (r *AircraftRepo) List(ctx context.Context) ([]*domain.Aircraft, error) {
 	rows, err := r.db.Pool.Query(ctx, aircraftSelectBase+` ORDER BY id`)
 	if err != nil {
