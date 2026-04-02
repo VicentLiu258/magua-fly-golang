@@ -217,11 +217,14 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 	}
 
 	var username, phone, email string
+	var employmentStatus, personnelCategory string
 	if s.UserID != nil {
 		if u, err := h.userRepo.GetByID(ctx, *s.UserID); err == nil && u != nil {
 			username = u.Username
 			phone = u.Phone
 			email = u.Email
+			employmentStatus = string(u.EmploymentStatus)
+			personnelCategory = string(domain.DerivePersonnelCategory(u.Role))
 		}
 	}
 
@@ -297,10 +300,12 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 			"training_progress":        s.TrainingProgress,
 		},
 		"account": gin.H{
-			"username": username,
-			"phone":    phone,
-			"email":    email,
-			"role":     "student",
+			"username":            username,
+			"phone":               phone,
+			"email":               email,
+			"role":                "student",
+			"employment_status":   employmentStatus,
+			"personnel_category":  personnelCategory,
 		},
 		"responsible_instructor": responsibleInstructor,
 		"latest_archive":         latestArchive,
