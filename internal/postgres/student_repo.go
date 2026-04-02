@@ -118,21 +118,31 @@ func (r *StudentRepo) GetByStudentNo(ctx context.Context, studentNo string) (*do
 	return &s, nil
 }
 
-func (r *StudentRepo) List(ctx context.Context, limit, offset int) ([]*domain.Student, error) {
-	rows, err := r.db.Pool.Query(ctx, `
-		SELECT id::text,
-		       user_id::text,
-		       name,
-		       student_no,
-		       contract_info,
-		       contract_duration_minutes,
-		       flown_minutes,
-		       COALESCE(training_progress,''),
-		       training_progress_json,
-		       responsible_instructor_id::text,
-		       created_at,
-		       updated_at
-		FROM students WHERE deleted_at IS NULL ORDER BY id LIMIT $1 OFFSET $2`, limit, offset)
+func (r *StudentRepo) List(ctx context.Context, limit, offset int, onlyActiveEmployment bool) ([]*domain.Student, error) {
+	q := `
+		SELECT s.id::text,
+		       s.user_id::text,
+		       s.name,
+		       s.student_no,
+		       s.contract_info,
+		       s.contract_duration_minutes,
+		       s.flown_minutes,
+		       COALESCE(s.training_progress,''),
+		       s.training_progress_json,
+		       s.responsible_instructor_id::text,
+		       s.created_at,
+		       s.updated_at
+		FROM students s`
+	if onlyActiveEmployment {
+		q += `
+		LEFT JOIN users u ON u.id = s.user_id AND u.deleted_at IS NULL
+		WHERE s.deleted_at IS NULL
+		  AND (s.user_id IS NULL OR u.employment_status = 'active')`
+	} else {
+		q += ` WHERE s.deleted_at IS NULL`
+	}
+	q += ` ORDER BY s.id LIMIT $1 OFFSET $2`
+	rows, err := r.db.Pool.Query(ctx, q, limit, offset)
 	if err != nil {
 		return nil, err
 	}

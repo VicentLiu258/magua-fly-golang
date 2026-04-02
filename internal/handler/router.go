@@ -3,6 +3,7 @@ package handler
 import (
 	"magua-fly-golang/internal/middleware"
 	"magua-fly-golang/internal/pkg/jwt"
+	"magua-fly-golang/internal/repository"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,6 +27,7 @@ func Router(
 	home *HomeHandler,
 	personnel *PersonnelHandler,
 	jwtManager *jwt.Manager,
+	users repository.UserRepository,
 ) *gin.Engine {
 	r := gin.Default()
 	r.Use(middleware.GinCORS())
@@ -37,20 +39,13 @@ func Router(
 	r.POST("/auth/sms/verify", smsHandler.VerifyCode)
 
 	authGroup := r.Group("")
-	authGroup.Use(middleware.GinAuth(jwtManager))
+	authGroup.Use(middleware.GinAuth(jwtManager, users))
 	{
 		authGroup.POST("/api/v1/students/list", student.List)
 		authGroup.POST("/api/v1/students/staff-overview", student.StaffOverview)
-		authGroup.POST("/api/v1/admin/students/list", student.AdminList)
-		authGroup.POST("/api/v1/admin/students/detail", student.AdminDetail)
-		authGroup.POST("/api/v1/admin/students/save", student.AdminSave)
-		authGroup.POST("/api/v1/admin/contracts/list-by-student", student.AdminContractsListByStudent)
 		authGroup.POST("/api/v1/students/my-home", student.MyHome)
 		authGroup.POST("/api/v1/instructors/list", instructor.List)
 		authGroup.POST("/api/v1/instructors/my-home", instructor.MyHome)
-		authGroup.POST("/api/v1/admin/home", home.AdminHome)
-		authGroup.POST("/api/v1/admin/personnel/delete", personnel.AdminDelete)
-		authGroup.POST("/api/v1/admin/personnel/save", personnel.AdminSave)
 		authGroup.POST("/api/v1/aircraft/list", aircraft.List)
 		authGroup.POST("/api/v1/aircraft/create", aircraft.Create)
 		authGroup.POST("/api/v1/aircraft/update", aircraft.Update)
@@ -101,52 +96,34 @@ func Router(
 		authGroup.POST("/api/v1/training-archives/update", training.UpdateArchive)
 		authGroup.POST("/api/v1/training-archives/sign", training.SignArchive)
 		authGroup.POST("/api/v1/syllabus-subjects/list", training.ListSyllabusSubjects)
-		authGroup.POST("/api/v1/syllabus-subjects/admin/create", training.AdminCreateSyllabusSubject)
-		authGroup.POST("/api/v1/syllabus-subjects/admin/update", training.AdminUpdateSyllabusSubject)
-		authGroup.POST("/api/v1/syllabus-subjects/admin/delete", training.AdminDeleteSyllabusSubject)
 		authGroup.POST("/api/v1/syllabus-outlines/list", training.ListSyllabusOutlines)
-		authGroup.POST("/api/v1/syllabus-outlines/admin/import", training.AdminImportSyllabusOutline)
-		authGroup.POST("/api/v1/syllabus-subject-secondaries/admin/create", training.AdminCreateSyllabusSubjectSecondary)
-		authGroup.POST("/api/v1/syllabus-subject-secondaries/admin/update", training.AdminUpdateSyllabusSubjectSecondary)
-		authGroup.POST("/api/v1/syllabus-subject-secondaries/admin/delete", training.AdminDeleteSyllabusSubjectSecondary)
-		authGroup.POST("/api/v1/syllabus-subject-secondaries/admin/reorder", training.AdminReorderSyllabusSubjectSecondaries)
 		authGroup.POST("/api/v1/training-archives/subjects/list", training.ListArchiveSubjects)
 		authGroup.POST("/api/v1/training-archives/subjects/update", training.UpdateArchiveSubjects)
 		authGroup.POST("/api/v1/training-archives/next-subjects/list", training.ListNextSubjects)
 		authGroup.POST("/api/v1/training-archives/next-subjects/update", training.UpdateNextSubjects)
 
-			// 理论学习模块
-			authGroup.POST("/api/v1/theory/documents/create", theory.CreateDocument)
-			authGroup.POST("/api/v1/theory/documents/update", theory.UpdateDocument)
-			authGroup.POST("/api/v1/theory/documents/delete", theory.DeleteDocument)
-			authGroup.POST("/api/v1/theory/documents/list", theory.ListDocuments)
-			authGroup.POST("/api/v1/theory/documents/detail", theory.DocumentDetail)
-			authGroup.POST("/api/v1/theory/documents/video/upload", theory.UploadTheoryVideo)
-			authGroup.POST("/api/v1/theory/documents/video/remove", theory.RemoveTheoryVideo)
-			authGroup.GET("/api/v1/theory/documents/video", theory.StreamTheoryVideo)
-			authGroup.POST("/api/v1/theory/questions/start", theory.StartQuestions)
-			authGroup.POST("/api/v1/theory/questions/submit", theory.SubmitAnswers)
-			authGroup.POST("/api/v1/theory/attempts/my-list", theory.ListMyAttempts)
+		// 理论学习模块
+		authGroup.POST("/api/v1/theory/documents/create", theory.CreateDocument)
+		authGroup.POST("/api/v1/theory/documents/update", theory.UpdateDocument)
+		authGroup.POST("/api/v1/theory/documents/delete", theory.DeleteDocument)
+		authGroup.POST("/api/v1/theory/documents/list", theory.ListDocuments)
+		authGroup.POST("/api/v1/theory/documents/detail", theory.DocumentDetail)
+		authGroup.POST("/api/v1/theory/documents/video/upload", theory.UploadTheoryVideo)
+		authGroup.POST("/api/v1/theory/documents/video/remove", theory.RemoveTheoryVideo)
+		authGroup.GET("/api/v1/theory/documents/video", theory.StreamTheoryVideo)
+		authGroup.POST("/api/v1/theory/questions/start", theory.StartQuestions)
+		authGroup.POST("/api/v1/theory/questions/submit", theory.SubmitAnswers)
+		authGroup.POST("/api/v1/theory/attempts/my-list", theory.ListMyAttempts)
 
-			// 理论题库管理（教员/管理员使用）
-			authGroup.POST("/api/v1/theory/questions/admin/list", theory.AdminListQuestions)
-			authGroup.POST("/api/v1/theory/questions/admin/create", theory.AdminCreateQuestion)
-			authGroup.POST("/api/v1/theory/questions/admin/update", theory.AdminUpdateQuestion)
-			authGroup.POST("/api/v1/theory/questions/admin/delete", theory.AdminDeleteQuestion)
+		// 理论试卷管理
+		authGroup.POST("/api/v1/theory/papers/list", theory.ListPapers)
+		authGroup.POST("/api/v1/theory/papers/save", theory.SavePaper)
+		authGroup.POST("/api/v1/theory/papers/delete", theory.DeletePaper)
 
-			// 理论试卷管理
-			authGroup.POST("/api/v1/theory/papers/list", theory.ListPapers)
-			authGroup.POST("/api/v1/theory/papers/save", theory.SavePaper)
-			authGroup.POST("/api/v1/theory/papers/delete", theory.DeletePaper)
-
-			// 训练科目学习与考试（Mongo 题库 + PG 摘要，与理论同构）
-			authGroup.POST("/api/v1/subject-learning/questions/start", subjectExam.StartQuestions)
-			authGroup.POST("/api/v1/subject-learning/questions/submit", subjectExam.SubmitAnswers)
-			authGroup.POST("/api/v1/subject-learning/attempts/my-list", subjectExam.ListMyAttempts)
-			authGroup.POST("/api/v1/subject-learning/questions/admin/list", subjectExam.AdminListQuestions)
-			authGroup.POST("/api/v1/subject-learning/questions/admin/create", subjectExam.AdminCreateQuestion)
-			authGroup.POST("/api/v1/subject-learning/questions/admin/update", subjectExam.AdminUpdateQuestion)
-			authGroup.POST("/api/v1/subject-learning/questions/admin/delete", subjectExam.AdminDeleteQuestion)
+		// 训练科目学习与考试（Mongo 题库 + PG 摘要，与理论同构）
+		authGroup.POST("/api/v1/subject-learning/questions/start", subjectExam.StartQuestions)
+		authGroup.POST("/api/v1/subject-learning/questions/submit", subjectExam.SubmitAnswers)
+		authGroup.POST("/api/v1/subject-learning/attempts/my-list", subjectExam.ListMyAttempts)
 
 		// 学员任务模块
 		authGroup.POST("/api/v1/tasks/my-list", task.MyList)
@@ -188,6 +165,34 @@ func Router(
 		authGroup.POST("/api/v1/community/challenges/detail", community.ChallengesDetail)
 		authGroup.POST("/api/v1/community/challenges/submit", community.ChallengesSubmit)
 		authGroup.POST("/api/v1/community/challenges/entries", community.ChallengesEntries)
+
+		adminOnly := authGroup.Group("")
+		adminOnly.Use(middleware.GinRequireAdmin())
+		{
+			adminOnly.POST("/api/v1/admin/students/list", student.AdminList)
+			adminOnly.POST("/api/v1/admin/students/detail", student.AdminDetail)
+			adminOnly.POST("/api/v1/admin/students/save", student.AdminSave)
+			adminOnly.POST("/api/v1/admin/contracts/list-by-student", student.AdminContractsListByStudent)
+			adminOnly.POST("/api/v1/admin/home", home.AdminHome)
+			adminOnly.POST("/api/v1/admin/personnel/delete", personnel.AdminDelete)
+			adminOnly.POST("/api/v1/admin/personnel/save", personnel.AdminSave)
+			adminOnly.POST("/api/v1/syllabus-subjects/admin/create", training.AdminCreateSyllabusSubject)
+			adminOnly.POST("/api/v1/syllabus-subjects/admin/update", training.AdminUpdateSyllabusSubject)
+			adminOnly.POST("/api/v1/syllabus-subjects/admin/delete", training.AdminDeleteSyllabusSubject)
+			adminOnly.POST("/api/v1/syllabus-outlines/admin/import", training.AdminImportSyllabusOutline)
+			adminOnly.POST("/api/v1/syllabus-subject-secondaries/admin/create", training.AdminCreateSyllabusSubjectSecondary)
+			adminOnly.POST("/api/v1/syllabus-subject-secondaries/admin/update", training.AdminUpdateSyllabusSubjectSecondary)
+			adminOnly.POST("/api/v1/syllabus-subject-secondaries/admin/delete", training.AdminDeleteSyllabusSubjectSecondary)
+			adminOnly.POST("/api/v1/syllabus-subject-secondaries/admin/reorder", training.AdminReorderSyllabusSubjectSecondaries)
+			adminOnly.POST("/api/v1/theory/questions/admin/list", theory.AdminListQuestions)
+			adminOnly.POST("/api/v1/theory/questions/admin/create", theory.AdminCreateQuestion)
+			adminOnly.POST("/api/v1/theory/questions/admin/update", theory.AdminUpdateQuestion)
+			adminOnly.POST("/api/v1/theory/questions/admin/delete", theory.AdminDeleteQuestion)
+			adminOnly.POST("/api/v1/subject-learning/questions/admin/list", subjectExam.AdminListQuestions)
+			adminOnly.POST("/api/v1/subject-learning/questions/admin/create", subjectExam.AdminCreateQuestion)
+			adminOnly.POST("/api/v1/subject-learning/questions/admin/update", subjectExam.AdminUpdateQuestion)
+			adminOnly.POST("/api/v1/subject-learning/questions/admin/delete", subjectExam.AdminDeleteQuestion)
+		}
 	}
 
 	return r

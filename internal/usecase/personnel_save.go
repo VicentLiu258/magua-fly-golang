@@ -35,8 +35,11 @@ type SavePersonnelRequest struct {
 	ContractDurationMinutes *int            `json:"contract_duration_minutes"`
 	FlownMinutes            int             `json:"flown_minutes"`
 	TrainingProgress        string          `json:"training_progress"`
-	ResponsibleInstructorID *string       `json:"responsible_instructor_id"`
+	ResponsibleInstructorID *string         `json:"responsible_instructor_id"`
 	ContractInfo            json.RawMessage `json:"contract_info"`
+	TrainingProgressJSON    json.RawMessage `json:"training_progress_json"`
+	// EmploymentStatus 任职状态：active | resigned | part_time；空表示新建默认 active，更新时不改。
+	EmploymentStatus string `json:"employment_status"`
 }
 
 // SavePersonnelResult 保存成功后的响应体（按 Kind 仅一个非空）。
@@ -47,16 +50,41 @@ type SavePersonnelResult struct {
 	User        *domain.User       `json:"user,omitempty"`
 }
 
-func mergeContractInfoJSON(dst *[]byte, raw json.RawMessage) error {
+func mergeJSONColumn(dst *[]byte, raw json.RawMessage, invalidErr error) error {
 	b := bytes.TrimSpace(raw)
 	if len(b) == 0 {
 		return nil
 	}
 	if !json.Valid(b) {
-		return ErrInvalidContractInfo
+		return invalidErr
 	}
 	*dst = append([]byte(nil), b...)
 	return nil
+}
+
+func mergeContractInfoJSON(dst *[]byte, raw json.RawMessage) error {
+	return mergeJSONColumn(dst, raw, ErrInvalidContractInfo)
+}
+
+func mergeTrainingProgressJSON(dst *[]byte, raw json.RawMessage) error {
+	return mergeJSONColumn(dst, raw, ErrInvalidTrainingProgressJSON)
+}
+
+func employmentStatusFromRequest(raw string) (domain.EmploymentStatus, error) {
+	s := strings.TrimSpace(strings.ToLower(raw))
+	if s == "" {
+		return "", nil
+	}
+	switch s {
+	case "active":
+		return domain.EmploymentActive, nil
+	case "resigned":
+		return domain.EmploymentResigned, nil
+	case "part_time", "part-time":
+		return domain.EmploymentPartTime, nil
+	default:
+		return "", ErrInvalidArgument
+	}
 }
 
 func (u *PersonnelUseCase) checkUsernameAvailable(ctx context.Context, username, excludeUserID string) error {
@@ -119,6 +147,11 @@ func (u *PersonnelUseCase) createStudent(ctx context.Context, req *SavePersonnel
 		Role:      domain.RoleStudent,
 		AvatarURL: strings.TrimSpace(req.AvatarURL),
 	}
+	if es, err := employmentStatusFromRequest(req.EmploymentStatus); err != nil {
+		return nil, err
+	} else if es != "" {
+		uu.EmploymentStatus = es
+	}
 	if req.Password != "" {
 		h, err := password.Hash(req.Password)
 		if err != nil {
@@ -139,6 +172,9 @@ func (u *PersonnelUseCase) createStudent(ctx context.Context, req *SavePersonnel
 		ResponsibleInstructorID: req.ResponsibleInstructorID,
 	}
 	if err := mergeContractInfoJSON(&s.ContractInfo, req.ContractInfo); err != nil {
+		return nil, err
+	}
+	if err := mergeTrainingProgressJSON(&s.TrainingProgressJSON, req.TrainingProgressJSON); err != nil {
 		return nil, err
 	}
 	if err := u.studentRepo.Create(ctx, s); err != nil {
@@ -165,6 +201,9 @@ func (u *PersonnelUseCase) updateStudent(ctx context.Context, studentID string, 
 	s.TrainingProgress = strings.TrimSpace(req.TrainingProgress)
 	s.ResponsibleInstructorID = req.ResponsibleInstructorID
 	if err := mergeContractInfoJSON(&s.ContractInfo, req.ContractInfo); err != nil {
+		return nil, err
+	}
+	if err := mergeTrainingProgressJSON(&s.TrainingProgressJSON, req.TrainingProgressJSON); err != nil {
 		return nil, err
 	}
 	if err := u.studentRepo.Update(ctx, s); err != nil {
@@ -198,6 +237,13 @@ func (u *PersonnelUseCase) updateStudent(ctx context.Context, studentID string, 
 					return nil, err
 				}
 				uu.PasswordHash = h
+			}
+			if strings.TrimSpace(req.EmploymentStatus) != "" {
+				es, err := employmentStatusFromRequest(req.EmploymentStatus)
+				if err != nil {
+					return nil, err
+				}
+				uu.EmploymentStatus = es
 			}
 			if err := u.userRepo.Update(ctx, uu); err != nil {
 				if errors.Is(err, repository.ErrNotFound) {
@@ -242,6 +288,11 @@ func (u *PersonnelUseCase) createInstructor(ctx context.Context, req *SavePerson
 		Role:         domain.RoleInstructor,
 		PasswordHash: hash,
 		AvatarURL:    strings.TrimSpace(req.AvatarURL),
+	}
+	if es, err := employmentStatusFromRequest(req.EmploymentStatus); err != nil {
+		return nil, err
+	} else if es != "" {
+		uu.EmploymentStatus = es
 	}
 	if err := u.userRepo.Create(ctx, uu); err != nil {
 		return nil, err
@@ -305,6 +356,13 @@ func (u *PersonnelUseCase) updateInstructor(ctx context.Context, instructorID st
 		}
 		uu.PasswordHash = h
 	}
+	if strings.TrimSpace(req.EmploymentStatus) != "" {
+		es, err := employmentStatusFromRequest(req.EmploymentStatus)
+		if err != nil {
+			return nil, err
+		}
+		uu.EmploymentStatus = es
+	}
 	if err := u.userRepo.Update(ctx, uu); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrNotFound
@@ -351,6 +409,13 @@ func (u *PersonnelUseCase) saveStaff(ctx context.Context, req *SavePersonnelRequ
 			return nil, err
 		}
 		uu.PasswordHash = h
+	}
+	if strings.TrimSpace(req.EmploymentStatus) != "" {
+		es, err := employmentStatusFromRequest(req.EmploymentStatus)
+		if err != nil {
+			return nil, err
+		}
+		uu.EmploymentStatus = es
 	}
 	if err := u.userRepo.Update(ctx, uu); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {

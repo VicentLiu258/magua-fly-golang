@@ -18,6 +18,17 @@
 - `msg`：简短文字描述。
 - `data`：实际业务数据；错误时通常为 `null` 或携带少量上下文信息。
 
+### 任职状态、人员类别与鉴权（全局）
+
+- **`users.employment_status`（任职状态）**：`active`（在职）| `resigned`（离职）| `part_time`（兼职）。新建账号默认 `active`（数据库迁移 `027_user_employment_status`）。与 **`deleted_at` 软删除**不同：软删用于归档与用户名/学号复用；任职状态用于人事状态与是否允许登录、是否出现在非管理员选人列表中。
+- **规则摘要**：
+  - **在职 `active`**：可登录；持有效 JWT 可调用业务接口（仍受角色与具体接口权限约束）。
+  - **离职 `resigned` / 兼职 `part_time`**：不可用户名密码登录、不可短信登录（返回与密码错误一致：`401`，`msg: invalid credentials`）；若仍持有旧 JWT，后续带鉴权请求在中间件中会返回 **`403`**，Body 示例：`{"error":"employment inactive"}`（与部分业务接口的 `code`/`msg` 包装可能不同，以实际响应为准）。
+  - **`role = admin`**：登录与 JWT 校验**不**按任职状态拦截；建议后台仍保持管理员账号为 `active`。
+- **人员类别（不落库，由 `role` 推导）**：`student` / `instructor` → `flight`（飞行）；`maintenance` → `maintenance`（维修）；`staff` → `ground`（地面）；`admin` → `admin`。后台学员列表等接口会在有账号时返回 `personnel_category` 供展示。
+- **学员 / 教员列表过滤**：`POST /api/v1/students/list`、`POST /api/v1/instructors/list` 在调用者**非** `admin` 时，仅返回关联用户为 **`active`** 的数据（学员无 `user_id` 的档案仍返回）；**`admin`** 调用时返回全部未软删记录。
+- **管理员专属路由**：凡 `POST /api/v1/admin/...` 以及路径中含 **`/admin/`** 的管理接口（如大纲、理论/科目题库管理等），均需 **`role = admin`**，否则 **`403`**（如 `{"error":"forbidden"}`）。
+
 ---
 
 ## 1. 健康检查
@@ -79,6 +90,7 @@
       "phone": "13800000000",
       "email": "u@example.com",
       "role": "student",
+      "employment_status": "active",
       "avatar_url": "",
       "created_at": "2026-03-10T12:00:00Z",
       "updated_at": "2026-03-10T12:00:00Z"
@@ -96,6 +108,8 @@
   "data": null
 }
 ```
+
+- 若账号存在但 **`employment_status` 为 `resigned` 或 `part_time`**（且非 `admin` 角色），同样返回上述 `401` / `invalid credentials`，与密码错误不做区分。
 
 ### 2.2 注册账号
 
@@ -117,6 +131,7 @@
 **行为说明**：
 
 - 创建一条 `users` 记录。
+- 新用户 **`employment_status` 默认为 `active`**（无需在注册请求中传递）。
 - 若 `role = "student"`，自动在 `students` 表创建一条记录并关联 `user_id`。
 - 若 `role = "instructor"`，自动在 `instructors` 表创建一条记录并关联 `user_id`。
 - 若 `role = "maintenance"`（机务），仅创建 `users`，**不**创建 `instructors`（不上机、无教员档案）；日排班与 `staff` 相同，使用 `staff_schedules`（见 §5.6）。
@@ -133,6 +148,7 @@
     "phone": "13800000000",
     "email": "s1@example.com",
     "role": "student",
+    "employment_status": "active",
     "avatar_url": "",
     "created_at": "2026-03-10T12:00:00Z",
     "updated_at": "2026-03-10T12:00:00Z"
@@ -188,8 +204,10 @@
 
 短信注册场景下，会自动：
 
-- 创建 `users` 记录（`role = "student"`）。
+- 创建 `users` 记录（`role = "student"`），默认 **`employment_status = active`**。
 - 自动创建并关联 `students` 记录。
+
+短信登录场景下，若手机号对应用户为 **`resigned` / `part_time`**（且非 `admin`），返回 **`401`** / `invalid credentials`，与 §2.1 一致。
 
 ---
 
@@ -198,6 +216,7 @@
 ### 4.1 学员列表 `POST /api/v1/students/list`
 
 - **认证**：需要。
+- **任职状态过滤**：调用者为 **`admin`** 时列出全部未软删学员；**非 admin** 时仅列出「无关联账号」或关联用户 **`employment_status = active`** 的学员（见文首「任职状态、人员类别与鉴权」）。
 
 **请求体**（JSON；`Content-Length` 为 0 或仅空白时视为未传，使用默认分页）：
 
@@ -316,6 +335,9 @@
 缺字段或非法 JSON 时，解析结果按 `0` 处理；`remaining = max(0, quota - used)`。
 
 ### 4.2 教员列表 `POST /api/v1/instructors/list`
+
+- **认证**：需要。
+- **任职状态过滤**：**`admin`** 返回全部未软删教员；**非 admin** 仅返回关联用户为 **`active`** 的教员（见文首全局约定）。
 
 **成功响应**：
 
@@ -798,7 +820,7 @@
 
 #### 5.6.1 全员考勤网格 `POST /api/v1/schedules/workforce-grid`
 
-返回 **role 为 `staff`、`maintenance` 与 `instructor` 的用户**（不含 `admin`、`student`），格点定义与教员网格相同（`dayStart`/`dayEnd`/`slots`/`slotMinutes`）。
+返回 **role 为 `staff`、`maintenance` 与 `instructor` 的用户**（不含 `admin`、`student`），格点定义与教员网格相同（`dayStart`/`dayEnd`/`slots`/`slotMinutes`）。用户来源为 `users` 按角色查询，且仅包含 **`employment_status = active`** 的账号（离职/兼职不出现在人力网格选人列表中）。
 
 **请求体**：
 
@@ -2580,12 +2602,12 @@
 
 ### 13. 学员信息管理（后台）API（设计稿）
 
-> 说明：本节为基于当前数据库结构的后台“学员信息管理”接口设计，实际落地时可按本规范实现到对应 Handler 中。与学员 / 教员 / 地面职员相关的**统一软删除**见 **§13.4**，**统一新建/编辑**见 **§13.5**（均仅 `admin`）。
+> 说明：本节为基于当前数据库结构的后台“学员信息管理”接口设计，实际落地时可按本规范实现到对应 Handler 中。与学员 / 教员 / 地面职员相关的**统一软删除**见 **§13.4**，**统一新建/编辑**见 **§13.5**（均仅 `admin`）。**任职状态**维护见 **§13.3**、**§13.5** 的 `employment_status` 字段。
 
 #### 13.1 学员列表（后台）`POST /api/v1/admin/students/list`
 
-- **认证**：需要，推荐仅 `admin` / `staff` 角色可访问。
-- **说明**：用于后台表格展示所有学员的基础信息与训练/合同摘要。
+- **认证**：需要；**仅** `role = "admin"` 可访问（与其它 `POST /api/v1/admin/*` 一致）。
+- **说明**：用于后台表格展示所有学员的基础信息与训练/合同摘要（含离职/兼职学员，便于管理员维护）。
 
 **请求体**：
 
@@ -2613,6 +2635,8 @@
         "username": "student1",
         "phone": "13800000000",
         "email": "s1@example.com",
+        "employment_status": "active",
+        "personnel_category": "flight",
         "contract_duration_minutes": 3600,
         "flown_minutes": 1200,
         "remaining_minutes": 2400,
@@ -2627,6 +2651,8 @@
   }
 }
 ```
+
+- 无关联账号（学员未绑定 `user_id`）时，`username` / `phone` / `email` / `employment_status` / `personnel_category` 通常为空或省略。
 
 #### 13.2 学员详情（后台）`POST /api/v1/admin/students/detail`
 
@@ -2658,7 +2684,9 @@
       "username": "student1",
       "phone": "13800000000",
       "email": "s1@example.com",
-      "role": "student"
+      "role": "student",
+      "employment_status": "active",
+      "personnel_category": "flight"
     },
     "responsible_instructor": {
       "id": "550e8400-e29b-41d4-a716-446655440002",
@@ -2677,7 +2705,8 @@
 
 #### 13.3 新建 / 更新学员（后台）`POST /api/v1/admin/students/save`
 
-- **说明**：用于后台创建或编辑学员信息；实现上与 **§13.5** `kind = "student"` 相同（本接口**无需**传 `kind`，服务端固定按学员处理）。创建时维护 `users`（`role = student`）与 `students`；**更新**时若学员已关联 `user_id`，可同时修改该账号的 `username` / `phone` / `email` / `avatar_url` / `password`（密码非空则重置）。
+- **认证**：需要；**仅** `admin`。
+- **说明**：用于后台创建或编辑学员信息；实现上与 **§13.5** `kind = "student"` 相同（本接口**无需**传 `kind`，服务端固定按学员处理）。创建时维护 `users`（`role = student`）与 `students`；**更新**时若学员已关联 `user_id`，可同时修改该账号的 `username` / `phone` / `email` / `avatar_url` / `password`（密码非空则重置）及 **`employment_status`**。
 
 **请求体（示例）**：
 
@@ -2690,9 +2719,11 @@
   "phone": "13800000000",
   "email": "s1@example.com",
   "password": "secret",
+  "employment_status": "active",
   "contract_duration_minutes": 3600,
   "flown_minutes": 0,
   "training_progress": "",
+  "training_progress_json": { "stage": "PPL", "items": [] },
   "responsible_instructor_id": "550e8400-e29b-41d4-a716-446655440002",
   "contract_info": {
     "learning_points": 120,
@@ -2701,7 +2732,9 @@
 }
 ```
 
-- 可选字段 `contract_info`：合法 JSON 对象时写入 `students.contract_info`；请求中**未携带**该字段或值为空白时不修改（更新场景下保留原值）；**携带**且为非空 JSON 时覆盖（创建与更新均支持）。非法 JSON 返回 `400`。
+- 可选字段 **`employment_status`**：取值 `active` | `resigned` | `part_time`（亦接受 `part-time`，存为 `part_time`）。**新建**时省略则默认为 `active`；**更新**时省略则不修改关联账号的任职状态。非法取值返回 `400`。
+- 可选字段 `contract_info`：合法 JSON 时写入 `students.contract_info`（JSONB）；请求中**未携带**该字段或值为空白时不修改（更新场景下保留原值）；**携带**且为非空 JSON 时覆盖（创建与更新均支持）。非法 JSON 返回 `400`（`msg: invalid contract_info json`）。
+- 可选字段 `training_progress_json`：合法 JSON 时写入 `students.training_progress_json`（JSONB）；**未携带**或值为空白时，更新场景下**不修改**原值；语义与 `contract_info` 相同。非法 JSON 返回 `400`（`msg: invalid training_progress_json`）。
 - 当 `student_id = null` 时，后端将：
   - 在 `users` 表中创建一条 `role = "student"` 的账号记录；
   - 在 `students` 表中创建一条记录并关联 `user_id`；
@@ -2711,7 +2744,7 @@
 #### 13.4 人员软删除（后台）`POST /api/v1/admin/personnel/delete`
 
 - **认证**：需要；**仅** `role = "admin"` 可调用，否则 HTTP `403`（`code: 403`，`msg: forbidden`）。
-- **说明**：对学员、教员或地面职员账号做**软删除**（数据库字段 `deleted_at`），不物理删行。软删除后：
+- **说明**：对学员、教员或地面职员账号做**软删除**（数据库字段 `deleted_at`），不物理删行。与 **`employment_status`** 独立：日常「离职 / 兼职」可只改任职状态保留档案；软删多用于彻底从业务列表移除并允许用户名/学号复用。软删除后：
   - 学员 / 教员列表、用户按角色列举等常规查询**不再包含**该人员；
   - 已软删除账号**无法**再通过用户名密码登录（`POST /auth/login` 查不到有效用户）；
   - 唯一约束（用户名、学号等）在「未删除」范围内生效，后续可复用相同用户名 / 学号新建档案（见迁移 `026_personnel_soft_delete`）。
@@ -2763,9 +2796,9 @@
 
 | `kind` | 新建 | 更新 | 必填与主键 |
 |--------|------|------|------------|
-| `student` | `student_id` 省略或空 | `student_id` = `students.id` | 新建：`name`、`student_no`；更新：同上。可选：`username`、`phone`、`email`、`password`、`avatar_url`（有 `user_id` 时生效）、合同与训练字段同 §13.3 |
-| `instructor` | `instructor_id` 省略或空 | `instructor_id` = `instructors.id` | 新建：`username`、`name`、`password`（非空）、可选 `phone`、`email`、`display_color`、`avatar_url`。更新：教员 `name` / `display_color` 及账号字段（非空字段覆盖） |
-| `staff` | （本接口不单独创建地面账号，请用注册或其它流程） | `user_id` = `users.id` | **仅更新**：`user_id` 必填；目标用户须为 `staff` 或 `maintenance`；可改 `username`、`phone`、`email`、`avatar_url`、`password` |
+| `student` | `student_id` 省略或空 | `student_id` = `students.id` | 新建：`name`、`student_no`；更新：同上。可选：`username`、`phone`、`email`、`password`、`avatar_url`（有 `user_id` 时生效）、**`employment_status`**（`active` / `resigned` / `part_time`）、`contract_duration_minutes`、`flown_minutes`、`training_progress`、`training_progress_json`、`responsible_instructor_id`、`contract_info`（语义见 §13.3） |
+| `instructor` | `instructor_id` 省略或空 | `instructor_id` = `instructors.id` | 新建：`username`、`name`、`password`（非空）、可选 `phone`、`email`、`display_color`、`avatar_url`、**`employment_status`**。更新：教员 `name` / `display_color` 及账号字段（非空字段覆盖）；可选 **`employment_status`**（有值则更新） |
+| `staff` | （本接口不单独创建地面账号，请用注册或其它流程） | `user_id` = `users.id` | **仅更新**：`user_id` 必填；目标用户须为 `staff` 或 `maintenance`；可改 `username`、`phone`、`email`、`avatar_url`、`password`、**`employment_status`** |
 
 **请求示例（新建教员）**：
 
@@ -2778,7 +2811,8 @@
   "phone": "13800000000",
   "email": "ins@example.com",
   "display_color": "#3366cc",
-  "avatar_url": ""
+  "avatar_url": "",
+  "employment_status": "active"
 }
 ```
 
@@ -2790,7 +2824,8 @@
   "user_id": "550e8400-e29b-41d4-a716-446655440099",
   "username": "maint01",
   "phone": "13900000000",
-  "email": "m@example.com"
+  "email": "m@example.com",
+  "employment_status": "part_time"
 }
 ```
 
@@ -2816,6 +2851,7 @@
       "phone": "13800000000",
       "email": "ins@example.com",
       "role": "instructor",
+      "employment_status": "active",
       "avatar_url": "",
       "created_at": "...",
       "updated_at": "..."
@@ -2831,7 +2867,7 @@
 
 | HTTP | 说明 |
 |------|------|
-| `400` | `kind` 缺失或非法；新建教员未提供 `password`；学员新建缺少 `name`/`student_no`；`username` 已被他人占用（`msg: username already exists`）；`contract_info` 非法 JSON |
+| `400` | `kind` 缺失或非法；新建教员未提供 `password`；学员新建缺少 `name`/`student_no`；`username` 已被他人占用（`msg: username already exists`）；`employment_status` 非法；`contract_info` / `training_progress_json` 非法 JSON |
 | `403` | 非 `admin`；`kind = "staff"` 但目标用户不是 `staff`/`maintenance` |
 | `404` | 更新的 `student_id` / `instructor_id` / `user_id` 不存在或已软删除 |
 
@@ -2860,9 +2896,12 @@
 |------|---------------------------|
 | `POST /api/v1/students/my-home` | `student` |
 | `POST /api/v1/instructors/my-home` | `instructor` |
-| `POST /api/v1/admin/home` | `admin`（与其它多数 `POST /api/v1/admin/*` 一致） |
-| `POST /api/v1/admin/personnel/delete` | **仅** `admin`（见 §13.4） |
-| `POST /api/v1/admin/personnel/save` | **仅** `admin`（见 §13.5） |
+| `POST /api/v1/admin/home` | `admin` |
+| `POST /api/v1/admin/students/*`、`POST /api/v1/admin/contracts/*` | **仅** `admin` |
+| `POST /api/v1/admin/personnel/delete`、`POST /api/v1/admin/personnel/save` | **仅** `admin`（见 §13.4、§13.5） |
+| 路径含 **`/admin/`** 的训练/大纲/题库管理接口（如 `POST /api/v1/syllabus-subjects/admin/*`、`POST /api/v1/theory/questions/admin/*` 等） | **仅** `admin` |
+
+未登录统一 `401`；已登录但非 `admin` 访问上表中的管理接口为 **`403`**。
 
 ---
 

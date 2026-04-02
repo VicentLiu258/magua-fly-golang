@@ -25,7 +25,11 @@ func NewInstructorHandler(instructorRepo repository.InstructorRepository, homeUC
 
 // List returns all instructors.
 func (h *InstructorHandler) List(c *gin.Context) {
-	list, err := h.instructorRepo.List(c.Request.Context())
+	onlyActive := true
+	if claims := middleware.GetGinClaims(c); claims != nil && domain.UserRole(claims.Role) == domain.RoleAdmin {
+		onlyActive = false
+	}
+	list, err := h.instructorRepo.List(c.Request.Context(), onlyActive)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return

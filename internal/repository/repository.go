@@ -31,7 +31,8 @@ type StudentRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Student, error)
 	GetByUserID(ctx context.Context, userID string) (*domain.Student, error)
 	GetByStudentNo(ctx context.Context, studentNo string) (*domain.Student, error)
-	List(ctx context.Context, limit, offset int) ([]*domain.Student, error)
+	// List onlyActiveEmployment：true 时排除已关联账号且任职状态非 active 的学员（无 user_id 的档案仍返回）。
+	List(ctx context.Context, limit, offset int, onlyActiveEmployment bool) ([]*domain.Student, error)
 	Create(ctx context.Context, s *domain.Student) error
 	Update(ctx context.Context, s *domain.Student) error
 }
@@ -40,7 +41,8 @@ type StudentRepository interface {
 type InstructorRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.Instructor, error)
 	GetByUserID(ctx context.Context, userID string) (*domain.Instructor, error)
-	List(ctx context.Context) ([]*domain.Instructor, error)
+	// List onlyActiveEmployment：true 时仅返回关联用户为在职的教员。
+	List(ctx context.Context, onlyActiveEmployment bool) ([]*domain.Instructor, error)
 	Create(ctx context.Context, i *domain.Instructor) error
 	Update(ctx context.Context, i *domain.Instructor) error
 }

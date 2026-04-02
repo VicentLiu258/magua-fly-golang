@@ -73,6 +73,9 @@ func (u *AuthUseCase) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 	if !password.Check(user.PasswordHash, req.Password) {
 		return nil, ErrInvalidCredentials
 	}
+	if user.Role != domain.RoleAdmin && user.EmploymentStatus != domain.EmploymentActive {
+		return nil, ErrInvalidCredentials
+	}
 	user.PasswordHash = ""
 	token, err := u.jwtManager.Issue(user.ID, string(user.Role))
 	if err != nil {
@@ -208,6 +211,9 @@ func (u *AuthUseCase) VerifySmsCode(ctx context.Context, req VerifySmsCodeReques
 			} else {
 				return nil, ErrInvalidCredentials
 			}
+		}
+		if user.Role != domain.RoleAdmin && user.EmploymentStatus != domain.EmploymentActive {
+			return nil, ErrInvalidCredentials
 		}
 		user.PasswordHash = ""
 		token, err := u.jwtManager.Issue(user.ID, string(user.Role))

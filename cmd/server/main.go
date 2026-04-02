@@ -196,6 +196,7 @@ func main() {
 		homeHandler,
 		personnelHandler,
 		jwtManager,
+		pgDB.User(),
 	)
 
 	portStr := strconv.Itoa(cfg.ServerPort)

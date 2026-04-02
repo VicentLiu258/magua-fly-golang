@@ -127,6 +127,7 @@ func (r *CommunityFollowRepo) RecommendUserIDs(ctx context.Context, viewerID str
 		SELECT u.id::text
 		FROM users u
 		WHERE u.deleted_at IS NULL
+		  AND u.employment_status = 'active'
 		  AND u.id <> $1::uuid
 		  AND NOT EXISTS (
 			SELECT 1 FROM user_follows f

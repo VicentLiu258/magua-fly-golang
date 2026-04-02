@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 
-	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/middleware"
 	"magua-fly-golang/internal/usecase"
 
@@ -26,10 +25,6 @@ func (h *HomeHandler) AdminHome(c *gin.Context) {
 	claims := middleware.GetGinClaims(c)
 	if claims == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
-		return
-	}
-	if domain.UserRole(claims.Role) != domain.RoleAdmin {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "forbidden", "data": nil})
 		return
 	}
 	data, _, err := h.uc.AdminHome(c.Request.Context(), claims.UserID)

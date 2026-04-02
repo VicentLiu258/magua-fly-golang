@@ -13,6 +13,41 @@ const (
 	RoleStudent     UserRole = "student"
 )
 
+// EmploymentStatus 任职状态（登录与 JWT 业务接口：非 admin 须为 active）。
+type EmploymentStatus string
+
+const (
+	EmploymentActive   EmploymentStatus = "active"
+	EmploymentResigned EmploymentStatus = "resigned"
+	EmploymentPartTime EmploymentStatus = "part_time"
+)
+
+// PersonnelCategory 人员类别（由角色推导，不落库）。
+type PersonnelCategory string
+
+const (
+	PersonnelFlight        PersonnelCategory = "flight"
+	PersonnelMaintenance   PersonnelCategory = "maintenance"
+	PersonnelGround        PersonnelCategory = "ground"
+	PersonnelCategoryAdmin PersonnelCategory = "admin"
+)
+
+// DerivePersonnelCategory 从角色推导人员类别（飞行/维修/地面）。
+func DerivePersonnelCategory(r UserRole) PersonnelCategory {
+	switch r {
+	case RoleStudent, RoleInstructor:
+		return PersonnelFlight
+	case RoleMaintenance:
+		return PersonnelMaintenance
+	case RoleStaff:
+		return PersonnelGround
+	case RoleAdmin:
+		return PersonnelCategoryAdmin
+	default:
+		return ""
+	}
+}
+
 // RoleUsesStaffSchedule 是否使用 staff_schedules 做日排班（地面工作人员，含 staff 与机务）。
 func RoleUsesStaffSchedule(r UserRole) bool {
 	return r == RoleStaff || r == RoleMaintenance
@@ -20,15 +55,16 @@ func RoleUsesStaffSchedule(r UserRole) bool {
 
 // User is the account entity.
 type User struct {
-	ID           string    `json:"id"`
-	Username     string    `json:"username"`
-	PasswordHash string    `json:"-"`
-	Phone        string    `json:"phone,omitempty"`
-	Email        string    `json:"email,omitempty"`
-	Role         UserRole  `json:"role"`
-	AvatarURL    string    `json:"avatar_url,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                string           `json:"id"`
+	Username          string           `json:"username"`
+	PasswordHash      string           `json:"-"`
+	Phone             string           `json:"phone,omitempty"`
+	Email             string           `json:"email,omitempty"`
+	Role              UserRole         `json:"role"`
+	EmploymentStatus  EmploymentStatus `json:"employment_status"`
+	AvatarURL         string           `json:"avatar_url,omitempty"`
+	CreatedAt         time.Time        `json:"created_at"`
+	UpdatedAt         time.Time        `json:"updated_at"`
 }
 
 // SmsScene represents the scenario for SMS verification codes.

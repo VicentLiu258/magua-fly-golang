@@ -105,7 +105,7 @@ func (u *ScheduleUseCase) GetInstructorGrid(ctx context.Context, date time.Time)
 	}
 
 	// Fetch instructors.
-	instructors, err := u.instructorRepo.List(ctx)
+	instructors, err := u.instructorRepo.List(ctx, true)
 	if err != nil {
 		return nil, err
 	}

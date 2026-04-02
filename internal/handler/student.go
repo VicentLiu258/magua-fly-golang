@@ -94,7 +94,11 @@ func (h *StudentHandler) List(c *gin.Context) {
 			offset = 0
 		}
 	}
-	list, err := h.studentRepo.List(c.Request.Context(), limit, offset)
+	onlyActive := true
+	if claims := middleware.GetGinClaims(c); claims != nil && domain.UserRole(claims.Role) == domain.RoleAdmin {
+		onlyActive = false
+	}
+	list, err := h.studentRepo.List(c.Request.Context(), limit, offset, onlyActive)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
@@ -127,7 +131,7 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 	limit := body.PageSize
 	offset := (body.Page - 1) * body.PageSize
 
-	list, err := h.studentRepo.List(c.Request.Context(), limit, offset)
+	list, err := h.studentRepo.List(c.Request.Context(), limit, offset, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
@@ -140,6 +144,8 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 		Username                string `json:"username"`
 		Phone                   string `json:"phone"`
 		Email                   string `json:"email"`
+		EmploymentStatus        string `json:"employment_status,omitempty"`
+		PersonnelCategory       string `json:"personnel_category,omitempty"`
 		ContractDurationMinutes *int   `json:"contract_duration_minutes,omitempty"`
 		FlownMinutes            int    `json:"flown_minutes"`
 		RemainingMinutes        *int   `json:"remaining_minutes,omitempty"`
@@ -169,6 +175,8 @@ func (h *StudentHandler) AdminList(c *gin.Context) {
 				it.Username = u.Username
 				it.Phone = u.Phone
 				it.Email = u.Email
+				it.EmploymentStatus = string(u.EmploymentStatus)
+				it.PersonnelCategory = string(domain.DerivePersonnelCategory(u.Role))
 			}
 		}
 		if s.ResponsibleInstructorID != nil {

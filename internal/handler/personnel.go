@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	"magua-fly-golang/internal/domain"
-	"magua-fly-golang/internal/middleware"
 	"magua-fly-golang/internal/usecase"
 
 	"github.com/gin-gonic/gin"
@@ -24,15 +22,6 @@ func NewPersonnelHandler(uc *usecase.PersonnelUseCase) *PersonnelHandler {
 
 // AdminDelete POST /api/v1/admin/personnel/delete
 func (h *PersonnelHandler) AdminDelete(c *gin.Context) {
-	claims := middleware.GetGinClaims(c)
-	if claims == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
-		return
-	}
-	if domain.UserRole(claims.Role) != domain.RoleAdmin {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "forbidden", "data": nil})
-		return
-	}
 	var body usecase.SoftDeletePersonnelRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
@@ -56,15 +45,6 @@ func (h *PersonnelHandler) AdminDelete(c *gin.Context) {
 
 // AdminSave POST /api/v1/admin/personnel/save — 统一新建/编辑学员、教员、地面职员（仅 admin）
 func (h *PersonnelHandler) AdminSave(c *gin.Context) {
-	claims := middleware.GetGinClaims(c)
-	if claims == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
-		return
-	}
-	if domain.UserRole(claims.Role) != domain.RoleAdmin {
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "forbidden", "data": nil})
-		return
-	}
 	var body usecase.SavePersonnelRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
@@ -94,6 +74,8 @@ func writePersonnelSaveErr(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": usecase.ErrPersonnelStaffRole.Error(), "data": nil})
 	case errors.Is(err, usecase.ErrInvalidContractInfo):
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": usecase.ErrInvalidContractInfo.Error(), "data": nil})
+	case errors.Is(err, usecase.ErrInvalidTrainingProgressJSON):
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": usecase.ErrInvalidTrainingProgressJSON.Error(), "data": nil})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 	}

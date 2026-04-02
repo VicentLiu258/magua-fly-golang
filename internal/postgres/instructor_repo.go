@@ -43,8 +43,18 @@ func (r *InstructorRepo) GetByUserID(ctx context.Context, userID string) (*domai
 	return &i, nil
 }
 
-func (r *InstructorRepo) List(ctx context.Context) ([]*domain.Instructor, error) {
-	rows, err := r.db.Pool.Query(ctx, `SELECT id::text, user_id::text, name, COALESCE(display_color,''), created_at, updated_at FROM instructors WHERE deleted_at IS NULL ORDER BY id`)
+func (r *InstructorRepo) List(ctx context.Context, onlyActiveEmployment bool) ([]*domain.Instructor, error) {
+	q := `SELECT i.id::text, i.user_id::text, i.name, COALESCE(i.display_color,''), i.created_at, i.updated_at
+		FROM instructors i`
+	if onlyActiveEmployment {
+		q += `
+		INNER JOIN users u ON u.id = i.user_id AND u.deleted_at IS NULL
+		WHERE i.deleted_at IS NULL AND u.employment_status = 'active'`
+	} else {
+		q += ` WHERE i.deleted_at IS NULL`
+	}
+	q += ` ORDER BY i.id`
+	rows, err := r.db.Pool.Query(ctx, q)
 	if err != nil {
 		return nil, err
 	}

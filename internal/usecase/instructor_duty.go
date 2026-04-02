@@ -59,7 +59,7 @@ func (u *ScheduleUseCase) ListInstructorDuties(ctx context.Context, from, to tim
 		return nil, err
 	}
 
-	instructors, err := u.instructorRepo.List(ctx)
+	instructors, err := u.instructorRepo.List(ctx, true)
 	if err != nil {
 		return nil, err
 	}
