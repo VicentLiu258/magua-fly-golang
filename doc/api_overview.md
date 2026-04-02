@@ -339,7 +339,7 @@
 - **认证**：需要。
 - **任职状态过滤**：**`admin`** 返回全部未软删教员；**非 admin** 仅返回关联用户为 **`active`** 的教员（见文首全局约定）。
 
-**成功响应**：
+**成功响应**：每条在教员档案字段外，附带关联 **`users` 账号**上的 `username`、`phone`、`email`、`employment_status`、`personnel_category`（与学员列表侧推导规则一致）；若关联用户查询失败则这些字段省略或为空。
 
 ```json
 {
@@ -352,6 +352,11 @@
         "user_id": "550e8400-e29b-41d4-a716-446655440002",
         "name": "Instructor A",
         "display_color": "#ff0000",
+        "username": "ins01",
+        "phone": "13800000000",
+        "email": "ins@example.com",
+        "employment_status": "active",
+        "personnel_category": "flight",
         "created_at": "...",
         "updated_at": "..."
       }

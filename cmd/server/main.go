@@ -172,7 +172,7 @@ func main() {
 		homeUC,
 		personnelUC,
 	)
-	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor(), homeUC)
+	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor(), pgDB.User(), homeUC)
 
 	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.StaffSchedule(), pgDB.User(), pgDB.Booking(), pgDB.TrainingPlan(), pgDB.AircraftAvailability())
 	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan(), pgDB.Task(), scheduleUC, trainingUC)
