@@ -218,6 +218,8 @@ type InstructorTimeline struct {
 	ID       string   `json:"id"`
 	Name     string     `json:"name"`
 	Color    string     `json:"displayColor,omitempty"`
+	Phone    string     `json:"phone,omitempty"`
+	Email    string     `json:"email,omitempty"`
 	Timeline []TimeSlot `json:"timeline"`
 }
 
@@ -249,6 +251,8 @@ type WorkforceMemberRow struct {
 	Role         UserRole  `json:"role"`
 	Username     string    `json:"username"`
 	Name         string    `json:"name"`
+	Phone        string    `json:"phone,omitempty"`
+	Email        string    `json:"email,omitempty"`
 	InstructorID *string   `json:"instructorId,omitempty"`
 	DisplayColor string    `json:"displayColor,omitempty"`
 	Timeline     []TimeSlot `json:"timeline"`
@@ -270,6 +274,8 @@ type StaffDutyListItem struct {
 	UserID          string               `json:"user_id"`
 	Username        string               `json:"username"`
 	Name            string               `json:"name"`
+	Phone           string               `json:"phone,omitempty"`
+	Email           string               `json:"email,omitempty"`
 	Date            string               `json:"date"`
 	DutyStatus      InstructorDutyStatus `json:"duty_status"`
 	Remark          string               `json:"remark,omitempty"`

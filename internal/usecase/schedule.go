@@ -237,10 +237,19 @@ func (u *ScheduleUseCase) GetInstructorGrid(ctx context.Context, date time.Time)
 			}
 		}
 
+		var phone, email string
+		if u.userRepo != nil && inst.UserID != "" {
+			if uu, err := u.userRepo.GetByID(ctx, inst.UserID); err == nil && uu != nil {
+				phone = uu.Phone
+				email = uu.Email
+			}
+		}
 		result.Instructors = append(result.Instructors, domain.InstructorTimeline{
 			ID:       inst.ID,
 			Name:     inst.Name,
 			Color:    inst.DisplayColor,
+			Phone:    phone,
+			Email:    email,
 			Timeline: timeline,
 		})
 	}

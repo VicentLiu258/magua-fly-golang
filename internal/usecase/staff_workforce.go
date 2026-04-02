@@ -125,6 +125,8 @@ func (u *ScheduleUseCase) GetWorkforceGrid(ctx context.Context, date time.Time) 
 			continue
 		}
 
+		row.Phone = usr.Phone
+		row.Email = usr.Email
 		result.Workers = append(result.Workers, row)
 	}
 
@@ -167,6 +169,8 @@ func (u *ScheduleUseCase) ListStaffDuties(ctx context.Context, from, to time.Tim
 			UserID:          row.UserID,
 			Username:        uu.Username,
 			Name:            uu.Username,
+			Phone:           uu.Phone,
+			Email:           uu.Email,
 			Date:            day.Format("2006-01-02"),
 			DutyStatus:      row.DutyStatus,
 			Remark:          row.Remark,

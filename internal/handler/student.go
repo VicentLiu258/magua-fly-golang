@@ -103,10 +103,57 @@ func (h *StudentHandler) List(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
+	ctx := c.Request.Context()
+	type listItem struct {
+		ID                      string    `json:"id"`
+		UserID                  *string   `json:"user_id,omitempty"`
+		Name                    string    `json:"name"`
+		StudentNo               string    `json:"student_no"`
+		Username                string    `json:"username,omitempty"`
+		Phone                   string    `json:"phone,omitempty"`
+		Email                   string    `json:"email,omitempty"`
+		EmploymentStatus        string    `json:"employment_status,omitempty"`
+		PersonnelCategory       string    `json:"personnel_category,omitempty"`
+		ContractInfo            []byte    `json:"contract_info,omitempty"`
+		ContractDurationMinutes *int      `json:"contract_duration_minutes,omitempty"`
+		FlownMinutes            int       `json:"flown_minutes"`
+		TrainingProgress        string    `json:"training_progress,omitempty"`
+		TrainingProgressJSON    []byte    `json:"training_progress_json,omitempty"`
+		ResponsibleInstructorID *string   `json:"responsible_instructor_id,omitempty"`
+		CreatedAt               time.Time `json:"created_at"`
+		UpdatedAt               time.Time `json:"updated_at"`
+	}
+	out := make([]listItem, 0, len(list))
+	for _, s := range list {
+		it := listItem{
+			ID:                      s.ID,
+			UserID:                  s.UserID,
+			Name:                    s.Name,
+			StudentNo:               s.StudentNo,
+			ContractInfo:            s.ContractInfo,
+			ContractDurationMinutes: s.ContractDurationMinutes,
+			FlownMinutes:            s.FlownMinutes,
+			TrainingProgress:        s.TrainingProgress,
+			TrainingProgressJSON:    s.TrainingProgressJSON,
+			ResponsibleInstructorID: s.ResponsibleInstructorID,
+			CreatedAt:               s.CreatedAt,
+			UpdatedAt:               s.UpdatedAt,
+		}
+		if s.UserID != nil && *s.UserID != "" {
+			if u, err := h.userRepo.GetByID(ctx, *s.UserID); err == nil && u != nil {
+				it.Username = u.Username
+				it.Phone = u.Phone
+				it.Email = u.Email
+				it.EmploymentStatus = string(u.EmploymentStatus)
+				it.PersonnelCategory = string(domain.DerivePersonnelCategory(u.Role))
+			}
+		}
+		out = append(out, it)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"msg":  "ok",
-		"data": gin.H{"items": list},
+		"data": gin.H{"items": out},
 	})
 }
 

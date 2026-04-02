@@ -230,7 +230,7 @@
 - `limit`：默认 `20`，最大 `100`；`<=0` 时使用默认。
 - `offset`：默认 `0`；`<0` 时按 `0` 处理。
 
-**成功响应**：
+**成功响应**：每条在 `students` 档案字段外，若存在 **`user_id`**，会附带关联 **`users` 账号**上的 `username`、`phone`、`email`、`employment_status`、`personnel_category`（推导规则见文首）；无账号时上述账号字段通常为空或省略。其余字段与 `students` 表一致（含 `contract_info`、`training_progress_json` 等）。
 
 ```json
 {
@@ -243,6 +243,11 @@
         "user_id": "550e8400-e29b-41d4-a716-446655440001",
         "name": "student1",
         "student_no": "S000001",
+        "username": "student1",
+        "phone": "13800000000",
+        "email": "s1@example.com",
+        "employment_status": "active",
+        "personnel_category": "flight",
         "flown_minutes": 0,
         "training_progress": "",
         "created_at": "...",
@@ -726,6 +731,8 @@
         "id": "550e8400-e29b-41d4-a716-446655440000",
         "name": "教员A",
         "displayColor": "#ff0000",
+        "phone": "13800000000",
+        "email": "ins@example.com",
         "timeline": [
           {
             "slotIndex": 0,
@@ -836,7 +843,7 @@
 **响应 `data`**：
 
 - `workers[]`：每人一行。
-  - `userId`、`role`（`staff` | `maintenance` | `instructor`）、`username`、`name`（教员取 `instructors.name`，staff/maintenance 取 `username`）、`instructorId`（仅教员有）、`displayColor`（教员可选）、`timeline[]`。
+  - `userId`、`role`（`staff` | `maintenance` | `instructor`）、`username`、`name`（教员取 `instructors.name`，staff/maintenance 取 `username`）、`phone`、`email`（来自 `users`）、`instructorId`（仅教员有）、`displayColor`（教员可选）、`timeline[]`。
   - `timeline[].status` 仅为 `off` 或 `available`（考勤在岗），**无** `booked` / `aircraft_unavailable`。
 - 教员行的执勤窗口来自 **`instructor_schedules`**；staff / 机务行来自 **`staff_schedules`**（按 `users.id`）。
 
@@ -846,7 +853,7 @@
 
 **请求体**：`from_date`、`to_date`、`user_ids`（可选，空表示不限）。
 
-**响应**：`data.items[]` 含 `user_id`、`username`、`name`、`duty_status`、`resolved_windows` 等（无带飞任务字段）。
+**响应**：`data.items[]` 含 `user_id`、`username`、`name`、`phone`、`email`（来自 `users`）、`duty_status`、`resolved_windows` 等（无带飞任务字段）。
 
 #### 5.6.3 staff 单日 upsert `POST /api/v1/schedules/staff-duties/upsert`
 
