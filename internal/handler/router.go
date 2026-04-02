@@ -23,6 +23,7 @@ func Router(
 	subjectExam *SubjectExamHandler,
 	task *TaskHandler,
 	contractFiles *ContractFilesHandler,
+	contract *ContractHandler,
 	community *CommunityHandler,
 	home *HomeHandler,
 	personnel *PersonnelHandler,
@@ -175,6 +176,9 @@ func Router(
 			adminOnly.POST("/api/v1/admin/students/detail", student.AdminDetail)
 			adminOnly.POST("/api/v1/admin/students/save", student.AdminSave)
 			adminOnly.POST("/api/v1/admin/contracts/list-by-student", student.AdminContractsListByStudent)
+			adminOnly.POST("/api/v1/admin/contracts/create", contract.AdminContractCreate)
+			adminOnly.POST("/api/v1/admin/contracts/update", contract.AdminContractUpdate)
+			adminOnly.POST("/api/v1/admin/contracts/detail", contract.AdminContractDetail)
 			adminOnly.POST("/api/v1/admin/home", home.AdminHome)
 			adminOnly.POST("/api/v1/admin/personnel/delete", personnel.AdminDelete)
 			adminOnly.POST("/api/v1/admin/personnel/save", personnel.AdminSave)

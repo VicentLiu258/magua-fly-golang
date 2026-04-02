@@ -15,4 +15,9 @@ var (
 	ErrPersonnelStaffRole = errors.New("personnel kind staff requires user role staff or maintenance")
 	// ErrUsernameConflict 保存人员时用户名已被其他账号占用。
 	ErrUsernameConflict = errors.New("username already exists")
+	// 合同付款方式 / 分期计划校验。
+	ErrInvalidPaymentMode         = errors.New("invalid payment_mode")
+	ErrInvalidPaymentSchedule     = errors.New("invalid payment_schedule")
+	ErrPaymentScheduleSumMismatch = errors.New("payment_schedule sum must match price_total")
+	ErrPriceTotalRequired         = errors.New("price_total required for installment contract")
 )

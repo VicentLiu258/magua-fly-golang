@@ -381,13 +381,15 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 		if list, err := h.contractRepo.ListByStudent(ctx, s.ID); err == nil {
 			for _, ct := range list {
 				contracts = append(contracts, gin.H{
-					"id":            ct.ID,
-					"contract_no":   ct.ContractNo,
-					"sign_date":     ct.SignDate,
-					"start_date":    ct.StartDate,
-					"end_date":      ct.EndDate,
-					"total_minutes": ct.TotalMinutes,
-					"status":        ct.Status,
+					"id":                ct.ID,
+					"contract_no":       ct.ContractNo,
+					"sign_date":         ct.SignDate,
+					"start_date":        ct.StartDate,
+					"end_date":          ct.EndDate,
+					"total_minutes":     ct.TotalMinutes,
+					"status":            ct.Status,
+					"payment_mode":      ct.PaymentMode,
+					"payment_schedule":  ct.PaymentSchedule,
 				})
 			}
 		}
@@ -588,12 +590,14 @@ func (h *StudentHandler) AdminContractsListByStudent(c *gin.Context) {
 	var items []gin.H
 	for _, ct := range list {
 		item := gin.H{
-			"id":            ct.ID,
-			"contract_no":   ct.ContractNo,
-			"total_minutes": ct.TotalMinutes,
-			"price_total":   ct.PriceTotal,
-			"currency":      ct.Currency,
-			"status":        ct.Status,
+			"id":               ct.ID,
+			"contract_no":      ct.ContractNo,
+			"total_minutes":      ct.TotalMinutes,
+			"price_total":        ct.PriceTotal,
+			"currency":           ct.Currency,
+			"status":             ct.Status,
+			"payment_mode":       ct.PaymentMode,
+			"payment_schedule":   ct.PaymentSchedule,
 		}
 		if ct.SignDate != nil {
 			item["sign_date"] = ct.SignDate.Format("2006-01-02")

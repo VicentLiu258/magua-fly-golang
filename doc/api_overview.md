@@ -3368,16 +3368,23 @@ Content-Disposition: attachment
 
 ---
 
-### 16. 学员合同管理 API（设计稿）
+### 16. 学员合同管理 API
 
-> 说明：本节为基于当前 `contracts` 表结构的后台“学员合同管理”接口设计，包括合同的创建、更新、详情与按学员查询等，接口均建议由 `admin` / `staff` 角色或具有相应权限的教员调用。
+> 说明：基于 PostgreSQL `contracts` 表（含 `payment_mode`、`payment_schedule`），提供后台创建、更新、详情与按学员列表。与文首权限表一致，本节 **`/api/v1/admin/contracts/*`** 当前实现为 **仅 `admin`**。
+>
+> **付款方式**：
+> - `payment_mode`：`full`（全款，默认）或 `installment`（分期）。
+> - **全款**：不传或传 `payment_mode: "full"` 时，`payment_schedule` 应为空数组或省略。
+> - **分期**：`payment_mode` 为 `installment` 时，`payment_schedule` 为数组，**至少 2 期、至多 24 期**；每期包含 `amount`（>0）与 `due_date`（`YYYY-MM-DD`）。**各期 `amount` 之和须与 `price_total` 一致**（允许 0.01 以内误差）。分期时必须提供 `price_total`。
+>
+> 校验失败时返回 `400`，`msg` 可能为：`invalid payment_mode`、`invalid payment_schedule`、`payment_schedule sum must match price_total`、`price_total required for installment contract`。
 
 #### 16.1 创建合同 `POST /api/v1/admin/contracts/create`
 
-- **认证**：需要，推荐仅 `admin` / `staff` 角色可访问。
+- **认证**：需要（仅 `admin`）。
 - **说明**：为指定学员创建一份新的训练合同。
 
-**请求体（示例）**：
+**请求体（全款示例）**：
 
 ```json
 {
@@ -3390,11 +3397,36 @@ Content-Disposition: attachment
   "price_total": 150000.0,
   "currency": "CNY",
   "status": "active",
+  "payment_mode": "full",
+  "payment_schedule": [],
   "remark": "私商一体训练合同"
 }
 ```
 
-**成功响应（示例）**：
+**请求体（分期三期示例，`payment_schedule` 长度须与期数一致）**：
+
+```json
+{
+  "student_id": "550e8400-e29b-41d4-a716-446655440001",
+  "contract_no": "HT-2026-002",
+  "sign_date": "2026-03-20",
+  "start_date": "2026-04-01",
+  "end_date": "2027-04-01",
+  "total_minutes": 3600,
+  "price_total": 150000.0,
+  "currency": "CNY",
+  "status": "active",
+  "payment_mode": "installment",
+  "payment_schedule": [
+    { "amount": 50000, "due_date": "2026-04-01" },
+    { "amount": 50000, "due_date": "2026-07-01" },
+    { "amount": 50000, "due_date": "2026-10-01" }
+  ],
+  "remark": "分期付款"
+}
+```
+
+**成功响应（示例）**：`data` 为合同对象，字段包含 `payment_mode`、`payment_schedule`、`mongo_file_ids`、`created_at`、`updated_at` 等（日期字段为 `YYYY-MM-DD` 字符串，`created_at`/`updated_at` 为 RFC3339 时间）。
 
 ```json
 {
@@ -3411,6 +3443,8 @@ Content-Disposition: attachment
     "price_total": 150000.0,
     "currency": "CNY",
     "status": "active",
+    "payment_mode": "full",
+    "payment_schedule": [],
     "mongo_file_ids": [],
     "remark": "私商一体训练合同",
     "created_at": "2026-03-20T10:00:00Z",
@@ -3421,8 +3455,8 @@ Content-Disposition: attachment
 
 #### 16.2 更新合同 `POST /api/v1/admin/contracts/update`
 
-- **认证**：需要。
-- **说明**：更新合同的关键信息，例如结束日期、总时长、金额、状态等。
+- **认证**：需要（仅 `admin`）。
+- **说明**：更新合同的关键信息；`id` 必填，其余字段可选，未提供的字段保持原值。
 
 **请求体（示例）**：
 
@@ -3433,13 +3467,18 @@ Content-Disposition: attachment
   "total_minutes": 4000,
   "price_total": 168000.0,
   "status": "active",
-  "remark": "延长 2 个月，追加 400 分钟"
+  "payment_mode": "installment",
+  "payment_schedule": [
+    { "amount": 84000, "due_date": "2026-05-01" },
+    { "amount": 84000, "due_date": "2026-11-01" }
+  ],
+  "remark": "延长 2 个月，追加 400 分钟，改为分期"
 }
 ```
 
-- `id`：必填，其余字段可选，未提供的字段保持原值。
+- 若改为分期或修改分期金额，须重新满足「期数与金额合计」规则。
 
-**成功响应（示例）**：
+**成功响应（示例）**：`data` 为更新后的完整合同对象（结构同 16.1 响应 `data`）。
 
 ```json
 {
@@ -3456,8 +3495,13 @@ Content-Disposition: attachment
     "price_total": 168000.0,
     "currency": "CNY",
     "status": "active",
+    "payment_mode": "installment",
+    "payment_schedule": [
+      { "amount": 84000, "due_date": "2026-05-01" },
+      { "amount": 84000, "due_date": "2026-11-01" }
+    ],
     "mongo_file_ids": ["file-meta-id-1"],
-    "remark": "延长 2 个月，追加 400 分钟",
+    "remark": "延长 2 个月，追加 400 分钟，改为分期",
     "created_at": "2026-03-20T10:00:00Z",
     "updated_at": "2026-03-21T08:00:00Z"
   }
@@ -3466,7 +3510,7 @@ Content-Disposition: attachment
 
 #### 16.3 合同详情 `POST /api/v1/admin/contracts/detail`
 
-- **认证**：需要。
+- **认证**：需要（仅 `admin`）。
 - **说明**：查看单份合同的详细信息及其绑定的文件列表（可结合 15.2/15.3 使用）。
 
 **请求体**：
@@ -3495,6 +3539,11 @@ Content-Disposition: attachment
       "price_total": 168000.0,
       "currency": "CNY",
       "status": "active",
+      "payment_mode": "installment",
+      "payment_schedule": [
+        { "amount": 84000, "due_date": "2026-05-01" },
+        { "amount": 84000, "due_date": "2026-11-01" }
+      ],
       "mongo_file_ids": ["file-meta-id-1"],
       "remark": "延长 2 个月，追加 400 分钟",
       "created_at": "2026-03-20T10:00:00Z",
@@ -3514,12 +3563,12 @@ Content-Disposition: attachment
 }
 ```
 
-> 说明：`files` 数组可直接复用 15.2 中的文件元数据结构，实际实现时可通过 `contracts.mongo_file_ids` 与 `contract_files_meta` 关联查询。
+> 说明：`files` 来自 `contract_files_meta` 与 `contracts.mongo_file_ids` 的关联，结构同 15.2。
 
 #### 16.4 按学员查询合同列表 `POST /api/v1/admin/contracts/list-by-student`
 
-- **认证**：需要。
-- **说明**：在学员详情页中列出该学员的全部合同（含历史合同）。
+- **认证**：需要（仅 `admin`）。
+- **说明**：在学员详情页中列出该学员的全部合同（含历史合同），按 `created_at` 倒序。
 
 **请求体**：
 
@@ -3546,7 +3595,9 @@ Content-Disposition: attachment
         "total_minutes": 3000,
         "price_total": 120000.0,
         "currency": "CNY",
-        "status": "finished"
+        "status": "finished",
+        "payment_mode": "full",
+        "payment_schedule": []
       },
       {
         "id": "c-uuid-1",
@@ -3557,19 +3608,24 @@ Content-Disposition: attachment
         "total_minutes": 4000,
         "price_total": 168000.0,
         "currency": "CNY",
-        "status": "active"
+        "status": "active",
+        "payment_mode": "installment",
+        "payment_schedule": [
+          { "amount": 84000, "due_date": "2026-05-01" },
+          { "amount": 84000, "due_date": "2026-11-01" }
+        ]
       }
     ]
   }
 }
 ```
 
-> 建议：按 `sign_date` 或 `created_at` 倒序排序，方便后台快速看到最新合同。
+> 说明：列表项含 `payment_mode`、`payment_schedule`，便于后台展示全款/分期与计划。
 
 #### 16.5 合同状态变更（可选）`POST /api/v1/admin/contracts/change-status`
 
 - **认证**：需要。
-- **说明**：用于将合同标记为已结束、已作废等，配合 `status` 字段使用。
+- **说明**：用于将合同标记为已结束、已作废等，配合 `status` 字段使用。**当前服务端未实现该路径**；可暂用 `POST /api/v1/admin/contracts/update` 传入 `id`、`status`、`remark` 达到同等效果。
 
 **请求体（示例）**：
 

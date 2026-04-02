@@ -132,6 +132,8 @@ func main() {
 		contractGridFS,
 	)
 	contractFilesHandler := handler.NewContractFilesHandler(contractFilesUC)
+	contractUC := usecase.NewContractUseCase(pgDB.Contract(), pgDB.Student())
+	contractHandler := handler.NewContractHandler(contractUC, contractFilesUC)
 
 	communityUC := usecase.NewCommunityUseCase(
 		pgDB.User(),
@@ -195,6 +197,7 @@ func main() {
 		subjectExamHandler,
 		taskHandler,
 		contractFilesHandler,
+		contractHandler,
 		communityHandler,
 		homeHandler,
 		personnelHandler,
