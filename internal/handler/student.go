@@ -432,8 +432,10 @@ func (h *StudentHandler) AdminDetail(c *gin.Context) {
 		"basic": gin.H{
 			"student_id":                s.ID,
 			"name":                      s.Name,
+			"english_name":              s.EnglishName,
 			"student_no":                s.StudentNo,
 			"resident_city":             s.ResidentCity,
+			"id_document_no":            s.IDDocumentNo,
 			"contract_duration_minutes": s.ContractDurationMinutes,
 			"flown_minutes":             s.FlownMinutes,
 			"remaining_minutes":         remaining,
