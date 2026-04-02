@@ -8,6 +8,12 @@ import (
 	"magua-fly-golang/internal/domain"
 )
 
+// 学员权益调整错误（与 postgres 实现共用）。
+var (
+	ErrBenefitDebitExceeds        = errors.New("benefit debit exceeds remaining")
+	ErrBenefitIdempotencyConflict = errors.New("benefit idempotency key conflict")
+)
+
 // ErrNotFound 仓储层统一「不存在」哨兵，可与业务层 errors.Is 配合。
 var ErrNotFound = errors.New("not found")
 
@@ -300,6 +306,18 @@ type ContractRepository interface {
 	ListByStudent(ctx context.Context, studentID string) ([]*domain.Contract, error)
 	Create(ctx context.Context, c *domain.Contract) error
 	Update(ctx context.Context, c *domain.Contract) error
+}
+
+// StudentBenefitLedgerRepository 学员权益调整流水（只读列表 + 幂等查询）。
+type StudentBenefitLedgerRepository interface {
+	GetByIdempotencyKey(ctx context.Context, key string) (*domain.StudentBenefitLedger, error)
+	ListByStudentKind(ctx context.Context, studentID, benefitKind string, limit, offset int) ([]*domain.StudentBenefitLedger, int, error)
+	MaxCreatedAt(ctx context.Context, studentID string) (*time.Time, error)
+}
+
+// StudentBenefitsAdjuster 事务内更新 students.contract_info 并写入流水。
+type StudentBenefitsAdjuster interface {
+	Adjust(ctx context.Context, op *domain.BenefitAdjustOp) error
 }
 
 // SmsVerificationRepository defines SMS verification code persistence.

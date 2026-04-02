@@ -36,6 +36,7 @@ type StudentHandler struct {
 	personnelUC      *usecase.PersonnelUseCase
 	studentImportUC  *usecase.StudentImportUseCase
 	trainingSummaryUC *usecase.StudentTrainingSummaryUseCase
+	benefitsUC        *usecase.StudentBenefitsUseCase
 }
 
 // NewStudentHandler creates a StudentHandler.
@@ -54,6 +55,7 @@ func NewStudentHandler(
 	personnelUC *usecase.PersonnelUseCase,
 	studentImportUC *usecase.StudentImportUseCase,
 	trainingSummaryUC *usecase.StudentTrainingSummaryUseCase,
+	benefitsUC *usecase.StudentBenefitsUseCase,
 ) *StudentHandler {
 	return &StudentHandler{
 		studentRepo:       studentRepo,
@@ -70,6 +72,7 @@ func NewStudentHandler(
 		personnelUC:       personnelUC,
 		studentImportUC:   studentImportUC,
 		trainingSummaryUC: trainingSummaryUC,
+		benefitsUC:        benefitsUC,
 	}
 }
 

@@ -171,6 +171,12 @@ func main() {
 		pgDB.TrainingRecord(),
 		pgDB.Instructor(),
 	)
+	studentBenefitsUC := usecase.NewStudentBenefitsUseCase(
+		pgDB.Student(),
+		pgDB.Contract(),
+		pgDB.StudentBenefitLedger(),
+		pgDB.StudentBenefitsAdjuster(),
+	)
 	studentHandler := handler.NewStudentHandler(
 		pgDB.Student(),
 		pgDB.User(),
@@ -186,6 +192,7 @@ func main() {
 		personnelUC,
 		studentImportUC,
 		studentTrainingSummaryUC,
+		studentBenefitsUC,
 	)
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor(), pgDB.User(), homeUC)
 

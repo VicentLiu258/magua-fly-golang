@@ -1,6 +1,7 @@
 package studentcontract
 
 import (
+	"bytes"
 	"encoding/json"
 )
 
@@ -23,17 +24,33 @@ type contractInfoWire struct {
 }
 
 // ParseEntitlementsFromContractInfo 解析 contract_info JSON；非法 JSON 或缺字段时返回零值。
+// learning_points 支持标量（历史）或 { total, used, remaining }，学员端取 remaining 作为当前可用积分。
 func ParseEntitlementsFromContractInfo(raw []byte) Entitlements {
 	var out Entitlements
 	if len(raw) == 0 {
 		return out
 	}
-	var w contractInfoWire
-	if err := json.Unmarshal(raw, &w); err != nil {
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &root); err != nil {
 		return out
 	}
-	if w.LearningPoints != nil {
-		out.LearningPoints = nonNeg(*w.LearningPoints)
+	if lp, ok := root["learning_points"]; ok {
+		lp = bytes.TrimSpace(lp)
+		if len(lp) > 0 && lp[0] == '{' {
+			snap := parseLearningPointsWire(lp)
+			out.LearningPoints = snap.Remaining
+		} else {
+			var n int
+			if err := json.Unmarshal(lp, &n); err == nil {
+				out.LearningPoints = nonNeg(n)
+			}
+		}
+	}
+	var w contractInfoWire
+	// 仅用于 guest（learning_points 已单独处理）
+	wb, _ := json.Marshal(root)
+	if err := json.Unmarshal(wb, &w); err != nil {
+		return out
 	}
 	if w.GuestExperience != nil {
 		if w.GuestExperience.Quota != nil {

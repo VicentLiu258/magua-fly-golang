@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"magua-fly-golang/internal/domain"
 	"magua-fly-golang/internal/repository"
 )
@@ -122,6 +124,80 @@ func (r *StudentRepo) GetByID(ctx context.Context, id string) (*domain.Student, 
 		return nil, err
 	}
 	return &s, nil
+}
+
+func (r *StudentRepo) getByIDForUpdateTx(ctx context.Context, tx pgx.Tx, id string) (*domain.Student, error) {
+	var s domain.Student
+	row := tx.QueryRow(ctx, `
+		SELECT`+studentSelectColumns("")+`
+		FROM students WHERE id = $1::uuid AND deleted_at IS NULL
+		FOR UPDATE`, id)
+	if err := scanStudentFromScanner(row.Scan, &s); err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *StudentRepo) updateTx(ctx context.Context, tx pgx.Tx, s *domain.Student) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE students
+		SET user_id=$2::uuid,
+		    name=$3,
+		    student_no=$4,
+		    resident_city=NULLIF(TRIM($5),''),
+		    contact_phone=NULLIF(TRIM($6),''),
+		    gender=NULLIF(TRIM($7),''),
+		    birth_date=$8,
+		    id_document_no=NULLIF(TRIM($9),''),
+		    birth_place=NULLIF(TRIM($10),''),
+		    license_archive_no=NULLIF(TRIM($11),''),
+		    education_level=NULLIF(TRIM($12),''),
+		    permanent_address=NULLIF(TRIM($13),''),
+		    mailing_address=NULLIF(TRIM($14),''),
+		    region=NULLIF(TRIM($15),''),
+		    service_status_raw=NULLIF(TRIM($16),''),
+		    pause_reason=NULLIF(TRIM($17),''),
+		    transfer_base=NULLIF(TRIM($18),''),
+		    registry_extra=$19,
+		    contract_info=$20,
+		    contract_duration_minutes=$21,
+		    flown_minutes=$22,
+		    training_progress=$23,
+		    training_progress_json=$24,
+		    responsible_instructor_id=$25::uuid,
+		    flight_training_status=$26::student_flight_training_status,
+		    training_course=$27,
+		    updated_at=NOW()
+		WHERE id=$1::uuid AND deleted_at IS NULL`,
+		s.ID,
+		nullUUID(s.UserID),
+		s.Name,
+		s.StudentNo,
+		s.ResidentCity,
+		s.ContactPhone,
+		s.Gender,
+		nullTimePtr(s.BirthDate),
+		s.IDDocumentNo,
+		s.BirthPlace,
+		s.LicenseArchiveNo,
+		s.EducationLevel,
+		s.PermanentAddress,
+		s.MailingAddress,
+		s.Region,
+		s.ServiceStatusRaw,
+		s.PauseReason,
+		s.TransferBase,
+		nullBytesJSON(s.RegistryExtra),
+		s.ContractInfo,
+		s.ContractDurationMinutes,
+		s.FlownMinutes,
+		s.TrainingProgress,
+		s.TrainingProgressJSON,
+		nullUUID(s.ResponsibleInstructorID),
+		flightTrainingStatusOrDefault(s.FlightTrainingStatus),
+		nullTrainingCourse(s.TrainingCourse),
+	)
+	return err
 }
 
 func (r *StudentRepo) GetByUserID(ctx context.Context, userID string) (*domain.Student, error) {

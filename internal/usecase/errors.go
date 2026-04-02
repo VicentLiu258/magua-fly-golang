@@ -22,4 +22,6 @@ var (
 	ErrInvalidPaymentSchedule     = errors.New("invalid payment_schedule")
 	ErrPaymentScheduleSumMismatch = errors.New("payment_schedule sum must match price_total")
 	ErrPriceTotalRequired         = errors.New("price_total required for installment contract")
+	// ErrBenefitAdjustExceeds 权益扣减超出剩余可用量。
+	ErrBenefitAdjustExceeds = errors.New("benefit debit exceeds remaining")
 )

@@ -26,6 +26,14 @@ func TestParseEntitlementsFromContractInfo_full(t *testing.T) {
 	}
 }
 
+func TestParseEntitlementsFromContractInfo_learningPointsObject(t *testing.T) {
+	raw := []byte(`{"learning_points":{"total":500,"used":120,"remaining":380}}`)
+	e := ParseEntitlementsFromContractInfo(raw)
+	if e.LearningPoints != 380 {
+		t.Fatalf("learning_points remaining: %d", e.LearningPoints)
+	}
+}
+
 func TestParseEntitlementsFromContractInfo_invalidJSON(t *testing.T) {
 	e := ParseEntitlementsFromContractInfo([]byte(`not json`))
 	if e.LearningPoints != 0 || e.GuestRemaining != 0 {
