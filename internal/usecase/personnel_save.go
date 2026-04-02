@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -26,6 +27,16 @@ type SavePersonnelRequest struct {
 	Name         string  `json:"name"`
 	StudentNo    string  `json:"student_no"`
 	ResidentCity *string `json:"resident_city"`
+	// City 与 resident_city 并存时：非空的 resident_city 优先；否则使用 city（兼容前端「城市」字段）。
+	City *string `json:"city"`
+	// EnglishName、Gender、BirthDate、证件与执照号等档案字段；更新时字段省略表示不修改。
+	EnglishName     *string `json:"english_name"`
+	Gender          *string `json:"gender"`
+	BirthDate       *string `json:"birth_date"`
+	IDDocumentNo    *string `json:"id_document_no"`
+	IDCard          *string `json:"id_card"`
+	LicenseArchiveNo *string `json:"license_archive_no"`
+	LicenseFileNo   *string `json:"license_file_no"`
 	Username     string  `json:"username"`
 	Phone        string  `json:"phone"`
 	Email        string  `json:"email"`
@@ -72,6 +83,55 @@ func mergeContractInfoJSON(dst *[]byte, raw json.RawMessage) error {
 
 func mergeTrainingProgressJSON(dst *[]byte, raw json.RawMessage) error {
 	return mergeJSONColumn(dst, raw, ErrInvalidTrainingProgressJSON)
+}
+
+func residentCityFromSaveRequest(req *SavePersonnelRequest) (value string, present bool) {
+	if req.ResidentCity == nil && req.City == nil {
+		return "", false
+	}
+	rc := ""
+	if req.ResidentCity != nil {
+		rc = strings.TrimSpace(*req.ResidentCity)
+	}
+	if rc == "" && req.City != nil {
+		rc = strings.TrimSpace(*req.City)
+	}
+	return rc, true
+}
+
+func idDocumentFromSaveRequest(req *SavePersonnelRequest) (value string, present bool) {
+	if req.IDDocumentNo == nil && req.IDCard == nil {
+		return "", false
+	}
+	if req.IDDocumentNo != nil {
+		return strings.TrimSpace(*req.IDDocumentNo), true
+	}
+	return strings.TrimSpace(*req.IDCard), true
+}
+
+func licenseArchiveFromSaveRequest(req *SavePersonnelRequest) (value string, present bool) {
+	if req.LicenseArchiveNo == nil && req.LicenseFileNo == nil {
+		return "", false
+	}
+	if req.LicenseArchiveNo != nil {
+		return strings.TrimSpace(*req.LicenseArchiveNo), true
+	}
+	return strings.TrimSpace(*req.LicenseFileNo), true
+}
+
+func birthDateFromSaveRequest(s *string) (*time.Time, error) {
+	if s == nil {
+		return nil, nil
+	}
+	t := strings.TrimSpace(*s)
+	if t == "" {
+		return nil, nil
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", t, time.Local)
+	if err != nil {
+		return nil, ErrInvalidArgument
+	}
+	return &parsed, nil
 }
 
 func employmentStatusFromRequest(raw string) (domain.EmploymentStatus, error) {
@@ -181,8 +241,27 @@ func (u *PersonnelUseCase) createStudent(ctx context.Context, req *SavePersonnel
 	if err := mergeTrainingProgressJSON(&s.TrainingProgressJSON, req.TrainingProgressJSON); err != nil {
 		return nil, err
 	}
-	if req.ResidentCity != nil {
-		s.ResidentCity = strings.TrimSpace(*req.ResidentCity)
+	if v, ok := residentCityFromSaveRequest(req); ok {
+		s.ResidentCity = v
+	}
+	if req.EnglishName != nil {
+		s.EnglishName = strings.TrimSpace(*req.EnglishName)
+	}
+	if req.Gender != nil {
+		s.Gender = strings.TrimSpace(*req.Gender)
+	}
+	if req.BirthDate != nil {
+		bd, err := birthDateFromSaveRequest(req.BirthDate)
+		if err != nil {
+			return nil, err
+		}
+		s.BirthDate = bd
+	}
+	if v, ok := idDocumentFromSaveRequest(req); ok {
+		s.IDDocumentNo = v
+	}
+	if v, ok := licenseArchiveFromSaveRequest(req); ok {
+		s.LicenseArchiveNo = v
 	}
 	if t := strings.TrimSpace(req.FlightTrainingStatus); t != "" {
 		if fs, ok := domain.ParseFlightTrainingStatus(t); ok {
@@ -231,8 +310,27 @@ func (u *PersonnelUseCase) updateStudent(ctx context.Context, studentID string, 
 	if err := mergeTrainingProgressJSON(&s.TrainingProgressJSON, req.TrainingProgressJSON); err != nil {
 		return nil, err
 	}
-	if req.ResidentCity != nil {
-		s.ResidentCity = strings.TrimSpace(*req.ResidentCity)
+	if v, ok := residentCityFromSaveRequest(req); ok {
+		s.ResidentCity = v
+	}
+	if req.EnglishName != nil {
+		s.EnglishName = strings.TrimSpace(*req.EnglishName)
+	}
+	if req.Gender != nil {
+		s.Gender = strings.TrimSpace(*req.Gender)
+	}
+	if req.BirthDate != nil {
+		bd, err := birthDateFromSaveRequest(req.BirthDate)
+		if err != nil {
+			return nil, err
+		}
+		s.BirthDate = bd
+	}
+	if v, ok := idDocumentFromSaveRequest(req); ok {
+		s.IDDocumentNo = v
+	}
+	if v, ok := licenseArchiveFromSaveRequest(req); ok {
+		s.LicenseArchiveNo = v
 	}
 	if t := strings.TrimSpace(req.FlightTrainingStatus); t != "" {
 		if fs, ok := domain.ParseFlightTrainingStatus(t); ok {
