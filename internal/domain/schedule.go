@@ -2,6 +2,7 @@ package domain
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -119,6 +120,7 @@ type DutyTaskItem struct {
 	StudentID     string `json:"student_id,omitempty"`
 	AircraftID    string `json:"aircraft_id,omitempty"`
 	Title         string `json:"title,omitempty"`
+	TaskType      string `json:"task_type,omitempty"`      // 仅 source=booking：预约任务类型代码
 	BookingStatus string `json:"booking_status,omitempty"` // 仅 source=booking：pending | approved | rejected
 }
 
@@ -175,21 +177,75 @@ const (
 	BookingRejected BookingStatus = "rejected"
 )
 
+// BookingTaskType 预约任务类型（与 bookings.task_type / booking_task_type ENUM 一致）。
+type BookingTaskType string
+
+const (
+	BookingTaskTraining         BookingTaskType = "training"           // 训练
+	BookingTaskExperience       BookingTaskType = "experience"         // 体验
+	BookingTaskProficiency      BookingTaskType = "proficiency"        // 熟练
+	BookingTaskVerification     BookingTaskType = "verification"       // 验证
+	BookingTaskTestFlight       BookingTaskType = "test_flight"        // 试飞
+	BookingTaskFerry            BookingTaskType = "ferry"              // 调机
+	BookingTaskInternalTraining BookingTaskType = "internal_training"  // 内训
+	BookingTaskLocalPattern     BookingTaskType = "local_pattern"      // 本场带飞
+)
+
+// ParseBookingTaskType 解析并校验；空字符串视为 training。
+func ParseBookingTaskType(s string) (BookingTaskType, bool) {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return BookingTaskTraining, true
+	}
+	switch BookingTaskType(t) {
+	case BookingTaskTraining, BookingTaskExperience, BookingTaskProficiency, BookingTaskVerification,
+		BookingTaskTestFlight, BookingTaskFerry, BookingTaskInternalTraining, BookingTaskLocalPattern:
+		return BookingTaskType(t), true
+	default:
+		return "", false
+	}
+}
+
+// BookingTaskTypeLabel 返回中文展示名。
+func BookingTaskTypeLabel(t BookingTaskType) string {
+	switch t {
+	case BookingTaskTraining:
+		return "训练"
+	case BookingTaskExperience:
+		return "体验"
+	case BookingTaskProficiency:
+		return "熟练"
+	case BookingTaskVerification:
+		return "验证"
+	case BookingTaskTestFlight:
+		return "试飞"
+	case BookingTaskFerry:
+		return "调机"
+	case BookingTaskInternalTraining:
+		return "内训"
+	case BookingTaskLocalPattern:
+		return "本场带飞"
+	default:
+		return string(t)
+	}
+}
+
 // Booking is a student booking request.
 type Booking struct {
-	ID           string        `json:"id"`
-	StudentID    string        `json:"student_id"`
-	InstructorID string        `json:"instructor_id"`
-	AircraftID   string        `json:"aircraft_id"`
-	PlanDate     time.Time     `json:"plan_date"`
-	StartTime    time.Time     `json:"start_time"`
-	EndTime      time.Time     `json:"end_time"`
-	Status       BookingStatus `json:"status"`
-	RejectReason string        `json:"reject_reason,omitempty"`
-	ReviewedAt   *time.Time    `json:"reviewed_at,omitempty"`
-	ReviewerID   *string       `json:"reviewer_id,omitempty"`
-	CreatedAt    time.Time     `json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at"`
+	ID           string          `json:"id"`
+	StudentID    string          `json:"student_id"`
+	InstructorID string          `json:"instructor_id"`
+	AircraftID   string          `json:"aircraft_id"`
+	TaskType     BookingTaskType `json:"task_type"`
+	PlanDate     time.Time       `json:"plan_date"`
+	StartTime    time.Time       `json:"start_time"`
+	EndTime      time.Time       `json:"end_time"`
+	Status       BookingStatus   `json:"status"`
+	RejectReason string          `json:"reject_reason,omitempty"`
+	ReviewedAt   *time.Time      `json:"reviewed_at,omitempty"`
+	ReviewerID   *string         `json:"reviewer_id,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
 // SlotStatus represents the status of a single time slot in the schedule grid.

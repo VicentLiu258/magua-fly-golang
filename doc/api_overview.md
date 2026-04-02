@@ -669,6 +669,7 @@
 {
   "student_id": "550e8400-e29b-41d4-a716-446655440001",
   "instructor_id": "550e8400-e29b-41d4-a716-446655440002",
+  "task_type": "training",
   "aircraft_id": "550e8400-e29b-41d4-a716-446655440003",
   "plan_date": "2026-03-15",
   "start_time": "10:00",
@@ -679,7 +680,10 @@
 要求：
 
 - `student_id` 必须是 `students.id`（不是 `users.id`）。
-- `instructor_id` 必须是 `instructors.id`。
+- `instructor_id`：**可选**。为空或省略时，使用学员档案 `students.responsible_instructor_id` 作为默认教员（责任教员）；若档案中未设置责任教员，则须显式传 `instructor_id`，否则 `400`。非空时须为 `instructors.id`（可预约非责任教员）。
+- `task_type`：**可选**，缺省为 `training`。合法取值：`training`（训练）、`experience`（体验）、`proficiency`（熟练）、`verification`（验证）、`test_flight`（试飞）、`ferry`（调机）、`internal_training`（内训）、`local_pattern`（本场带飞）。非法取值 `400`。响应中的 `booking` 含 `task_type`。
+- **权限**：`role=student` 时仅允许为**本人**学员档案预约（`student_id` 须与当前登录用户关联的 `students.id` 一致），否则 `403`；**仅** `role=admin` 可为任意学员**代预约**；`staff` / `maintenance` / `instructor` 等账号**不能**调用本接口创建预约（`403`）。
+- **飞行记录归属**：预约与计划中的 `instructor_id` 为所选/默认教员；实际带飞教员以训练记录 `training_records.instructor_id` 为准（录入或更新记录时可修正，与预约教员可能不一致）。
 - `aircraft_id` 必须是 `aircraft.id`。
 - 教员当日须已有排班，且 `[start_time, end_time)` 完全落在某一执勤窗口内（与 §5.5 规则一致）；否则 `400`。
 

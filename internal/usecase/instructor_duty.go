@@ -189,6 +189,10 @@ func aggregateFlightTasks(bookings []*domain.Booking, plans []*domain.TrainingPl
 		seen[k] = true
 		minutes := em - sm
 		total += minutes
+		tt := b.TaskType
+		if tt == "" {
+			tt = domain.BookingTaskTraining
+		}
 		items = append(items, domain.DutyTaskItem{
 			Source:        "booking",
 			RefID:         b.ID,
@@ -197,6 +201,8 @@ func aggregateFlightTasks(bookings []*domain.Booking, plans []*domain.TrainingPl
 			Minutes:       minutes,
 			StudentID:     b.StudentID,
 			AircraftID:    b.AircraftID,
+			Title:         domain.BookingTaskTypeLabel(tt),
+			TaskType:      string(tt),
 			BookingStatus: string(b.Status),
 		})
 	}

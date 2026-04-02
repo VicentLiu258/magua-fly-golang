@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"magua-fly-golang/internal/domain"
@@ -17,6 +18,7 @@ import (
 // BookingHandler handles booking endpoints.
 type BookingHandler struct {
 	bookingRepo repository.BookingRepository
+	studentRepo repository.StudentRepository
 	planRepo    repository.TrainingPlanRepository
 	taskRepo    repository.TaskRepository
 	scheduleUC  *usecase.ScheduleUseCase
@@ -24,9 +26,10 @@ type BookingHandler struct {
 }
 
 // NewBookingHandler creates a BookingHandler.
-func NewBookingHandler(bookingRepo repository.BookingRepository, planRepo repository.TrainingPlanRepository, taskRepo repository.TaskRepository, scheduleUC *usecase.ScheduleUseCase, trainingUC *usecase.TrainingUseCase) *BookingHandler {
+func NewBookingHandler(bookingRepo repository.BookingRepository, studentRepo repository.StudentRepository, planRepo repository.TrainingPlanRepository, taskRepo repository.TaskRepository, scheduleUC *usecase.ScheduleUseCase, trainingUC *usecase.TrainingUseCase) *BookingHandler {
 	return &BookingHandler{
 		bookingRepo: bookingRepo,
+		studentRepo: studentRepo,
 		planRepo:    planRepo,
 		taskRepo:    taskRepo,
 		scheduleUC:  scheduleUC,
@@ -52,7 +55,8 @@ func (h *BookingHandler) ListPending(c *gin.Context) {
 func (h *BookingHandler) Create(c *gin.Context) {
 	var body struct {
 		StudentID    string `json:"student_id" binding:"required"`
-		InstructorID string `json:"instructor_id" binding:"required"`
+		InstructorID string `json:"instructor_id"` // 可空：缺省时使用学员档案中的责任教员
+		TaskType     string `json:"task_type"`     // 可空：缺省为 training；见 domain.BookingTaskType
 		AircraftID   string `json:"aircraft_id" binding:"required"`
 		PlanDate     string `json:"plan_date" binding:"required"`
 		StartTime    string `json:"start_time" binding:"required"`
@@ -62,6 +66,56 @@ func (h *BookingHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 		return
 	}
+	claims := middleware.GetGinClaims(c)
+	if claims == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "unauthorized", "data": nil})
+		return
+	}
+	role := domain.UserRole(claims.Role)
+	if role != domain.RoleStudent && role != domain.RoleAdmin {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "only admin or student may create bookings", "data": nil})
+		return
+	}
+
+	ctx := c.Request.Context()
+	if h.studentRepo == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "student repository not configured", "data": nil})
+		return
+	}
+	student, err := h.studentRepo.GetByID(ctx, body.StudentID)
+	if err != nil || student == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "student not found", "data": nil})
+		return
+	}
+
+	if role == domain.RoleStudent {
+		me, err := h.studentRepo.GetByUserID(ctx, claims.UserID)
+		if err != nil || me == nil {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "student profile not linked to current account", "data": nil})
+			return
+		}
+		if me.ID != body.StudentID {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "students may only create bookings for themselves", "data": nil})
+			return
+		}
+	}
+
+	taskType, ok := domain.ParseBookingTaskType(body.TaskType)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid task_type", "data": nil})
+		return
+	}
+
+	instructorID := strings.TrimSpace(body.InstructorID)
+	if instructorID == "" {
+		if student.ResponsibleInstructorID != nil && strings.TrimSpace(*student.ResponsibleInstructorID) != "" {
+			instructorID = strings.TrimSpace(*student.ResponsibleInstructorID)
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "instructor_id required when student has no responsible_instructor_id", "data": nil})
+			return
+		}
+	}
+
 	planDate, err := time.Parse("2006-01-02", body.PlanDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "invalid plan_date", "data": nil})
@@ -79,20 +133,21 @@ func (h *BookingHandler) Create(c *gin.Context) {
 	}
 	b := &domain.Booking{
 		StudentID:    body.StudentID,
-		InstructorID: body.InstructorID,
+		InstructorID: instructorID,
 		AircraftID:   body.AircraftID,
+		TaskType:     taskType,
 		PlanDate:     planDate,
 		StartTime:    startTime,
 		EndTime:      endTime,
 		Status:       domain.BookingPending,
 	}
 	if h.scheduleUC != nil {
-		if err := h.scheduleUC.ValidateInstructorBookingWindow(c.Request.Context(), body.InstructorID, planDate, startTime, endTime); err != nil {
+		if err := h.scheduleUC.ValidateInstructorBookingWindow(ctx, instructorID, planDate, startTime, endTime); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error(), "data": nil})
 			return
 		}
 	}
-	if err := h.bookingRepo.Create(c.Request.Context(), b); err != nil {
+	if err := h.bookingRepo.Create(ctx, b); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error(), "data": nil})
 		return
 	}
@@ -195,7 +250,7 @@ func (h *BookingHandler) createFlightTaskFromBooking(ctx context.Context, bookin
 		booking.StartTime.Format("15:04"),
 		booking.EndTime.Format("15:04"),
 	)
-	desc := fmt.Sprintf("预约飞行任务，教员ID=%s，飞机ID=%s", booking.InstructorID, booking.AircraftID)
+	desc := fmt.Sprintf("预约飞行任务（%s），教员ID=%s，飞机ID=%s", domain.BookingTaskTypeLabel(booking.TaskType), booking.InstructorID, booking.AircraftID)
 
 	// 将 plan_date 与 start_time 组合成一个 dueAt 时间（使用 plan_date 的时区）。
 	dueAt := time.Date(

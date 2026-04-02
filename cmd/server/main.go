@@ -175,7 +175,7 @@ func main() {
 	instructorHandler := handler.NewInstructorHandler(pgDB.Instructor(), pgDB.User(), homeUC)
 
 	scheduleUC := usecase.NewScheduleUseCase(pgDB.Instructor(), pgDB.InstructorSchedule(), pgDB.StaffSchedule(), pgDB.User(), pgDB.Booking(), pgDB.TrainingPlan(), pgDB.AircraftAvailability())
-	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.TrainingPlan(), pgDB.Task(), scheduleUC, trainingUC)
+	bookingHandler := handler.NewBookingHandler(pgDB.Booking(), pgDB.Student(), pgDB.TrainingPlan(), pgDB.Task(), scheduleUC, trainingUC)
 	scheduleHandler := handler.NewScheduleHandler(scheduleUC)
 
 	router := handler.Router(

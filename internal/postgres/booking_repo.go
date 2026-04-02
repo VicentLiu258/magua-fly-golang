@@ -18,10 +18,10 @@ func (r *BookingRepo) GetByID(ctx context.Context, id string) (*domain.Booking, 
 	var b domain.Booking
 	err := r.db.Pool.QueryRow(ctx, `
 		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
+		       task_type::text, status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
 		FROM bookings WHERE id = $1::uuid`, id).Scan(
 		&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime,
-		&b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt,
+		&b.TaskType, &b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func (r *BookingRepo) GetByID(ctx context.Context, id string) (*domain.Booking, 
 func (r *BookingRepo) ListByStudent(ctx context.Context, studentID string, status *domain.BookingStatus) ([]*domain.Booking, error) {
 	query := `
 		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
+		       task_type::text, status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
 		FROM bookings WHERE student_id = $1::uuid`
 	args := []interface{}{studentID}
 	if status != nil {
@@ -50,7 +50,7 @@ func (r *BookingRepo) ListByStudent(ctx context.Context, studentID string, statu
 	for rows.Next() {
 		var b domain.Booking
 		if err := rows.Scan(&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime,
-			&b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			&b.TaskType, &b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, &b)
@@ -61,7 +61,7 @@ func (r *BookingRepo) ListByStudent(ctx context.Context, studentID string, statu
 func (r *BookingRepo) ListPending(ctx context.Context) ([]*domain.Booking, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
+		       task_type::text, status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
 		FROM bookings WHERE status = 'pending' ORDER BY created_at`)
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (r *BookingRepo) ListPending(ctx context.Context) ([]*domain.Booking, error
 	for rows.Next() {
 		var b domain.Booking
 		if err := rows.Scan(&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime,
-			&b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			&b.TaskType, &b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, &b)
@@ -81,10 +81,10 @@ func (r *BookingRepo) ListPending(ctx context.Context) ([]*domain.Booking, error
 
 func (r *BookingRepo) Create(ctx context.Context, b *domain.Booking) error {
 	return r.db.Pool.QueryRow(ctx, `
-		INSERT INTO bookings (student_id, instructor_id, aircraft_id, plan_date, start_time, end_time, status)
-		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7)
+		INSERT INTO bookings (student_id, instructor_id, aircraft_id, plan_date, start_time, end_time, task_type, status)
+		VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::booking_task_type, $8)
 		RETURNING id::text, created_at, updated_at`,
-		b.StudentID, b.InstructorID, b.AircraftID, b.PlanDate, b.StartTime, b.EndTime, b.Status,
+		b.StudentID, b.InstructorID, b.AircraftID, b.PlanDate, b.StartTime, b.EndTime, b.TaskType, b.Status,
 	).Scan(&b.ID, &b.CreatedAt, &b.UpdatedAt)
 }
 
@@ -101,7 +101,7 @@ func (r *BookingRepo) ListByAircraftAndDateRange(ctx context.Context, aircraftID
 	toD := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, to.Location())
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
+		       task_type::text, status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
 		FROM bookings
 		WHERE aircraft_id = $1::uuid
 		  AND plan_date >= $2::date AND plan_date <= $3::date
@@ -117,7 +117,7 @@ func (r *BookingRepo) ListByAircraftAndDateRange(ctx context.Context, aircraftID
 	for rows.Next() {
 		var b domain.Booking
 		if err := rows.Scan(&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime,
-			&b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			&b.TaskType, &b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, &b)
@@ -130,7 +130,7 @@ func (r *BookingRepo) ListByDateRange(ctx context.Context, from, to time.Time) (
 	toD := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, to.Location())
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
+		       task_type::text, status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
 		FROM bookings
 		WHERE plan_date >= $1::date AND plan_date <= $2::date
 		ORDER BY plan_date, instructor_id, start_time`, fromD, toD)
@@ -142,7 +142,7 @@ func (r *BookingRepo) ListByDateRange(ctx context.Context, from, to time.Time) (
 	for rows.Next() {
 		var b domain.Booking
 		if err := rows.Scan(&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime,
-			&b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			&b.TaskType, &b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, &b)
@@ -153,7 +153,7 @@ func (r *BookingRepo) ListByDateRange(ctx context.Context, from, to time.Time) (
 func (r *BookingRepo) ListByDate(ctx context.Context, date time.Time) ([]*domain.Booking, error) {
 	rows, err := r.db.Pool.Query(ctx, `
 		SELECT id::text, student_id::text, instructor_id::text, aircraft_id::text, plan_date, start_time, end_time,
-		       status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
+		       task_type::text, status, COALESCE(reject_reason,''), reviewed_at, reviewer_id::text, created_at, updated_at
 		FROM bookings
 		WHERE plan_date = $1
 		ORDER BY instructor_id, start_time`, date)
@@ -166,7 +166,7 @@ func (r *BookingRepo) ListByDate(ctx context.Context, date time.Time) ([]*domain
 	for rows.Next() {
 		var b domain.Booking
 		if err := rows.Scan(&b.ID, &b.StudentID, &b.InstructorID, &b.AircraftID, &b.PlanDate, &b.StartTime, &b.EndTime,
-			&b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
+			&b.TaskType, &b.Status, &b.RejectReason, &b.ReviewedAt, &b.ReviewerID, &b.CreatedAt, &b.UpdatedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, &b)
